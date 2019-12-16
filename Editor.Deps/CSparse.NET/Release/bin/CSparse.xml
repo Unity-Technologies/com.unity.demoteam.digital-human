@@ -1,0 +1,2288 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>CSparse</name>
+    </assembly>
+    <members>
+        <member name="T:CSparse.ColumnOrdering">
+            <summary>
+            Column ordering for AMD.
+            </summary>
+        </member>
+        <member name="F:CSparse.ColumnOrdering.Natural">
+            <summary>
+            Natural ordering.
+            </summary>
+        </member>
+        <member name="F:CSparse.ColumnOrdering.MinimumDegreeAtPlusA">
+            <summary>
+            Minimum degree ordering of (A'+A).
+            </summary>
+        </member>
+        <member name="F:CSparse.ColumnOrdering.MinimumDegreeStS">
+            <summary>
+            Minimum degree ordering of (A'*A) with removal of dense rows (not suited for Cholesky).
+            </summary>
+        </member>
+        <member name="F:CSparse.ColumnOrdering.MinimumDegreeAtA">
+            <summary>
+            Minimum degree ordering of (A'*A) (not suited for Cholesky).
+            </summary>
+        </member>
+        <member name="T:CSparse.Complex.DenseMatrix">
+            <summary>
+            Dense matrix stored in column major order.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the DenseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.#ctor(System.Int32,System.Int32,System.Numerics.Complex[])">
+            <summary>
+            Initializes a new instance of the DenseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.L1Norm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.InfinityNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.FrobeniusNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.Clone">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.Multiply(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.Multiply(System.Numerics.Complex,System.Numerics.Complex[],System.Numerics.Complex,System.Numerics.Complex[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.TransposeMultiply(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.TransposeMultiply(System.Numerics.Complex,System.Numerics.Complex[],System.Numerics.Complex,System.Numerics.Complex[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.Add(CSparse.Storage.DenseColumnMajorStorage{System.Numerics.Complex},CSparse.Storage.DenseColumnMajorStorage{System.Numerics.Complex})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.Multiply(CSparse.Storage.DenseColumnMajorStorage{System.Numerics.Complex},CSparse.Storage.DenseColumnMajorStorage{System.Numerics.Complex})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.PointwiseMultiply(CSparse.Storage.DenseColumnMajorStorage{System.Numerics.Complex},CSparse.Storage.DenseColumnMajorStorage{System.Numerics.Complex})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.DenseMatrix.Equals(CSparse.Matrix{System.Numerics.Complex},System.Double)">
+            <inheritdoc />
+        </member>
+        <member name="T:CSparse.Complex.SparseMatrix">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the SparseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.#ctor(System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the SparseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.#ctor(System.Int32,System.Int32,System.Numerics.Complex[],System.Int32[],System.Int32[])">
+            <summary>
+            Initializes a new instance of the SparseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.DropZeros(System.Double)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Keep(System.Func{System.Int32,System.Int32,System.Numerics.Complex,System.Boolean})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.L1Norm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.InfinityNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.FrobeniusNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Multiply(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Multiplies a (m-by-n) matrix by a vector, y = A*x. 
+            </summary>
+            <param name="x">Vector of length n (column count).</param>
+            <param name="y">Vector of length m (row count), containing the result.</param>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Multiply(System.Numerics.Complex,System.Numerics.Complex[],System.Numerics.Complex,System.Numerics.Complex[])">
+            <summary>
+            Multiplies a (m-by-n) matrix by a vector, y = alpha*A*x + beta*y. 
+            </summary>
+            <param name="x">Vector of length n (column count).</param>
+            <param name="y">Vector of length m (row count), containing the result.</param>
+            <param name="alpha">Scalar to multiply with matrix.</param>
+            <param name="beta">Scalar to multiply with vector y.</param>
+            <remarks>
+            Input values of vector y will be accumulated.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.TransposeMultiply(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Multiplies the transpose of a (m-by-n) matrix by a vector, y = A'*x. 
+            </summary>
+            <param name="x">Vector of length m (column count of A').</param>
+            <param name="y">Vector of length n (row count of A'), containing the result.</param>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.TransposeMultiply(System.Numerics.Complex,System.Numerics.Complex[],System.Numerics.Complex,System.Numerics.Complex[])">
+            <summary>
+            Multiplies the transpose of a (m-by-n) matrix by a vector, y = alpha*A'*x + beta*y. 
+            </summary>
+            <param name="x">Vector of length m (column count of A').</param>
+            <param name="y">Vector of length n (row count of A'), containing the result.</param>
+            <param name="alpha">Scalar to multiply with matrix.</param>
+            <param name="beta">Scalar to multiply with vector y.</param>
+            <remarks>
+            Input values of vector y will be accumulated.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Transpose(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex})">
+            <summary>
+            Transpose this matrix (with complex conjugation) and store the result in given matrix.
+            </summary>
+            <param name="result"></param>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Add(System.Numerics.Complex,System.Numerics.Complex,CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex})">
+            <summary>
+            Adds two matrices, C = alpha*A + beta*B, where A is current instance.
+            </summary>
+            <param name="alpha">Scalar factor for A, current instance.</param>
+            <param name="beta">Scalar factor for B, other instance.</param>
+            <param name="other">The matrix added to this instance.</param>
+            <param name="result">Contains the sum.</param>
+            <remarks>
+            The (result) matrix has to be fully initialized and provide enough space for
+            the nonzero entries of the sum. An upper bound is the sum of the nonzeros count
+            of (this) and (other).
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Multiply(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex})">
+            <summary>
+            Sparse matrix multiplication, C = A*B
+            </summary>
+            <param name="other">column-compressed matrix</param>
+            <returns>C = A*B, null on error</returns>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.IsSymmetric">
+            <summary>
+            Evaluates whether this matrix is complex Hermitian.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Equals(CSparse.Matrix{System.Numerics.Complex},System.Double)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Complex.SparseMatrix.Scatter(System.Int32,System.Numerics.Complex,System.Int32[],System.Numerics.Complex[],System.Int32,CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32)">
+            <summary>
+            Scatters and sums a sparse vector A(:,j) into a dense vector, x = x + beta * A(:,j).
+            </summary>
+            <param name="j">the column of A to use</param>
+            <param name="beta">scalar multiplied by A(:,j)</param>
+            <param name="w">size m, node i is marked if w[i] = mark</param>
+            <param name="x">size m, ignored if null</param>
+            <param name="mark">mark value of w</param>
+            <param name="mat">pattern of x accumulated in C.i</param>
+            <param name="nz">pattern of x placed in C starting at C.i[nz]</param>
+            <returns>new value of nz, -1 on error</returns>
+        </member>
+        <member name="T:CSparse.Complex.Factorization.SparseCholesky">
+            <summary>
+            Sparse Cholesky decomposition (only upper triangular part is used).
+            </summary>
+            <remarks>
+            See Chapter 4 (Cholesky factorization) in "Direct Methods for Sparse Linear Systems"
+            by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.ColumnOrdering)">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.ColumnOrdering,CSparse.IProgress)">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32[])">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32[],CSparse.IProgress)">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="P:CSparse.Complex.Factorization.SparseCholesky.NonZerosCount">
+            <summary>
+            Gets the number of nonzeros of the L factor.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Solve(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Solves a system of linear equations, <c>Ax = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Update(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex})">
+            <summary>
+            Sparse Cholesky update, L*L' + w*w'
+            </summary>
+            <param name="w">The update matrix.</param>
+            <returns>False, if updated matrix is not positive definite, otherwise true.</returns>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Downdate(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex})">
+            <summary>
+            Sparse Cholesky downdate, L*L' - w*w'
+            </summary>
+            <param name="w">The update matrix.</param>
+            <returns>False, if updated matrix is not positive definite, otherwise true.</returns>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.UpDown(System.Int32,CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex})">
+            <summary>
+            Sparse Cholesky update/downdate, L*L' + sigma*w*w' 
+            </summary>
+            <param name="sigma">1 = update or -1 = downdate</param>
+            <param name="w">The update matrix.</param>
+            <returns>False, if updated matrix is not positive definite, otherwise true.</returns>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.Factorize(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.IProgress)">
+            <summary>
+            Compute the Numeric Cholesky factorization, L = chol (A, [pinv parent cp]).
+            </summary>
+            <returns>Numeric Cholesky factorization</returns>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.SymbolicAnalysis(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32[])">
+            <summary>
+            Ordering and symbolic analysis for a Cholesky factorization.
+            </summary>
+            <param name="A">Matrix to factorize.</param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseCholesky.PermuteSym(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32[],System.Boolean)">
+            <summary>
+            Permutes a symmetric sparse matrix. C = PAP' where A and C are symmetric.
+            </summary>
+            <param name="A">column-compressed matrix (only upper triangular part is used)</param>
+            <param name="pinv">size n, inverse permutation</param>
+            <param name="values">allocate pattern only if false, values and pattern otherwise</param>
+            <returns>Permuted matrix, C = PAP'</returns>
+        </member>
+        <member name="T:CSparse.Complex.Factorization.SparseLU">
+            <summary>
+            Sparse LU decomposition.
+            </summary>
+            <remarks>
+            See Chapter 6 (LU factorization) in "Direct Methods for Sparse Linear Systems"
+            by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.ColumnOrdering,System.Double)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.ColumnOrdering,System.Double,CSparse.IProgress)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32[],System.Double)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32[],System.Double,CSparse.IProgress)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="P:CSparse.Complex.Factorization.SparseLU.NonZerosCount">
+            <summary>
+            Gets the number of nonzeros in both L and U factors together.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.Solve(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Solves a system of linear equations, <c>Ax = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.SolveTranspose(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Solves a system of linear equations, <c>A'x = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.Factorize(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Double,CSparse.IProgress)">
+            <summary>
+            [L,U,pinv] = lu(A, [q lnz unz]). lnz and unz can be guess.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.SymbolicAnalysis(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32[])">
+            <summary>
+            Symbolic ordering and analysis for LU.
+            </summary>
+            <param name="A"></param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseLU.SolveSp(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32,System.Int32[],System.Numerics.Complex[],System.Int32[],System.Boolean)">
+            <summary>
+            Solve Gx=b(:,k), where G is either upper (lo=false) or lower (lo=true)
+            triangular.
+            </summary>
+            <param name="G">lower or upper triangular matrix in column-compressed form</param>
+            <param name="B">right hand side, b=B(:,k)</param>
+            <param name="k">use kth column of B as right hand side</param>
+            <param name="xi">size 2*n, nonzero pattern of x in xi[top..n-1]</param>
+            <param name="x">size n, x in x[xi[top..n-1]]</param>
+            <param name="pinv">mapping of rows to columns of G, ignored if null</param>
+            <param name="lo">true if lower triangular, false if upper</param>
+            <returns>top, -1 in error</returns>
+        </member>
+        <member name="T:CSparse.Complex.Factorization.SparseQR">
+            <summary>
+            Sparse QR decomposition.
+            </summary>
+            <remarks>
+            See Chapter 5 (Orthogonal methods) in "Direct Methods for Sparse Linear Systems"
+            by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseQR.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.ColumnOrdering)">
+            <summary>
+            Creates a sparse QR factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseQR.Create(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},CSparse.ColumnOrdering,CSparse.IProgress)">
+            <summary>
+            Creates a sparse QR factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseQR.Solve(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Solves a system of linear equations, <c>Ax = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+            <remarks>
+            Let A be a m-by-n matrix. If m >= n a least-squares problem (min |Ax-b|)
+            is solved. If m &lt; n the underdetermined system is solved.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseQR.CreateHouseholder(System.Numerics.Complex[],System.Int32,System.Double@,System.Int32)">
+            <summary>
+            Create a Householder reflection [v,beta,s]=house(x), overwrite x with v,
+            where (I-beta*v*v')*x = s*e1 and e1 = [1 0 ... 0]'.
+            </summary>
+            <remarks>
+            Note that this CXSparse version is different than CSparse.  See Higham,
+            Accuracy and Stability of Num Algorithms, 2nd ed, 2002, page 357.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Complex.Factorization.SparseQR.ApplyHouseholder(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Int32,System.Double,System.Numerics.Complex[])">
+            <summary>
+            Apply the ith Householder vector to x.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.SolverHelper.SolveLower(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Numerics.Complex[])">
+            <summary>
+            Solve a lower triangular system by forward elimination, Lx=b.
+            </summary>
+            <param name="L"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Complex.SolverHelper.SolveLowerTranspose(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Numerics.Complex[])">
+            <summary>
+            Solve L'x=b where x and b are dense.
+            </summary>
+            <param name="L"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Complex.SolverHelper.SolveUpper(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Numerics.Complex[])">
+            <summary>
+            Solve an upper triangular system by backward elimination, Ux=b.
+            </summary>
+            <param name="U"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Complex.SolverHelper.SolveUpperTranspose(CSparse.Storage.CompressedColumnStorage{System.Numerics.Complex},System.Numerics.Complex[])">
+            <summary>
+            Solve U'x=b where x and b are dense.
+            </summary>
+            <param name="U"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="T:CSparse.Complex.Vector">
+            <summary>
+            Vector helper methods.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Copy(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Copy one vector to another.
+            </summary>
+            <param name="src">The source array.</param>
+            <param name="dst">The destination array.</param>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Copy(System.Numerics.Complex[],System.Numerics.Complex[],System.Int32)">
+            <summary>
+            Copy one vector to another.
+            </summary>
+            <param name="src">The source array.</param>
+            <param name="dst">The destination array.</param>
+            <param name="n">Number of values to copy.</param>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Create(System.Int32,System.Numerics.Complex)">
+            <summary>
+            Create a new vector.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Clone(System.Numerics.Complex[])">
+            <summary>
+            Clone the given vector.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Clear(System.Numerics.Complex[])">
+            <summary>
+            Set vector values to zero.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.DotProduct(System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Computes the dot product of two vectors.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.PointwiseMultiply(System.Numerics.Complex[],System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Computes the pointwise product of two vectors.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Norm(System.Numerics.Complex[])">
+            <summary>
+            Computes the norm of a vector.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.NormRobust(System.Numerics.Complex[])">
+            <summary>
+            Computes the norm of a vector avoiding overflow, sqrt( x' * x ).
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Scale(System.Numerics.Complex,System.Numerics.Complex[])">
+            <summary>
+            Scales a vector by a given factor, x = alpha * x.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Axpy(System.Numerics.Complex,System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Add a scaled vector t o another vector, y = y + alpha * x.
+            </summary>
+        </member>
+        <member name="M:CSparse.Complex.Vector.Add(System.Numerics.Complex,System.Numerics.Complex[],System.Numerics.Complex,System.Numerics.Complex[],System.Numerics.Complex[])">
+            <summary>
+            Add two scaled vectors, z = alpha * x + beta * y.
+            </summary>
+        </member>
+        <member name="T:CSparse.Constants">
+            <summary>
+            Constants used in the library.
+            </summary>
+        </member>
+        <member name="F:CSparse.Constants.SizeOfInt">
+            <summary>
+            The size of an int in bytes.
+            </summary>
+        </member>
+        <member name="F:CSparse.Constants.SizeOfDouble">
+            <summary>
+            The size of a double in bytes.
+            </summary>
+        </member>
+        <member name="F:CSparse.Constants.EqualsThreshold">
+            <summary>
+            The default threshold used for matrix values comparision.
+            </summary>
+        </member>
+        <member name="F:CSparse.Constants.SizeOfComplex">
+            <summary>
+            The size of a Complex in bytes (should be 2 * SizeOfDouble).
+            </summary>
+        </member>
+        <member name="T:CSparse.Double.DenseMatrix">
+            <summary>
+            Dense matrix stored in column major order.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the DenseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.#ctor(System.Int32,System.Int32,System.Double[])">
+            <summary>
+            Initializes a new instance of the DenseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.L1Norm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.InfinityNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.FrobeniusNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.Clone">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.Multiply(System.Double[],System.Double[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.Multiply(System.Double,System.Double[],System.Double,System.Double[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.TransposeMultiply(System.Double[],System.Double[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.TransposeMultiply(System.Double,System.Double[],System.Double,System.Double[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.Add(CSparse.Storage.DenseColumnMajorStorage{System.Double},CSparse.Storage.DenseColumnMajorStorage{System.Double})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.Multiply(CSparse.Storage.DenseColumnMajorStorage{System.Double},CSparse.Storage.DenseColumnMajorStorage{System.Double})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.PointwiseMultiply(CSparse.Storage.DenseColumnMajorStorage{System.Double},CSparse.Storage.DenseColumnMajorStorage{System.Double})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.DenseMatrix.Equals(CSparse.Matrix{System.Double},System.Double)">
+            <inheritdoc />
+        </member>
+        <member name="T:CSparse.Double.SparseMatrix">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the SparseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.#ctor(System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the SparseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.#ctor(System.Int32,System.Int32,System.Double[],System.Int32[],System.Int32[])">
+            <summary>
+            Initializes a new instance of the SparseMatrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.DropZeros(System.Double)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.Keep(System.Func{System.Int32,System.Int32,System.Double,System.Boolean})">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.L1Norm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.InfinityNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.FrobeniusNorm">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.Multiply(System.Double[],System.Double[])">
+            <summary>
+            Multiplies a (m-by-n) matrix by a vector, y = A*x. 
+            </summary>
+            <param name="x">Vector of length n (column count).</param>
+            <param name="y">Vector of length m (row count), containing the result.</param>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.Multiply(System.Double,System.Double[],System.Double,System.Double[])">
+            <summary>
+            Multiplies a (m-by-n) matrix by a vector, y = alpha*A*x + beta*y. 
+            </summary>
+            <param name="x">Vector of length n (column count).</param>
+            <param name="y">Vector of length m (row count), containing the result.</param>
+            <param name="alpha">Scalar to multiply with matrix.</param>
+            <param name="beta">Scalar to multiply with vector y.</param>
+            <remarks>
+            Input values of vector y will be accumulated.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.TransposeMultiply(System.Double[],System.Double[])">
+            <summary>
+            Multiplies the transpose of a (m-by-n) matrix by a vector, y = A'*x. 
+            </summary>
+            <param name="x">Vector of length m (column count of A').</param>
+            <param name="y">Vector of length n (row count of A'), containing the result.</param>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.TransposeMultiply(System.Double,System.Double[],System.Double,System.Double[])">
+            <summary>
+            Multiplies the transpose of a (m-by-n) matrix by a vector, y = alpha*A'*x + beta*y. 
+            </summary>
+            <param name="x">Vector of length m (column count of A').</param>
+            <param name="y">Vector of length n (row count of A'), containing the result.</param>
+            <param name="alpha">Scalar to multiply with matrix.</param>
+            <param name="beta">Scalar to multiply with vector y.</param>
+            <remarks>
+            Input values of vector y will be accumulated.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.Add(System.Double,System.Double,CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.Storage.CompressedColumnStorage{System.Double})">
+            <summary>
+            Adds two matrices, C = alpha*A + beta*B, where A is current instance.
+            </summary>
+            <param name="alpha">Scalar factor for A, current instance.</param>
+            <param name="beta">Scalar factor for B, other instance.</param>
+            <param name="other">The matrix added to this instance.</param>
+            <param name="result">Contains the sum.</param>
+            <remarks>
+            The (result) matrix has to be fully initialized and provide enough space for
+            the nonzero entries of the sum. An upper bound is the sum of the nonzeros count
+            of (this) and (other).
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.Multiply(CSparse.Storage.CompressedColumnStorage{System.Double})">
+            <summary>
+            Sparse matrix multiplication, C = A*B
+            </summary>
+            <param name="other">column-compressed matrix</param>
+            <returns>C = A*B, null on error</returns>
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.Equals(CSparse.Matrix{System.Double},System.Double)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Double.SparseMatrix.Scatter(System.Int32,System.Double,System.Int32[],System.Double[],System.Int32,CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32)">
+            <summary>
+            Scatters and sums a sparse vector A(:,j) into a dense vector, x = x + beta * A(:,j).
+            </summary>
+            <param name="j">the column of A to use</param>
+            <param name="beta">scalar multiplied by A(:,j)</param>
+            <param name="w">size m, node i is marked if w[i] = mark</param>
+            <param name="x">size m, ignored if null</param>
+            <param name="mark">mark value of w</param>
+            <param name="mat">pattern of x accumulated in C.i</param>
+            <param name="nz">pattern of x placed in C starting at C.i[nz]</param>
+            <returns>new value of nz, -1 on error</returns>
+        </member>
+        <member name="T:CSparse.Double.Factorization.SparseCholesky">
+            <summary>
+            Sparse Cholesky decomposition (only upper triangular part is used).
+            </summary>
+            <remarks>
+            See Chapter 4 (Cholesky factorization) in "Direct Methods for Sparse Linear Systems"
+            by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.ColumnOrdering)">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.ColumnOrdering,CSparse.IProgress)">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32[])">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Create(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32[],CSparse.IProgress)">
+            <summary>
+            Creates a sparse Cholesky factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="P:CSparse.Double.Factorization.SparseCholesky.NonZerosCount">
+            <summary>
+            Gets the number of nonzeros of the L factor.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Solve(System.Double[],System.Double[])">
+            <summary>
+            Solves a system of linear equations, <c>Ax = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Update(CSparse.Storage.CompressedColumnStorage{System.Double})">
+            <summary>
+            Sparse Cholesky update, L*L' + w*w'
+            </summary>
+            <param name="w">The update matrix.</param>
+            <returns>False, if updated matrix is not positive definite, otherwise true.</returns>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Downdate(CSparse.Storage.CompressedColumnStorage{System.Double})">
+            <summary>
+            Sparse Cholesky downdate, L*L' - w*w'
+            </summary>
+            <param name="w">The update matrix.</param>
+            <returns>False, if updated matrix is not positive definite, otherwise true.</returns>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.UpDown(System.Int32,CSparse.Storage.CompressedColumnStorage{System.Double})">
+            <summary>
+            Sparse Cholesky update/downdate, L*L' + sigma*w*w' 
+            </summary>
+            <param name="sigma">1 = update or -1 = downdate</param>
+            <param name="w">The update matrix.</param>
+            <returns>False, if updated matrix is not positive definite, otherwise true.</returns>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.Factorize(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.IProgress)">
+            <summary>
+            Compute the Numeric Cholesky factorization, L = chol (A, [pinv parent cp]).
+            </summary>
+            <returns>Numeric Cholesky factorization</returns>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.SymbolicAnalysis(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32[])">
+            <summary>
+            Ordering and symbolic analysis for a Cholesky factorization.
+            </summary>
+            <param name="A">Matrix to factorize.</param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseCholesky.PermuteSym(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32[],System.Boolean)">
+            <summary>
+            Permutes a symmetric sparse matrix. C = PAP' where A and C are symmetric.
+            </summary>
+            <param name="A">column-compressed matrix (only upper triangular part is used)</param>
+            <param name="pinv">size n, inverse permutation</param>
+            <param name="values">allocate pattern only if false, values and pattern otherwise</param>
+            <returns>Permuted matrix, C = PAP'</returns>
+        </member>
+        <member name="T:CSparse.Double.Factorization.SparseLDL">
+             <summary>
+             Sparse LDL' factorization.
+             </summary>
+             <remarks>
+             If A is positive definite then the factorization will be accurate. A can be
+             indefinite (with negative values on the diagonal D), but in this case no
+             guarantee of accuracy is provided, since no numeric pivoting is performed.
+            
+             Only the diagonal and upper triangular part of A (or PAP' if a permutation
+             P is provided) is accessed.  The lower triangular parts of the matrix A or
+             PAP' can be present, but they are ignored.
+             </remarks>
+        </member>
+        <member name="P:CSparse.Double.Factorization.SparseLDL.NonZerosCount">
+            <summary>
+            Gets the number of nonzeros of the L.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLDL.Solve(System.Double[],System.Double[])">
+            <summary>
+            Solves a linear system Ax=b, where A is symmetric positive definite.
+            </summary>
+            <param name="input">Right hand side b.</param>
+            <param name="result">Solution vector x.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLDL.SymbolicAnalysis(CSparse.ColumnOrdering,CSparse.Storage.CompressedColumnStorage{System.Double})">
+            <summary>
+            Ordering and symbolic analysis for a LDL' factorization.
+            </summary>
+            <param name="order">Column ordering.</param>
+            <param name="A">Matrix to factorize.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLDL.Factorize(CSparse.Storage.CompressedColumnStorage{System.Double})">
+            <summary>
+            Compute the numeric LDL' factorization of PAP'.
+            </summary>
+        </member>
+        <member name="T:CSparse.Double.Factorization.SparseLU">
+            <summary>
+            Sparse LU decomposition.
+            </summary>
+            <remarks>
+            See Chapter 6 (LU factorization) in "Direct Methods for Sparse Linear Systems"
+            by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.ColumnOrdering,System.Double)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.ColumnOrdering,System.Double,CSparse.IProgress)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32[],System.Double)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.Create(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32[],System.Double,CSparse.IProgress)">
+            <summary>
+            Creates a LU factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="p">Permutation.</param>
+            <param name="tol">Partial pivoting tolerance (form 0.0 to 1.0).</param>
+        </member>
+        <member name="P:CSparse.Double.Factorization.SparseLU.NonZerosCount">
+            <summary>
+            Gets the number of nonzeros in both L and U factors together.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.Solve(System.Double[],System.Double[])">
+            <summary>
+            Solves a system of linear equations, <c>Ax = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.SolveTranspose(System.Double[],System.Double[])">
+            <summary>
+            Solves a system of linear equations, <c>A'x = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.Factorize(CSparse.Storage.CompressedColumnStorage{System.Double},System.Double,CSparse.IProgress)">
+            <summary>
+            [L,U,pinv] = lu(A, [q lnz unz]). lnz and unz can be guess.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.SymbolicAnalysis(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32[])">
+            <summary>
+            Symbolic ordering and analysis for LU.
+            </summary>
+            <param name="A"></param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseLU.SolveSp(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32,System.Int32[],System.Double[],System.Int32[],System.Boolean)">
+            <summary>
+            Solve Gx=b(:,k), where G is either upper (lo=false) or lower (lo=true)
+            triangular.
+            </summary>
+            <param name="G">lower or upper triangular matrix in column-compressed form</param>
+            <param name="B">right hand side, b=B(:,k)</param>
+            <param name="k">use kth column of B as right hand side</param>
+            <param name="xi">size 2*n, nonzero pattern of x in xi[top..n-1]</param>
+            <param name="x">size n, x in x[xi[top..n-1]]</param>
+            <param name="pinv">mapping of rows to columns of G, ignored if null</param>
+            <param name="lo">true if lower triangular, false if upper</param>
+            <returns>top, -1 in error</returns>
+        </member>
+        <member name="T:CSparse.Double.Factorization.SparseQR">
+            <summary>
+            Sparse QR decomposition.
+            </summary>
+            <remarks>
+            See Chapter 5 (Orthogonal methods) in "Direct Methods for Sparse Linear Systems"
+            by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseQR.Create(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.ColumnOrdering)">
+            <summary>
+            Creates a sparse QR factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseQR.Create(CSparse.Storage.CompressedColumnStorage{System.Double},CSparse.ColumnOrdering,CSparse.IProgress)">
+            <summary>
+            Creates a sparse QR factorization.
+            </summary>
+            <param name="A">Column-compressed matrix, symmetric positive definite.</param>
+            <param name="order">Ordering method to use (natural or A+A').</param>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseQR.Solve(System.Double[],System.Double[])">
+            <summary>
+            Solves a system of linear equations, <c>Ax = b</c>.
+            </summary>
+            <param name="input">The right hand side vector, <c>b</c>.</param>
+            <param name="result">The left hand side vector, <c>x</c>.</param>
+            <remarks>
+            Let A be a m-by-n matrix. If m >= n a least-squares problem (min |Ax-b|)
+            is solved. If m &lt; n the underdetermined system is solved.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseQR.CreateHouseholder(System.Double[],System.Int32,System.Double@,System.Int32)">
+            <summary>
+            Create a Householder reflection [v,beta,s]=house(x), overwrite x with v,
+            where (I-beta*v*v')*x = s*e1 and e1 = [1 0 ... 0]'.
+            </summary>
+            <remarks>
+            Note that this CXSparse version is different than CSparse.  See Higham,
+            Accuracy and Stability of Num Algorithms, 2nd ed, 2002, page 357.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Double.Factorization.SparseQR.ApplyHouseholder(CSparse.Storage.CompressedColumnStorage{System.Double},System.Int32,System.Double,System.Double[])">
+            <summary>
+            Apply the ith Householder vector to x.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.SolverHelper.SolveLower(CSparse.Storage.CompressedColumnStorage{System.Double},System.Double[])">
+            <summary>
+            Solve a lower triangular system by forward elimination, Lx=b.
+            </summary>
+            <param name="L"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Double.SolverHelper.SolveLowerTranspose(CSparse.Storage.CompressedColumnStorage{System.Double},System.Double[])">
+            <summary>
+            Solve L'x=b where x and b are dense.
+            </summary>
+            <param name="L"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Double.SolverHelper.SolveUpper(CSparse.Storage.CompressedColumnStorage{System.Double},System.Double[])">
+            <summary>
+            Solve an upper triangular system by backward elimination, Ux=b.
+            </summary>
+            <param name="U"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Double.SolverHelper.SolveUpperTranspose(CSparse.Storage.CompressedColumnStorage{System.Double},System.Double[])">
+            <summary>
+            Solve U'x=b where x and b are dense.
+            </summary>
+            <param name="U"></param>
+            <param name="x"></param>
+            <returns></returns>
+        </member>
+        <member name="T:CSparse.Double.Vector">
+            <summary>
+            Vector helper methods.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.Copy(System.Double[],System.Double[])">
+            <summary>
+            Copy one vector to another.
+            </summary>
+            <param name="src">The source array.</param>
+            <param name="dst">The destination array.</param>
+        </member>
+        <member name="M:CSparse.Double.Vector.Copy(System.Double[],System.Double[],System.Int32)">
+            <summary>
+            Copy one vector to another.
+            </summary>
+            <param name="src">The source array.</param>
+            <param name="dst">The destination array.</param>
+            <param name="n">Number of values to copy.</param>
+        </member>
+        <member name="M:CSparse.Double.Vector.Create(System.Int32,System.Double)">
+            <summary>
+            Create a new vector.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.Clone(System.Double[])">
+            <summary>
+            Clone the given vector.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.Clear(System.Double[])">
+            <summary>
+            Set vector values to zero.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.DotProduct(System.Double[],System.Double[])">
+            <summary>
+            Computes the dot product of two vectors.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.PointwiseMultiply(System.Double[],System.Double[],System.Double[])">
+            <summary>
+            Computes the pointwise product of two vectors.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.Norm(System.Double[])">
+            <summary>
+            Computes the norm of a vector, sqrt( x' * x ).
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.NormRobust(System.Double[])">
+            <summary>
+            Computes the norm of a vector avoiding overflow, sqrt( x' * x ).
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.Scale(System.Double,System.Double[])">
+            <summary>
+            Scales a vector by a given factor, x = alpha * x.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.Axpy(System.Double,System.Double[],System.Double[])">
+            <summary>
+            Add a scaled vector to another vector, y = y + alpha * x.
+            </summary>
+        </member>
+        <member name="M:CSparse.Double.Vector.Add(System.Double,System.Double[],System.Double,System.Double[],System.Double[])">
+            <summary>
+            Add two scaled vectors, z = alpha * x + beta * y.
+            </summary>
+        </member>
+        <member name="T:CSparse.Factorization.ISolver`1">
+            <summary>
+            Classes that solve a system of linear equations, <c>Ax = b</c>.
+            </summary>
+            <typeparam name="T">Supported data types are double and <see cref="N:CSparse.Complex"/>.</typeparam>
+        </member>
+        <member name="M:CSparse.Factorization.ISolver`1.Solve(`0[],`0[])">
+            <summary>
+            Solves a system of linear equations, Ax = b.
+            </summary>
+            <param name="input">Right hand side b</param>
+            <param name="result">Solution vector x.</param>
+        </member>
+        <member name="T:CSparse.Factorization.ISparseFactorization`1">
+            <summary>
+            Interface for factorization methods.
+            </summary>
+            <typeparam name="T">Supported data types are <c>double</c> and <see cref="N:CSparse.Complex"/>.</typeparam>
+        </member>
+        <member name="P:CSparse.Factorization.ISparseFactorization`1.NonZerosCount">
+            <summary>
+            Gets the total number of non-zero entries (all factors).
+            </summary>
+        </member>
+        <member name="T:CSparse.Factorization.SparseQR`1">
+            <summary>
+            Sparse QR decomposition abstract base class.
+            </summary>
+        </member>
+        <member name="P:CSparse.Factorization.SparseQR`1.NonZerosCount">
+            <summary>
+            Gets the number of nonzeros in both Q and R factors together.
+            </summary>
+        </member>
+        <member name="M:CSparse.Factorization.SparseQR`1.Solve(`0[],`0[])">
+            <summary>
+            Solves a linear system Ax=b.
+            </summary>
+            <param name="input">Right hand side b.</param>
+            <param name="result">Solution vector x.</param>
+        </member>
+        <member name="M:CSparse.Factorization.SparseQR`1.CreateHouseholder(`0[],System.Int32,System.Double@,System.Int32)">
+            <summary>
+            Create a Householder reflection.
+            </summary>
+        </member>
+        <member name="M:CSparse.Factorization.SparseQR`1.ApplyHouseholder(CSparse.Storage.CompressedColumnStorage{`0},System.Int32,System.Double,`0[])">
+            <summary>
+            Apply the ith Householder vector to x.
+            </summary>
+        </member>
+        <member name="M:CSparse.Factorization.SparseQR`1.Factorize(CSparse.Storage.CompressedColumnStorage{`0},CSparse.IProgress)">
+            <summary>
+            Sparse QR factorization [V,beta,pinv,R] = qr(A)
+            </summary>
+        </member>
+        <member name="M:CSparse.Factorization.SparseQR`1.SymbolicAnalysis(CSparse.Storage.CompressedColumnStorage{`0},System.Int32[],System.Boolean)">
+            <summary>
+            Symbolic ordering and analysis for QR.
+            </summary>
+            <param name="A">Matrix to factorize.</param>
+            <param name="p">Permutation.</param>
+        </member>
+        <member name="M:CSparse.Factorization.SparseQR`1.CountV(CSparse.Storage.SymbolicColumnStorage,CSparse.Factorization.SymbolicFactorization)">
+            <summary>
+            Compute nnz(V) = S.lnz, S.pinv, S.leftmost, S.m2 from A and S.parent
+            </summary>
+        </member>
+        <member name="M:CSparse.Factorization.SparseQR`1.Permute(CSparse.Storage.CompressedColumnStorage{`0},System.Int32[],System.Int32[])">
+            <summary>
+            Permutes a sparse matrix, C = PAQ.
+            </summary>
+            <param name="A">m-by-n, column-compressed matrix</param>
+            <param name="pinv">a permutation vector of length m</param>
+            <param name="q">a permutation vector of length n</param>
+            <returns>C = PAQ, null on error</returns>
+        </member>
+        <member name="T:CSparse.Factorization.SymbolicFactorization">
+            <summary>
+            Symbolic Cholesky, LU, or QR factorization storage.
+            </summary>
+        </member>
+        <member name="T:CSparse.ILinearOperator`1">
+            <summary>
+            Linear operator interface.
+            </summary>
+            <typeparam name="T"></typeparam>
+        </member>
+        <member name="P:CSparse.ILinearOperator`1.RowCount">
+            <summary>
+            Gets the number of rows.
+            </summary>
+        </member>
+        <member name="P:CSparse.ILinearOperator`1.ColumnCount">
+            <summary>
+            Gets the number of columns.
+            </summary>
+        </member>
+        <member name="M:CSparse.ILinearOperator`1.Multiply(`0[],`0[])">
+            <summary>
+            Multiplies a (m-by-n) matrix by a vector, y = A*x. 
+            </summary>
+            <param name="x">Vector of length n (column count).</param>
+            <param name="y">Vector of length m (row count), containing the result.</param>
+        </member>
+        <member name="M:CSparse.ILinearOperator`1.Multiply(`0,`0[],`0,`0[])">
+            <summary>
+            Multiplies a (m-by-n) matrix by a vector, y = alpha * A * x + beta * y.
+            </summary>
+            <param name="alpha">Scaling factor fo vertor x.</param>
+            <param name="x">Vector of length n (column count).</param>
+            <param name="beta">Scaling factor fo vertor y.</param>
+            <param name="y">Vector of length m (row count), containing the result.</param>
+        </member>
+        <member name="M:CSparse.ILinearOperator`1.TransposeMultiply(`0[],`0[])">
+            <summary>
+            Multiplies the transpose of a (m-by-n) matrix by a vector, y = A'*x. 
+            </summary>
+            <param name="x">Vector of length m (column count of A').</param>
+            <param name="y">Vector of length n (row count of A'), containing the result.</param>
+        </member>
+        <member name="M:CSparse.ILinearOperator`1.TransposeMultiply(`0,`0[],`0,`0[])">
+            <summary>
+            Multiplies the transpose of a (m-by-n) matrix by a vector, y = alpha * A^t * x + beta * y.
+            </summary>
+            <param name="alpha">Scaling factor fo vertor x.</param>
+            <param name="x">Vector of length m (column count of A').</param>
+            <param name="beta">Scaling factor fo vertor y.</param>
+            <param name="y">Vector of length n (row count of A'), containing the result.</param>
+        </member>
+        <member name="T:CSparse.IO.MatrixMarketReader">
+            <summary>
+            Read files in Matrix Market format (only supports coordinate storage).
+            </summary>
+        </member>
+        <member name="M:CSparse.IO.MatrixMarketReader.ReadMatrix``1(System.String)">
+            <summary>
+            Read a matrix from file.
+            </summary>
+        </member>
+        <member name="M:CSparse.IO.MatrixMarketReader.ReadMatrix``1(System.IO.Stream)">
+            <summary>
+            Read a matrix from stream.
+            </summary>
+        </member>
+        <member name="M:CSparse.IO.MatrixMarketReader.ReadStorage``1(System.IO.TextReader,System.Boolean)">
+            <summary>
+            Read coordinate storage from a text reader.
+            </summary>
+        </member>
+        <member name="T:CSparse.IProgress">
+            <summary>
+            Used to report progress of a factorization.
+            </summary>
+        </member>
+        <member name="M:CSparse.IProgress.Report(System.Double)">
+            <summary>
+            Reports a progress update.
+            </summary>
+            <param name="value">The value of the updated progress (from 0.0 to 1.0).</param>
+        </member>
+        <member name="T:CSparse.Ordering.AMD">
+            <summary>
+            Approximate Minimum Degree ordering.
+            </summary>
+        </member>
+        <member name="M:CSparse.Ordering.AMD.Generate``1(CSparse.Storage.CompressedColumnStorage{``0},CSparse.ColumnOrdering)">
+            <summary>
+            Generate minimum degree ordering of A+A' (if A is symmetric) or A'A.
+            </summary>
+            <param name="A">Column-compressed matrix</param>
+            <param name="order">Column ordering method</param>
+            <returns>amd(A+A') if A is symmetric, or amd(A'A) otherwise, null on 
+            error or for natural ordering</returns>
+            <remarks>
+            See Chapter 7.1 (Fill-reducing orderings: Minimum degree ordering) in 
+            "Direct Methods for Sparse Linear Systems" by Tim Davis.
+            </remarks>
+        </member>
+        <member name="T:CSparse.Ordering.DulmageMendelsohn">
+            <summary>
+            Dulmage-Mendelsohn decomposition.
+            </summary>
+            <remarks>
+            See Chapter 7.4 (Fill-reducing orderings: Dulmage-Mendelsohn decomposition) 
+            in "Direct Methods for Sparse Linear Systems" by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Ordering.DulmageMendelsohn.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Create a new Decomposition instance. 
+            </summary>
+        </member>
+        <member name="M:CSparse.Ordering.DulmageMendelsohn.Generate``1(CSparse.Storage.CompressedColumnStorage{``0},System.Int32)">
+            <summary>
+            Compute coarse and then fine Dulmage-Mendelsohn decomposition. seed
+            optionally selects a randomized algorithm.
+            </summary>
+            <param name="matrix">column-compressed matrix</param>
+            <param name="seed">0: natural, -1: reverse, random order otherwise</param>
+            <returns>Dulmage-Mendelsohn analysis</returns>
+        </member>
+        <member name="M:CSparse.Ordering.DulmageMendelsohn.FindScc(CSparse.Storage.SymbolicColumnStorage,System.Int32)">
+            <summary>
+            Finds the strongly connected components of a square matrix.
+            </summary>
+            <returns>strongly connected components, null on error</returns>
+        </member>
+        <member name="M:CSparse.Ordering.DulmageMendelsohn.RowPrune(CSparse.Storage.SymbolicColumnStorage,System.Int32,System.Int32[])">
+            <summary>
+            Drops entries from a sparse matrix
+            </summary>
+        </member>
+        <member name="T:CSparse.Ordering.MaximumMatching">
+            <summary>
+            Maximum matching of any matrix A (also called maximum transveral). 
+            </summary>
+            <remarks>
+            See Chapter 7.2 (Fill-reducing orderings: Maximum matching) in 
+            "Direct Methods for Sparse Linear Systems" by Tim Davis.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Ordering.MaximumMatching.Generate(CSparse.Storage.SymbolicColumnStorage,System.Int32)">
+            <summary>
+            Find a maximum transveral (zero-free diagonal). Seed optionally selects a
+            randomized algorithm.
+            </summary>
+            <param name="A">column-compressed matrix</param>
+            <param name="seed">0: natural, -1: reverse, randomized otherwise</param>
+            <returns>row and column matching, size m+n</returns>
+        </member>
+        <member name="M:CSparse.Ordering.MaximumMatching.Augment(System.Int32,System.Int32[],System.Int32[],System.Int32[],System.Int32,System.Int32[],System.Int32[],System.Int32[],System.Int32[],System.Int32[])">
+            <summary>
+            Find an augmenting path starting at column k and extend the match if found.
+            </summary>
+        </member>
+        <member name="T:CSparse.GraphHelper">
+            <summary>
+            Helper methods for sparse direct solvers.
+            </summary>
+        </member>
+        <member name="M:CSparse.GraphHelper.DepthFirstSearch(System.Int32,System.Int32[],System.Int32[],System.Int32,System.Int32[],System.Int32[],System.Int32,System.Int32[])">
+            <summary>
+            Depth-first-search of the graph of a matrix, starting at node j.
+            </summary>
+            <param name="j">starting node</param>
+            <param name="Gp">graph to search (modified, then restored)</param>
+            <param name="Gi">graph to search</param>
+            <param name="top">stack[top..n-1] is used on input</param>
+            <param name="xi">size n, stack containing nodes traversed</param>
+            <param name="pstack">size n, work array</param>
+            <param name="offset">the index of the first element in array pstack</param>
+            <param name="pinv">mapping of rows to columns of G, ignored if null</param>
+            <returns>new value of top, -1 on error</returns>
+        </member>
+        <member name="M:CSparse.GraphHelper.EliminationTree(System.Int32,System.Int32,System.Int32[],System.Int32[],System.Boolean)">
+            <summary>
+            Compute the elimination tree of A or A'A (without forming A'A).
+            </summary>
+            <param name="m">Number of rows.</param>
+            <param name="n">Number of columns.</param>
+            <param name="colptr">Column pointers of column-compressed matrix.</param>
+            <param name="rowind">Row indices of column-compressed matrix.</param>
+            <param name="ata">analyze A if false, A'A oterwise</param>
+            <returns>elimination tree, null on error</returns>
+        </member>
+        <member name="M:CSparse.GraphHelper.TreePostorder(System.Int32[],System.Int32)">
+            <summary>
+            Postorders a tree of forest.
+            </summary>
+            <param name="parent">defines a tree of n nodes</param>
+            <param name="n">length of parent</param>
+            <returns>post[k]=i, null on error</returns>
+        </member>
+        <member name="M:CSparse.GraphHelper.ColumnCounts(CSparse.Storage.SymbolicColumnStorage,System.Int32[],System.Int32[],System.Boolean)">
+            <summary>
+            Column counts for Cholesky (LL'=A or LL'=A'A) and QR, given parent and post ordering.
+            </summary>
+        </member>
+        <member name="M:CSparse.GraphHelper.IsLeaf(System.Int32,System.Int32,System.Int32[],System.Int32[],System.Int32[],System.Int32[],System.Int32@)">
+            <summary>
+            Determines if j is a leaf of the skeleton matrix and find lowest common
+            ancestor (lca).
+            </summary>
+            <returns>Least common ancestor (jprev,j)</returns>
+        </member>
+        <member name="M:CSparse.GraphHelper.TreeDepthFirstSearch(System.Int32,System.Int32,System.Int32[],System.Int32[],System.Int32[],System.Int32[])">
+            <summary>
+            Depth-first search and postorder of a tree rooted at node j
+            </summary>
+            <param name="j">postorder of a tree rooted at node j</param>
+            <param name="k">number of nodes ordered so far</param>
+            <param name="head">head[i] is first child of node i; -1 on output</param>
+            <param name="next">next[i] is next sibling of i or -1 if none</param>
+            <param name="post">postordering</param>
+            <param name="stack">size n, work array</param>
+            <returns>new value of k, -1 on error</returns>
+        </member>
+        <member name="M:CSparse.GraphHelper.EtreeReach(CSparse.Storage.SymbolicColumnStorage,System.Int32,System.Int32[],System.Int32[],System.Int32[])">
+            <summary>
+            Find nonzero pattern of Cholesky L(k,1:k-1) using etree and triu(A(:,k))
+            </summary>
+        </member>
+        <member name="M:CSparse.Helper.CumulativeSum(System.Int32[],System.Int32[],System.Int32)">
+            <summary>
+            Cumulative sum of given array.
+            </summary>
+            <param name="sum">Output: cumulative sum of counts</param>
+            <param name="counts">input array, overwritten with sum</param>
+            <param name="size">length of counts</param>
+            <returns>sum[size] (non-zeros)</returns>
+        </member>
+        <member name="M:CSparse.Helper.OneOf``1">
+            <summary>
+            Sets the value of <c>1.0</c> for type T.
+            </summary>
+            <typeparam name="T">The type to return the value of 1.0 of.</typeparam>
+            <returns>The value of <c>1.0</c> for type T.</returns>
+        </member>
+        <member name="M:CSparse.Helper.ZeroOf``1">
+            <summary>
+            Sets the value of <c>0.0</c> for type T.
+            </summary>
+            <typeparam name="T">The type to return the value of 0.0 of.</typeparam>
+            <returns>The value of <c>0.0</c> for type T.</returns>
+        </member>
+        <member name="T:CSparse.Permutation">
+            <summary>
+            Permutation helper methods.
+            </summary>
+        </member>
+        <member name="M:CSparse.Permutation.Apply``1(System.Int32[],``0[],``0[],System.Int32)">
+            <summary>
+            Permutes a vector, x=P*b.
+            </summary>
+            <param name="p">Permutation vector.</param>
+            <param name="b">Input vector.</param>
+            <param name="x">Output vector, x=P*b.</param>
+            <param name="n">Length of p, b and x.</param>
+            <remarks>
+            p = null denotes identity.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Permutation.ApplyInverse``1(System.Int32[],``0[],``0[],System.Int32)">
+            <summary>
+            Permutes a vector, x = P'b.
+            </summary>
+            <param name="p">Permutation vector.</param>
+            <param name="b">Input vector.</param>
+            <param name="x">Output vector, x = P'b.</param>
+            <param name="n">Length of p, b, and x.</param>
+            <remarks>
+            p = null denotes identity.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Permutation.Create(System.Int32,System.Int32)">
+            <summary>
+            Returns a permutation vector of length n.
+            </summary>
+            <param name="n">Length of the permutation.</param>
+            <param name="seed">0: identity, -1: reverse, seed > 0: random permutation</param>
+            <returns>Permutation vector.</returns>
+        </member>
+        <member name="M:CSparse.Permutation.Invert(System.Int32[])">
+            <summary>
+            Inverts a permutation vector.
+            </summary>
+            <param name="p">A permutation vector.</param>
+            <returns>Returns pinv[i] = k if p[k] = i on input.</returns>
+        </member>
+        <member name="M:CSparse.Permutation.IsValid(System.Int32[])">
+            <summary>
+            Checks whether the <paramref name="p"/> array represents a proper permutation.
+            </summary>
+            <param name="p">An array which represents where each integer is permuted too: indices[i]
+            represents that integer i is permuted to location indices[i].</param>
+            <returns>True if <paramref name="p"/> represents a proper permutation, <c>false</c> otherwise.</returns>
+        </member>
+        <member name="T:CSparse.Properties.Resources">
+            <summary>
+              A strongly-typed resource class, for looking up localized strings, etc.
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.ResourceManager">
+            <summary>
+              Returns the cached ResourceManager instance used by this class.
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.Culture">
+            <summary>
+              Overrides the current thread's CurrentUICulture property for all
+              resource lookups using this strongly typed resource class.
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.InvalidColumnOrdering">
+            <summary>
+              Looks up a localized string similar to Invalid column ordering..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.InvalidDimensions">
+            <summary>
+              Looks up a localized string similar to Invalid matrix dimensions..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.InvalidPermutation">
+            <summary>
+              Looks up a localized string similar to Invalid permutation vector..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.MatrixDimensionNonNegative">
+            <summary>
+              Looks up a localized string similar to Matrix dimension must not be a negative number..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.MatrixDimensionPositive">
+            <summary>
+              Looks up a localized string similar to Matrix dimension must be a positive number..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.MatrixDimensions">
+            <summary>
+              Looks up a localized string similar to Matrix dimensions don&apos;t match..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.MatrixSquare">
+            <summary>
+              Looks up a localized string similar to Matrix must be square..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.MatrixSymmetricPositiveDefinite">
+            <summary>
+              Looks up a localized string similar to Matrix must be symmetric positive definite..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.ValueNotNaN">
+            <summary>
+              Looks up a localized string similar to Value must not be NaN..
+            </summary>
+        </member>
+        <member name="P:CSparse.Properties.Resources.VectorsSameLength">
+            <summary>
+              Looks up a localized string similar to Vectors must have the same dimension..
+            </summary>
+        </member>
+        <member name="T:CSparse.Storage.CompressedColumnStorage`1">
+            <summary>
+            Compressed sparse column storage.
+            </summary>
+            <typeparam name="T"></typeparam>
+        </member>
+        <member name="F:CSparse.Storage.CompressedColumnStorage`1.ColumnPointers">
+            <summary>
+            Row pointers with last entry equal number of non-zeros (size = RowCount + 1)
+            </summary>
+        </member>
+        <member name="F:CSparse.Storage.CompressedColumnStorage`1.RowIndices">
+            <summary>
+            Column indices (size >= NonZerosCount)
+            </summary>
+        </member>
+        <member name="F:CSparse.Storage.CompressedColumnStorage`1.Values">
+            <summary>
+            Numerical values (size >= NonZerosCount)
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.CompressedColumnStorage`1.NonZerosCount">
+            <summary>
+            Gets the number of non-zero entries.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the CompressedColumnStorage class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.#ctor(System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the CompressedColumnStorage class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.#ctor(System.Int32,System.Int32,`0[],System.Int32[],System.Int32[])">
+            <summary>
+            Initializes a new instance of the CompressedColumnStorage class. Based on other CCS arrays
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.At(System.Int32,System.Int32)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Clear">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Row(System.Int32)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Row(System.Int32,`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Column(System.Int32)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Column(System.Int32,`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Transpose">
+            <summary>
+            Returns the transpose of this matrix.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Transpose(CSparse.Storage.CompressedColumnStorage{`0})">
+            <summary>
+            Transpose this matrix and store the result in given matrix.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Add(CSparse.Storage.CompressedColumnStorage{`0})">
+            <summary>
+            Adds two matrices in CSC format, C = A + B, where A is current instance.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Add(`0,`0,CSparse.Storage.CompressedColumnStorage{`0},CSparse.Storage.CompressedColumnStorage{`0})">
+            <summary>
+            Adds two matrices, C = alpha*A + beta*B, where A is current instance.
+            </summary>
+            <param name="alpha">Scalar factor for A, current instance.</param>
+            <param name="beta">Scalar factor for B, other instance.</param>
+            <param name="other">The matrix added to this instance.</param>
+            <param name="result">Contains the sum.</param>
+            <remarks>
+            The (result) matrix has to be fully initialized and provide enough space for
+            the nonzero entries of the sum. An upper bound is the sum of the nonzeros count
+            of (this) and (other).
+            </remarks>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Multiply(CSparse.Storage.CompressedColumnStorage{`0})">
+            <summary>
+            Sparse matrix multiplication, C = A*B
+            </summary>
+            <param name="other">column-compressed matrix</param>
+            <returns>C = A*B, null on error</returns>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Keep(System.Func{System.Int32,System.Int32,`0,System.Boolean})">
+            <summary>
+            Filter matrix values.
+            </summary>
+            <param name="func">Filter function returning true if value should be kept,
+            false if value should be discarded.</param>
+            <returns>New number of non-zeros.</returns>
+            <remarks>
+            Filter function arguments:
+            
+            1 = Row index i
+            2 = Column index j
+            3 = Value of entry (i,j)
+            
+            Element a_{i,j} is dropped, if func(i, j, aij) returns false.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.DropZeros(System.Double)">
+            <summary>
+            Removes numerically zero entries from a matrix.
+            </summary>
+            <param name="tolerance">Drop tolerance (default is 0.0)</param>
+            <returns>The new number of nonzero entries.</returns>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Clone(System.Boolean)">
+            <summary>
+            Returns a clone of this matrix.
+            </summary>
+            <param name="values">If true (default), the values are copied.</param>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.EnumerateIndexed">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.IsSymmetric">
+            <summary>
+            Evaluates whether this matrix is symmetric.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.PermuteRows(System.Int32[],CSparse.Storage.CompressedColumnStorage{`0})">
+            <summary>
+            Permute the rows of the matrix.
+            </summary>
+            <param name="perm">Permutation matrix P.</param>
+            <param name="target">The target storage (must be fully initialized to match the source storage).</param>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.PermuteRows(System.Int32[])">
+            <summary>
+            Permute the rows of the matrix.
+            </summary>
+            <param name="perm">Permutation matrix P.</param>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.PermuteColumns(System.Int32[],CSparse.Storage.CompressedColumnStorage{`0})">
+            <summary>
+            Permute the columns of the matrix.
+            </summary>
+            <param name="perm">Permutation matrix P.</param>
+            <param name="target">The target storage (must be fully initialized to match the source storage).</param>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.PermuteColumns(System.Int32[])">
+            <summary>
+            Permute the columns of the matrix.
+            </summary>
+            <param name="perm">Permutation matrix P.</param>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.FindDiagonalIndices(System.Boolean)">
+            <summary>
+            Returns the positions of the diagonal elements of a sparse matrix.
+            </summary>
+            <param name="throwOnMissingDiag"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.PermuteColumns(`0[],System.Int32[],System.Int32[],`0[],System.Int32[],System.Int32[],System.Int32[])">
+            <summary>
+            Permutes the columns of a matrix in CSC format, B = A * P, where P represents
+            a permutation matrix.
+            </summary>
+            <param name="ax">Input matrix values.</param>
+            <param name="ai">Input matrix row pointers.</param>
+            <param name="aj">Input matrix column indices.</param>
+            <param name="bx">Output matrix values.</param>
+            <param name="bi">Output matrix row pointers.</param>
+            <param name="bj">Output matrix column indices.</param>
+            <param name="perm">Permutation array of length ColumnCount.</param>
+            <remarks>
+            The permutation P is defined through the array perm: for each j,
+            perm(j) represents the destination row number of row number j:
+            
+            a(i,j) in the original matrix becomes a(perm(i),j) in the output matrix.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.PermuteRows(`0[],System.Int32[],System.Int32[],`0[],System.Int32[],System.Int32[],System.Int32[],System.Boolean)">
+            <summary>
+            Permute the rows of a matrix in CSC format, B = P * A, where P represents
+            a permutation matrix. 
+            </summary>
+            <param name="ax">Input matrix values.</param>
+            <param name="ai">Input matrix row pointers.</param>
+            <param name="aj">Input matrix column indices.</param>
+            <param name="bx">Output matrix values.</param>
+            <param name="bi">Output matrix row pointers.</param>
+            <param name="bj">Output matrix column indices.</param>
+            <param name="perm">Permutation array of length RowCount.</param>
+            <param name="copy">Copy matrix values (not needed if used 'in place').</param>
+            <remarks>
+            The permutation matrix P maps column j into column perm(j), i.e., 
+            on return a(i,j) in the original matrix becomes a(i,perm(j)) in the
+            output matrix.
+            
+            Notes:
+            
+            1. This routine is in place: aj, bj can be the same.
+            2. If the matrix is initially sorted (by increasing column number) 
+               then bx, bi, bj may not be on return.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.Resize(System.Int32)">
+            <summary>
+            Change the max # of entries sparse matrix
+            </summary>
+            <param name="size"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Storage.CompressedColumnStorage`1.GetHashCode">
+            <summary>
+            Serves as a hash function for a particular type.
+            </summary>
+            <returns>
+            A hash code for the current <see cref="T:System.Object"/>.
+            </returns>
+        </member>
+        <member name="T:CSparse.Storage.CoordinateStorage`1">
+            <summary>
+            Coordinate storage sparse matrix format.
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.CoordinateStorage`1.RowIndices">
+            <summary>
+            Row indices (size = NonZerosCount)
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.CoordinateStorage`1.ColumnIndices">
+            <summary>
+            Column indices (size = NonZerosCount)
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.CoordinateStorage`1.Values">
+            <summary>
+            Numerical values (size = NonZerosCount)
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.CoordinateStorage`1.RowCount">
+            <summary>
+            Gets the number of rows.
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.CoordinateStorage`1.ColumnCount">
+            <summary>
+            Gets the number of columns.
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.CoordinateStorage`1.NonZerosCount">
+            <summary>
+            Gets the number of non-zero entries.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CoordinateStorage`1.#ctor(System.Int32,System.Int32,System.Int32,System.Boolean)">
+            <summary>
+            Initializes a new instance of the CoordinateStorage class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.CoordinateStorage`1.At(System.Int32,System.Int32,`0)">
+            <summary>
+            Adds an entry to the storage.
+            </summary>
+            <param name="i">Row index of new entry</param>
+            <param name="j">Column index of new entry</param>
+            <param name="value">Numerical value of new entry</param>
+            <remarks>
+            Duplicate entries will be added up, i.e. calling
+            <code>
+            storage.At(0, 0, 1.0);
+            storage.At(0, 0, 2.0);
+            </code>
+            will result in an entry with value 3.0 at index (0, 0) of the
+            resulting matrix.
+            
+            Memory will be increased as necessary.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Storage.CoordinateStorage`1.Transpose(System.Boolean)">
+            <summary>
+            Returns the transposed coordinate storage.
+            </summary>
+            <param name="alloc">If true, clone storage arrays, otherwise just swap the references and re-use the arrays.</param>
+            <returns>The transposed storage.</returns>
+        </member>
+        <member name="M:CSparse.Storage.CoordinateStorage`1.Resize(System.Int32)">
+            <summary>
+            Resize the storage arrays of the sparse matrix.
+            </summary>
+            <param name="size">The new size of Values and ColumnIndices arrays.</param>
+            <remarks>
+            Use size = 0 to automatically resize to non-zeros count.
+            </remarks>
+        </member>
+        <member name="T:CSparse.Storage.DenseColumnMajorStorage`1">
+            <summary>
+            Dense column-major matrix storage.
+            </summary>
+            <typeparam name="T"></typeparam>
+        </member>
+        <member name="F:CSparse.Storage.DenseColumnMajorStorage`1.Values">
+            <summary>
+            Gets the numerical values in column-major order.
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.DenseColumnMajorStorage`1.Item(System.Int32,System.Int32)">
+            <summary>
+            Return the matrix value at position (i, j).
+            </summary>
+            <param name="i">The row index.</param>
+            <param name="j">The column index.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the DenseColumnMajorStorage class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.#ctor(System.Int32,System.Int32,`0[])">
+            <summary>
+            Initializes a new instance of the DenseColumnMajorStorage class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.At(System.Int32,System.Int32)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.At(System.Int32,System.Int32,`0)">
+            <summary>
+            Sets the element without range checking.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Row(System.Int32)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Column(System.Int32)">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Row(System.Int32,`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Column(System.Int32,`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.SetRow(System.Int32,`0[])">
+            <summary>
+            Copy values from array to matrix row.
+            </summary>
+            <param name="row">The row index.</param>
+            <param name="values">The new values.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.SetColumn(System.Int32,`0[])">
+            <summary>
+            Copy values from array to matrix column.
+            </summary>
+            <param name="column">The column index.</param>
+            <param name="values">The new values.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Transpose">
+            <summary>
+            Returns the transpose of this matrix.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Transpose(CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Transpose this matrix and store the result in given matrix.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Add(CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Adds two matrices in CSC format, C = A + B, where A is current instance.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Add(CSparse.Storage.DenseColumnMajorStorage{`0},CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Adds two matrices, C = A + B, where A is current instance.
+            </summary>
+            <param name="other">The matrix added to this instance.</param>
+            <param name="result">Contains the sum.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Multiply(CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Dense matrix multiplication, C = A*B
+            </summary>
+            <param name="other">Dense matrix</param>
+            <returns>C = A*B, null on error</returns>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Multiply(CSparse.Storage.DenseColumnMajorStorage{`0},CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Dense matrix multiplication, C = A*B
+            </summary>
+            <param name="other">The matrix multiplied to this instance.</param>
+            <param name="result">The product matrix.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.PointwiseMultiply(CSparse.Storage.DenseColumnMajorStorage{`0},CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Pointwise multiplies this matrix with another matrix and stores the result into the result matrix.
+            </summary>
+            <param name="other">The matrix to pointwise multiply with this one.</param>
+            <param name="result">The matrix to store the result of the pointwise multiplication.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Clone">
+            <summary>
+            Returns a clone of this matrix.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.UpperTriangle">
+            <summary>
+            Returns a new matrix containing the upper triangle of this matrix.
+            </summary>
+            <returns>The upper triangle of this matrix.</returns>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.LowerTriangle">
+            <summary>
+            Returns a new matrix containing the lower triangle of this matrix.
+            </summary>
+            <returns>The lower triangle of this matrix.</returns>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.LowerTriangle(CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Puts the lower triangle of this matrix into the result matrix.
+            </summary>
+            <param name="result">Where to store the lower triangle.</param>
+            <exception cref="T:System.ArgumentNullException">If <paramref name="result"/> is <see langword="null" />.</exception>
+            <exception cref="T:System.ArgumentException">If the result matrix's dimensions are not the same as this matrix.</exception>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.UpperTriangle(CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Puts the upper triangle of this matrix into the result matrix.
+            </summary>
+            <param name="result">Where to store the lower triangle.</param>
+            <exception cref="T:System.ArgumentNullException">If <paramref name="result"/> is <see langword="null" />.</exception>
+            <exception cref="T:System.ArgumentException">If the result matrix's dimensions are not the same as this matrix.</exception>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.SubMatrix(System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Returns a sub-matrix with values in given range.
+            </summary>
+            <param name="rowIndex">The row to start copying to.</param>
+            <param name="rowCount">The number of rows to copy. Must be positive.</param>
+            <param name="columnIndex">The column to start copying to.</param>
+            <param name="columnCount">The number of columns to copy. Must be positive.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.SetSubMatrix(System.Int32,System.Int32,CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Copies the values of a given matrix into a region in this matrix.
+            </summary>
+            <param name="rowIndex">The row to start copying to.</param>
+            <param name="columnIndex">The column to start copying to.</param>
+            <param name="subMatrix">The sub-matrix to copy from.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.SetSubMatrix(System.Int32,System.Int32,System.Int32,System.Int32,CSparse.Storage.DenseColumnMajorStorage{`0})">
+            <summary>
+            Copies the values of a given matrix into a region in this matrix.
+            </summary>
+            <param name="rowIndex">The row to start copying to.</param>
+            <param name="rowCount">The number of rows to copy. Must be positive.</param>
+            <param name="columnIndex">The column to start copying to.</param>
+            <param name="columnCount">The number of columns to copy. Must be positive.</param>
+            <param name="subMatrix">The sub-matrix to copy from.</param>
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.Clear">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Storage.DenseColumnMajorStorage`1.EnumerateIndexed">
+            <inheritdoc />
+        </member>
+        <member name="T:CSparse.Storage.SymbolicColumnStorage">
+            <summary>
+            Represents the nonzero pattern of a column-compressed matrix.
+            </summary>
+            <remarks>
+            Used for ordering and symbolic factorization.
+            </remarks>
+        </member>
+        <member name="F:CSparse.Storage.SymbolicColumnStorage.ColumnPointers">
+            <summary>
+            Column pointers with last entry equal number of non-zeros (size = ColumnCount + 1)
+            </summary>
+        </member>
+        <member name="F:CSparse.Storage.SymbolicColumnStorage.RowIndices">
+            <summary>
+            Row indices (size = NonZerosCount)
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.SymbolicColumnStorage.RowCount">
+            <summary>
+            Gets the number of rows.
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.SymbolicColumnStorage.ColumnCount">
+            <summary>
+            Gets the number of columns.
+            </summary>
+        </member>
+        <member name="P:CSparse.Storage.SymbolicColumnStorage.NonZerosCount">
+            <summary>
+            Gets the number of non-zero entries.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Reshape(System.Int32,System.Int32)">
+            <summary>
+            Change the shape of the matrix (only used by Dulmage-Mendelsohn decomposition).
+            </summary>
+            <param name="rowCount"></param>
+            <param name="columnCount"></param>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Resize(System.Int32)">
+            <summary>
+            Change the max # of entries sparse matrix
+            </summary>
+            <param name="size"></param>
+            <returns></returns>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Sort">
+            <summary>
+            Sort column indices using insertion sort.
+            </summary>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Transpose">
+            <summary>
+            Computes the transpose of a sparse matrix, C = A';
+            </summary>
+            <returns>Transposed matrix, C = A'</returns>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Add(CSparse.Storage.SymbolicColumnStorage)">
+            <summary>
+            Symbolic sum C = A + B
+            </summary>
+            <param name="other">column-compressed matrix</param>
+            <returns>Sum C = A + B</returns>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Multiply(CSparse.Storage.SymbolicColumnStorage)">
+            <summary>
+            Sparse matrix multiplication, C = A*B
+            </summary>
+            <param name="other">column-compressed matrix</param>
+            <returns>C = A*B</returns>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Permute(System.Int32[],System.Int32[],CSparse.Storage.SymbolicColumnStorage)">
+            <summary>
+            Permutes a sparse matrix, C = PAQ.
+            </summary>
+            <param name="pinv">Permutation vector of length m.</param>
+            <param name="q">Permutation vector of length n.</param>
+            <param name="result">Permuted matrix, C = PAQ.</param>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Keep(System.Func{System.Int32,System.Int32,System.Boolean})">
+            <summary>
+            Drops entries from a sparse matrix
+            </summary>
+            <param name="func">Drop element a_{i,j} if func(i, j) is false.</param>
+            <returns>New number of entries in A.</returns>
+        </member>
+        <member name="M:CSparse.Storage.SymbolicColumnStorage.Scatter(System.Int32,System.Int32[],System.Int32,System.Int32[],System.Int32)">
+            <summary>
+            Scatters and sums a sparse vector A(:,j) into a dense vector, x = x + beta * A(:,j).
+            </summary>
+            <param name="j">the column of A to use</param>
+            <param name="work">size m, node i is marked if w[i] = mark</param>
+            <param name="mark">mark value of w</param>
+            <param name="ci">pattern of x accumulated in ci</param>
+            <param name="nz">pattern of x placed in C starting at C.i[nz]</param>
+            <returns>new value of nz</returns>
+        </member>
+        <member name="T:CSparse.Converter">
+            <summary>
+            Converter for different types of storages.
+            </summary>
+        </member>
+        <member name="M:CSparse.Converter.ToCompressedColumnStorage``1(CSparse.Storage.CoordinateStorage{``0},System.Boolean)">
+            <summary>
+            Convert a coordinate storage to compressed sparse column (CSC) format.
+            </summary>
+            <param name="storage">Coordinate storage.</param>
+            <param name="cleanup">Remove and sum duplicate entries.</param>
+            <returns>Compressed sparse column storage.</returns>
+        </member>
+        <member name="M:CSparse.Converter.FromDenseArray``1(``0[0:,0:])">
+            <summary>
+            Convert a 2D array to coordinate storage.
+            </summary>
+            <param name="array">2D array storage.</param>
+            <returns>Coordinate storage.</returns>
+        </member>
+        <member name="M:CSparse.Converter.ToCompressedColumnStorage``1(``0[][])">
+            <summary>
+            Convert a jagged array to compressed sparse column (CSC) format.
+            </summary>
+            <param name="array">Jagged array storage.</param>
+            <returns>Compressed sparse column storage.</returns>
+        </member>
+        <member name="M:CSparse.Converter.FromColumnMajorArray``1(``0[],System.Int32,System.Int32)">
+            <summary>
+            Convert a column major array to coordinate storage.
+            </summary>
+            <param name="array">Column major array storage.</param>
+            <param name="rowCount">Number of rows.</param>
+            <param name="columnCount">Number of columns.</param>
+            <returns>Coordinate storage.</returns>
+        </member>
+        <member name="M:CSparse.Converter.FromDenseArray``1(``0[][])">
+            <summary>
+            Convert a 2D jagged array to coordinate storage.
+            </summary>
+            <param name="array">jagged array storage.</param>
+            <returns>Coordinate storage.</returns>
+            <remarks>All rows of the array are assumed to be equal in length</remarks>
+        </member>
+        <member name="M:CSparse.Converter.FromRowMajorArray``1(``0[],System.Int32,System.Int32)">
+            <summary>
+            Convert a row major array to coordinate storage.
+            </summary>
+            <param name="array">Row major array storage.</param>
+            <param name="rowCount">Number of rows.</param>
+            <param name="columnCount">Number of columns.</param>
+            <returns>Coordinate storage.</returns>
+        </member>
+        <member name="T:CSparse.Matrix`1">
+            <summary>
+            Abstract base class for matrix implementations.
+            </summary>
+        </member>
+        <member name="F:CSparse.Matrix`1.Zero">
+            <summary>
+            Zero value for T.
+            </summary>
+        </member>
+        <member name="F:CSparse.Matrix`1.One">
+            <summary>
+            One value for T.
+            </summary>
+        </member>
+        <member name="P:CSparse.Matrix`1.RowCount">
+            <inheritdoc />
+        </member>
+        <member name="P:CSparse.Matrix`1.ColumnCount">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Matrix`1.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Initializes a new instance of the Matrix class.
+            </summary>
+        </member>
+        <member name="M:CSparse.Matrix`1.At(System.Int32,System.Int32)">
+            <summary>
+            Return the matrix value at position (row, column).
+            </summary>
+            <param name="row">The row index.</param>
+            <param name="column">The column index.</param>
+            <returns>Matrix value</returns>
+        </member>
+        <member name="M:CSparse.Matrix`1.Clear">
+            <summary>
+            Clears all values form the matrix.
+            </summary>
+            <remarks>
+            The method does not release memory.
+            </remarks>
+        </member>
+        <member name="M:CSparse.Matrix`1.Row(System.Int32)">
+            <summary>
+            Extract row from matrix.
+            </summary>
+            <param name="rowIndex">The column index to extract.</param>
+        </member>
+        <member name="M:CSparse.Matrix`1.Row(System.Int32,`0[])">
+            <summary>
+            Extract row from matrix.
+            </summary>
+            <param name="rowIndex">The column index to extract.</param>
+            <param name="target">Dense array.</param>
+        </member>
+        <member name="M:CSparse.Matrix`1.Column(System.Int32)">
+            <summary>
+            Extract column from matrix.
+            </summary>
+            <param name="columnIndex">The column index to extract.</param>
+        </member>
+        <member name="M:CSparse.Matrix`1.Column(System.Int32,`0[])">
+            <summary>
+            Extract column from matrix.
+            </summary>
+            <param name="columnIndex">The column index to extract.</param>
+            <param name="target">Dense array.</param>
+        </member>
+        <member name="M:CSparse.Matrix`1.L1Norm">
+            <summary>
+            Calculates the induced L1 norm of this matrix.
+            </summary>
+            <returns>The maximum absolute column sum of the matrix.</returns>
+        </member>
+        <member name="M:CSparse.Matrix`1.InfinityNorm">
+            <summary>
+            Calculates the induced infinity norm of this matrix.
+            </summary>
+            <returns>The maximum absolute row sum of the matrix.</returns>
+        </member>
+        <member name="M:CSparse.Matrix`1.FrobeniusNorm">
+            <summary>
+            Calculates the entry-wise Frobenius norm of this matrix.
+            </summary>
+            <returns>The square root of the sum of the squared values.</returns>
+        </member>
+        <member name="M:CSparse.Matrix`1.EnumerateIndexed">
+            <summary>
+            Enumerates all values of the matrix.
+            </summary>
+            <returns>Enumeration of tuples (i, j, a[i, j]).</returns>
+        </member>
+        <member name="M:CSparse.Matrix`1.Multiply(`0[],`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Matrix`1.Multiply(`0,`0[],`0,`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Matrix`1.TransposeMultiply(`0[],`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Matrix`1.TransposeMultiply(`0,`0[],`0,`0[])">
+            <inheritdoc />
+        </member>
+        <member name="M:CSparse.Matrix`1.Equals(CSparse.Matrix{`0})">
+            <summary>
+            Indicates whether the current object is equal to another object of the same type.
+            </summary>
+            <param name="other">
+            An object to compare with this object.
+            </param>
+            <returns>
+            <c>true</c> if the current object is equal to the <paramref name="other"/> parameter; otherwise, <c>false</c>.
+            </returns>
+        </member>
+        <member name="M:CSparse.Matrix`1.Equals(CSparse.Matrix{`0},System.Double)">
+            <summary>
+            Check two matrices for equality.
+            </summary>
+        </member>
+        <member name="M:CSparse.Matrix`1.Equals(System.Object)">
+            <summary>
+            Determines whether the specified <see cref="T:System.Object"/> is equal to the current <see cref="T:System.Object"/>.
+            </summary>
+            <returns>
+            true if the specified <see cref="T:System.Object"/> is equal to the current <see cref="T:System.Object"/>; otherwise, false.
+            </returns>
+            <param name="obj">The <see cref="T:System.Object"/> to compare with the current <see cref="T:System.Object"/>. </param>
+        </member>
+        <member name="M:CSparse.Matrix`1.GetHashCode">
+            <summary>
+            Serves as a hash function for a particular type.
+            </summary>
+            <returns>
+            A hash code for the current <see cref="T:System.Object"/>.
+            </returns>
+        </member>
+    </members>
+</doc>
