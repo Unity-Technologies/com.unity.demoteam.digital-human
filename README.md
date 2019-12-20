@@ -14,7 +14,7 @@ Declare the package as a dependency in `Packages/manifest.json`:
 
 ```
 "dependencies": {
-    "com.unity.demoteam.digital-human": "https://github.com/Unity-Technologies/com.unity.demoteam.digital-human.git"
+    "com.unity.demoteam.digital-human": "https://github.com/Unity-Technologies/com.unity.demoteam.digital-human.git",
     ...
 }
 ```

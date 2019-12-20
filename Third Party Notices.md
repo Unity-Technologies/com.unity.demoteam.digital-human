@@ -1,16 +1,16 @@
 This package contains third-party software components governed by the license(s) indicated below:
 ---------
 
-Component Name: Accord.NET
+Accord.NET
 
-License Type: LGPL 2.1
+License: *LGPL 2.1*
 
-See: [Editor.Deps/Accord.NET/License.txt](Editor.Deps/Accord.NET/License.txt)
-[Provide ]
+License text: [Editor.Deps/Accord.NET/License.txt](Editor.Deps/Accord.NET/License.txt)
 
 ---------
-Component Name: CSparse.NET
 
-License Type: LGPL 2.1
+CSparse.NET
 
-See: [Editor.Deps/CSparse.NET/LICENSE](Editor.Deps/CSparse.NET/LICENSE)
+License: *LGPL 2.1*
+
+License text: [Editor.Deps/CSparse.NET/LICENSE](Editor.Deps/CSparse.NET/LICENSE)
