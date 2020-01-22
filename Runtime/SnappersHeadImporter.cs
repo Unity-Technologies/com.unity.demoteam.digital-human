@@ -4,7 +4,9 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 
 namespace Unity.DemoTeam.DigitalHuman
 {
@@ -27,6 +29,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		public string csClassPrefix = "MyCharacter";
 		public string csNamespace = "MyNamespace";
 
+#if UNITY_EDITOR
 		[ContextMenu("Generate")]
 		public void Generate()
 		{
@@ -321,5 +324,6 @@ namespace Unity.DemoTeam.DigitalHuman
 				default: return SnappersControllerCaps.none;
 			}
 		}
+#endif
 	}
 }
