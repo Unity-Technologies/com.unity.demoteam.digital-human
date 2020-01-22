@@ -10,11 +10,12 @@ Library of digital human tech features from *The Heretic*.
 
 ## Usage
 
-Declare the package as a git dependency in `Packages/manifest.json`:
+Declare the package and its dependencies as git dependencies in `Packages/manifest.json`:
 
 ```
 "dependencies": {
     "com.unity.demoteam.digital-human": "https://github.com/Unity-Technologies/com.unity.demoteam.digital-human.git",
+    "com.unity.demoteam.attributes": "https://github.com/Unity-Technologies/com.unity.demoteam.attributes.git",
     ...
 }
 ```
