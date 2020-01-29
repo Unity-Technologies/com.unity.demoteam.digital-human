@@ -1,8 +1,11 @@
 ﻿using System;
 using System.IO;
-using System.Text.RegularExpressions;
 using UnityEngine;
 using Unity.DemoTeam.Attributes;
+#if UNITY_EDITOR
+using UnityEditor;
+using System.Text.RegularExpressions;
+#endif
 
 namespace Unity.DemoTeam.DigitalHuman
 {
@@ -61,7 +64,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		public NativeFrameStream frameData;
 
 		[HideInInspector]
-		public string frameDataFilename = null;
+		public string frameDataStreamingAssetsPath = null;
 
 		[HideInInspector]
 		private bool frameDataPending = true;
@@ -90,7 +93,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				Debug.Log("hotloading frame data");
 
-				LoadFrameData(frameDataFilename);
+				LoadFrameData();
 			}
 
 			var floatPtr = (float*)frameData.ReadFrame(frameIndex);
@@ -188,7 +191,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			if (frameDataPending)
 			{
-				LoadFrameData(frameDataFilename);
+				LoadFrameData();
 			}
 		}
 
@@ -202,10 +205,12 @@ namespace Unity.DemoTeam.DigitalHuman
 			UnloadFrameData();
 		}
 
-		void LoadFrameData(string filename)
+		void LoadFrameData()
 		{
-#if !UNITY_EDITOR
-			filename = Application.streamingAssetsPath + Regex.Replace(frameDataFilename, "^Assets", "");
+#if UNITY_EDITOR
+			string filename = AssetDatabase.GetAssetPath(this) + "_frames.bin";
+#else
+			string filename = Application.streamingAssetsPath + frameDataStreamingAssetsPath;
 			Debug.Log("LoadFrameData " + filename + ")");
 #endif
 
@@ -285,22 +290,18 @@ namespace Unity.DemoTeam.DigitalHuman
 			frameDataPending = true;
 		}
 
-		public void SaveFrameData(string filename)
+#if UNITY_EDITOR
+		public void SaveFrameData()
 		{
+			string filenameAsset = AssetDatabase.GetAssetPath(this);
+			string filenameFrameData = filenameAsset + "_frames.bin";
+
 			UnloadFrameData();
 
-			if (File.Exists(filename))
-				File.Delete(filename);
+			if (File.Exists(filenameFrameData))
+				File.Delete(filenameFrameData);
 
-			//if (filename != frameDataFilename)
-			//{
-			//    if (File.Exists(frameDataFilename))
-			//        File.Delete(frameDataFilename);
-			//    if (File.Exists(frameDataFilename + ".meta"))
-			//        File.Delete(frameDataFilename + ".meta");
-			//}
-
-			using (FileStream stream = File.Create(filename))
+			using (FileStream stream = File.Create(filenameFrameData))
 			{
 				using (BinaryWriter writer = new BinaryWriter(stream))
 				{
@@ -344,20 +345,29 @@ namespace Unity.DemoTeam.DigitalHuman
 						writer.Flush();
 					}
 
-					frameDataFilename = filename;
 					frameDataPending = true;
 				}
 			}
 		}
+#endif
 		//--- frame data serialization end ---
 
-		[ContextMenu("Copy To StreamingAssets")]
-		public void CopyToStreamingAssets()
+#if UNITY_EDITOR
+		[ContextMenu("Save To StreamingAssets")]
+		public void SaveToStreamingAssets()
 		{
-			Debug.Log("staging framedata for " + name);
-			var pathRel = Regex.Replace(frameDataFilename, "^Assets", "");
-			var copySrc = Application.dataPath + pathRel;
-			var copyDst = Application.streamingAssetsPath + pathRel;
+			string filenameAsset = AssetDatabase.GetAssetPath(this);
+			string filenameFrameData = filenameAsset + "_frames.bin";
+
+			frameDataStreamingAssetsPath = "/SkinDeformationClip/" + AssetDatabase.AssetPathToGUID(filenameAsset) + "__" + this.name;
+
+			var copySrc = filenameFrameData;
+			var copyDst = Application.streamingAssetsPath + frameDataStreamingAssetsPath;
+
+			//Debug.Log("filenameAsset: " + filenameAsset);
+			//Debug.Log("copySrc: " + copySrc);
+			//Debug.Log("copyDst: " + copyDst);
+
 			var copyDstDir = copyDst.Substring(0, copyDst.LastIndexOf('/'));
 			try
 			{
@@ -372,6 +382,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				Debug.LogError(ex.ToString());
 			}
 		}
+#endif
 	}
 
 #if UNITY_EDITOR
@@ -383,8 +394,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			var clips = Resources.FindObjectsOfTypeAll<SkinDeformationClip>();
 			foreach (var clip in clips)
 			{
-				clip.CopyToStreamingAssets();
+				clip.SaveToStreamingAssets();
+				EditorUtility.SetDirty(clip);
 			}
+			AssetDatabase.SaveAssets();
 		}
 	}
 #endif

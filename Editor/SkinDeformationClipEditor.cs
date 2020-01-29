@@ -641,8 +641,9 @@ namespace Unity.DemoTeam.DigitalHuman
 					clip.version++;
 
 					EditorUtility.SetDirty(clip);
+					AssetDatabase.SaveAssets();
 
-					clip.SaveFrameData(AssetDatabase.GetAssetPath(clip.GetInstanceID()) + "_frames.bin");
+					clip.SaveFrameData();
 				}
 			}
 			catch (Exception ex)
