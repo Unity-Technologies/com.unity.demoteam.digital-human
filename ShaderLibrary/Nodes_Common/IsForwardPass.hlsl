@@ -3,7 +3,7 @@
 
 void IsForwardPass_float(out bool Out)
 {
-#if (SHADERPASS == SHADERPASS_FORWARD) 
+#if defined(SHADERPASS) && (SHADERPASS == SHADERPASS_FORWARD) 
 	Out = true;
 #else
 	Out = false;

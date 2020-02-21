@@ -1,7 +1,7 @@
 ﻿#ifndef __LOADNORMALBUFFER_H__
 #define __LOADNORMALBUFFER_H__
 
-#if (SHADERPASS == SHADERPASS_FORWARD)
+#if defined(SHADERPASS) && (SHADERPASS == SHADERPASS_FORWARD)
 	void LoadNormalBuffer_float(in float2 positionSS, out float3 normalWS, out float smoothness)
 	{
 		NormalData normalData;
