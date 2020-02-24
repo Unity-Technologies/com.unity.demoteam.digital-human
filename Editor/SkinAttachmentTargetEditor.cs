@@ -1,15 +1,18 @@
 ﻿using UnityEngine;
 using UnityEditor;
+using System.Collections.Generic;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
 	[CustomEditor(typeof(SkinAttachmentTarget))]
 	public class SkinAttachmentTargetEditor : Editor
 	{
-		bool showAttachments;
+		private HashSet<SkinAttachmentTarget> attachmentTargetSet = new HashSet<SkinAttachmentTarget>();
 
 		public override void OnInspectorGUI()
 		{
+			attachmentTargetSet.Clear();
+
 			if (target == null)
 				return;
 
@@ -23,21 +26,41 @@ namespace Unity.DemoTeam.DigitalHuman
 				return;
 			}
 
-			EditorGUILayout.HelpBox("Bound to " + driver.attachData, MessageType.Info);
+			EditorGUILayout.HelpBox("Currently bound to " + driver.attachData + "\nChecksum: " + driver.attachData.Checksum(), MessageType.Info);
 			DrawGUIAttachmentData(driver.attachData);
+			DrawGUIAttachmentDataValidation(driver);
 			EditorGUILayout.Separator();
 
 			base.OnInspectorGUI();
 			EditorGUILayout.Separator();
 
-			GUILayout.Label("Attachments", EditorStyles.boldLabel);
+			GUILayout.Label(string.Format("Attachments ({0})", driver.subjects.Count), EditorStyles.boldLabel);
+			var checksum = driver.attachData.Checksum();
+			var checksumFailed = driver.CommitRequired();
 			foreach (var attachment in driver.subjects)
 			{
 				EditorGUILayout.BeginHorizontal();
 				EditorGUILayout.ObjectField(attachment, typeof(SkinAttachment), false);
-				SkinAttachmentEditor.DrawGUIDetach(attachment);
+				SkinAttachmentEditor.DrawGUIDetach(attachment, attachmentTargetSet);
 				EditorGUILayout.EndHorizontal();
+
+				if (checksumFailed)
+				{
+					if (checksum != attachment.Checksum())
+					{
+						Color color = GUI.color;
+						GUI.color = Color.red;
+						GUILayout.Label("Checksum FAILED:  " + attachment.Checksum(), EditorStyles.helpBox);
+						GUI.color = color;
+					}
+					else
+					{
+						GUILayout.Label("Checksum passed:  " + attachment.Checksum(), EditorStyles.helpBox);
+					}
+				}
 			}
+
+			SkinAttachmentEditor.CommitTargetChanges(attachmentTargetSet);
 		}
 
 		void DrawGUIAttachmentData(SkinAttachmentData attachData)
@@ -46,10 +69,28 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				attachData.Persist();
 			}
-
 			if (DrawGUIGrowShrink("Items" , ref attachData.item, attachData.itemCount))
 			{
 				attachData.Persist();
+			}
+		}
+
+		void DrawGUIAttachmentDataValidation(SkinAttachmentTarget driver)
+		{
+			var checksum = driver.attachData.Checksum();
+			var checksumFailed = driver.CommitRequired();
+			if (checksumFailed)
+			{
+				EditorGUILayout.HelpBox("Rebuild required: Checksum of one or more subjects does not match checksum of data.", MessageType.Warning);
+			}
+			else if (driver.attachData.subjectCount != driver.subjects.Count)
+			{
+				EditorGUILayout.HelpBox("Rebuild suggested: Data contains poses that are no longer referenced.", MessageType.Warning);
+			}
+
+			if (GUILayout.Button("Rebuild"))
+			{
+				driver.CommitSubjects();
 			}
 		}
 
@@ -152,12 +193,6 @@ namespace Unity.DemoTeam.DigitalHuman
 						}
 					}
 				}
-
-				//var vertexPosition = meshInfo.meshBuffers.vertexPositions[vertex];
-				//var vertexNormal = meshInfo.meshBuffers.vertexNormals[vertex];
-
-				//Handles.DrawWireDisc(vertexPosition, vertexNormal, 0.005f);
-				//Handles.DrawLine(vertexPosition, vertexPosition + 0.0025f * vertexNormal);
 			}
 		}
 	}

@@ -22,7 +22,6 @@ namespace Unity.DemoTeam.DigitalHuman
 		}
 
 		[HideInInspector] public bool attached;
-		[HideInInspector] public bool preserveResolved;
 		[HideInInspector] public Vector3 attachedLocalPosition;
 		[HideInInspector] public Quaternion attachedLocalRotation;
 
@@ -34,6 +33,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		[EditableIf("attached", false)]
 		public AttachmentType attachmentType = AttachmentType.Transform;
+
+		[EditableIf("attached", false)]
 		public AttachmentMode attachmentMode = AttachmentMode.BuildPoses;
 
 		[EditableIf("attached", false)]
@@ -44,6 +45,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		[EditableIf("attachmentMode", AttachmentMode.LinkPosesBySpecificIndex)]
 		public int attachmentCount = 0;
+
+		[HideInInspector]
+		public ulong checksum0 = 0;
+		[HideInInspector]
+		public ulong checksum1 = 0;
 
 		[Header("Debug options")]
 		[Range(0, 6)]
@@ -85,48 +91,84 @@ namespace Unity.DemoTeam.DigitalHuman
 			// do nothing
 		}
 
-		void EnsureRegistration()
+		public Hash128 Checksum()
 		{
-			if (attached)
-			{
-				if (target == targetActive)
-					return;
+			return new Hash128(checksum0, checksum1);
+		}
 
-				RemoveRegistration();
-
-				if (target)
-					target.Attach(this);
-			}
-			else
+		public void RevertVertexData()
+		{
+			if (meshAsset != null)
 			{
-				RemoveRegistration();
+				if (meshBuffers == null)
+					meshBuffers = new MeshBuffers(meshAsset);
+				else
+					meshBuffers.LoadFrom(meshAsset);
 			}
 		}
 
-		void RemoveRegistration()
+		public void Attach(bool storePositionRotation = true)
 		{
-			if (targetActive)
-				targetActive.Detach(this);
+			EnsureMeshInstance();
+
+			if (targetActive != null)
+				targetActive.RemoveSubject(this);
+
+			targetActive = target;
+			targetActive.AddSubject(this);
+
+			if (storePositionRotation)
+			{
+				attachedLocalPosition = transform.localPosition;
+				attachedLocalRotation = transform.localRotation;
+			}
+
+			attached = true;
+		}
+
+		public void Detach(bool revertPositionRotation = true)
+		{
+			RemoveMeshInstance();
+
+			if (targetActive != null)
+				targetActive.RemoveSubject(this);
+
+			if (revertPositionRotation)
+			{
+				transform.localPosition = attachedLocalPosition;
+				transform.localRotation = attachedLocalRotation;
+			}
+
+			attached = false;
+		}
+
+		void ValidateAttachedState()
+		{
+			if (attached)
+			{
+				if (targetActive != null && targetActive == target)
+				{
+					EnsureMeshInstance();
+				}
+				else
+				{
+					Detach();
+				}
+			}
+			else
+			{
+				RemoveMeshInstance();
+			}
 		}
 
 		void OnEnable()
 		{
-			EnsureMeshInstance();
-			EnsureRegistration();
+			ValidateAttachedState();
 		}
 
 		void Update()
 		{
-			if (attached)
-			{
-				EnsureMeshInstance();
-				EnsureRegistration();
-			}
-			else
-			{
-				RemoveRegistration();
-				RemoveMeshInstance();
-			}
+			ValidateAttachedState();
 		}
 
 		void LateUpdate()
@@ -140,11 +182,10 @@ namespace Unity.DemoTeam.DigitalHuman
 					meshInstance.RecalculateNormals();
 				if (forceRecalculateTangents)
 					meshInstance.RecalculateTangents();
-
-				meshInstance.EnableSilentWrites(false);
-
 				if (forceRecalculateBounds)
 					meshInstance.RecalculateBounds();
+
+				meshInstance.EnableSilentWrites(false);
 			}
 		}
 
@@ -165,6 +206,8 @@ namespace Unity.DemoTeam.DigitalHuman
 			var targetMeshInfo = target.GetCachedMeshInfo();
 			if (targetMeshInfo.valid == false)
 				return;
+
+			//TODO get rid of duplicate code
 
 			if (attached)
 			{

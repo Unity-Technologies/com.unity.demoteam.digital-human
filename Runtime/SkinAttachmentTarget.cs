@@ -11,6 +11,8 @@ using Unity.Burst;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
+	using static SkinAttachmentDataBuilder;
+
 	[ExecuteAlways]
 	public class SkinAttachmentTarget : MonoBehaviour
 	{
@@ -23,7 +25,6 @@ namespace Unity.DemoTeam.DigitalHuman
 		}
 
 		[HideInInspector] public List<SkinAttachment> subjects = new List<SkinAttachment>();
-		[HideInInspector] private bool subjectsChanged = false;
 
 		[NonSerialized] public Mesh meshBakedSmr;
 		[NonSerialized] public Mesh meshBakedOrAsset;
@@ -54,17 +55,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			if (UpdateMeshBuffers())
 			{
-				if (subjectsChanged)
-				{
-					if (AttachSubjects())
-					{
-						subjectsChanged = false;
-					}
-				}
-				else
-				{
-					ResolveSubjects();
-				}
+				ResolveSubjects();
 			}
 		}
 
@@ -131,6 +122,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				info.meshBuffers = meshBuffers;
 
 				const bool weldedAdjacency = false;//TODO enable for more reliable poses along uv seams
+
 				if (info.meshAdjacency == null)
 					info.meshAdjacency = new MeshAdjacency(meshBuffers, weldedAdjacency);
 				else if (info.meshAdjacency.vertexCount != meshBuffers.vertexCount)
@@ -159,90 +151,106 @@ namespace Unity.DemoTeam.DigitalHuman
 			return ref cachedMeshInfo;
 		}
 
-		public void Attach(SkinAttachment subject)
+		public void AddSubject(SkinAttachment subject)
 		{
-			Debug.Assert(subject.targetActive == null);
-			subject.targetActive = this;
-
 			if (subjects.Contains(subject) == false)
-			{
 				subjects.Add(subject);
-
-				switch (subject.attachmentMode)
-				{
-					case SkinAttachment.AttachmentMode.BuildPoses:
-						subjectsChanged = true;
-						break;
-
-					case SkinAttachment.AttachmentMode.LinkPosesByReference:
-						Debug.Assert(subject.attachmentLink != null);
-						subject.attachmentType = subject.attachmentLink.attachmentType;
-						subject.attachmentIndex = subject.attachmentLink.attachmentIndex;
-						subject.attachmentCount = subject.attachmentLink.attachmentCount;
-						break;
-
-					case SkinAttachment.AttachmentMode.LinkPosesBySpecificIndex:
-						subject.attachmentIndex = Mathf.Clamp(subject.attachmentIndex, 0, attachData.itemCount - 1);
-						subject.attachmentCount = Mathf.Clamp(subject.attachmentCount, 0, attachData.itemCount - subject.attachmentIndex);
-						break;
-				}
-
-				Debug.Assert(subject.target.attachData == attachData);
-
-				subject.attachedLocalPosition = subject.transform.localPosition;
-				subject.attachedLocalRotation = subject.transform.localRotation;
-			}
 		}
 
-		public void Detach(SkinAttachment subject)
+		public void RemoveSubject(SkinAttachment subject)
 		{
-			Debug.Assert(subject.targetActive == this);
-			subject.targetActive = null;
-
 			if (subjects.Contains(subject))
-			{
 				subjects.Remove(subject);
-
-				if (subject.attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
-					subjectsChanged = true;
-			}
-
-			if (subject.attachmentMode != SkinAttachment.AttachmentMode.LinkPosesBySpecificIndex)
-			{
-				subject.attachmentIndex = -1;
-				subject.attachmentCount = 0;
-			}
-
-			if (subject.preserveResolved == false)
-			{
-				subject.transform.localPosition = subject.attachedLocalPosition;
-				subject.transform.localRotation = subject.attachedLocalRotation;
-			}
 		}
 
-		bool AttachSubjects()
+		public bool CommitRequired()
 		{
 			if (attachData == null)
 				return false;
 
+			for (int i = 0, n = subjects.Count; i != n; i++)
+			{
+				if (subjects[i].Checksum() != attachData.Checksum())
+					return true;
+			}
+
+			return false;
+		}
+
+		public void CommitSubjectsIfRequired()
+		{
+			if (CommitRequired())
+				CommitSubjects();
+		}
+
+		public void CommitSubjects()
+		{
+			if (attachData == null)
+				return;
+
 			var meshInfo = GetCachedMeshInfo();
 			if (meshInfo.valid == false)
-				return false;
+				return;
 
 			attachData.Clear();
 			{
 				subjects.RemoveAll(p => (p == null));
+
+				// pass 1: build poses
 				for (int i = 0, n = subjects.Count; i != n; i++)
 				{
-					AttachSubject(ref meshInfo, subjects[i]);
+					if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
+					{
+						subjects[i].RevertVertexData();
+						CommitSubject(ref meshInfo, subjects[i]);
+					}
+				}
+
+				// pass 2: reference poses
+				for (int i = 0, n = subjects.Count; i != n; i++)
+				{
+					switch (subjects[i].attachmentMode)
+					{
+						case SkinAttachment.AttachmentMode.LinkPosesByReference:
+							{
+								if (subjects[i].attachmentLink != null)
+								{
+									subjects[i].attachmentType = subjects[i].attachmentLink.attachmentType;
+									subjects[i].attachmentIndex = subjects[i].attachmentLink.attachmentIndex;
+									subjects[i].attachmentCount = subjects[i].attachmentLink.attachmentCount;
+								}
+								else
+								{
+									subjects[i].attachmentIndex = -1;
+									subjects[i].attachmentCount = 0;
+								}
+							}
+							break;
+
+						case SkinAttachment.AttachmentMode.LinkPosesBySpecificIndex:
+							{
+								subjects[i].attachmentIndex = Mathf.Clamp(subjects[i].attachmentIndex, 0, attachData.itemCount - 1);
+								subjects[i].attachmentCount = Mathf.Clamp(subjects[i].attachmentCount, 0, attachData.itemCount - subjects[i].attachmentIndex);
+							}
+							break;
+					}
 				}
 			}
-
+			attachData.subjectCount = subjects.Count;
 			attachData.Persist();
-			return true;
+
+			for (int i = 0, n = subjects.Count; i != n; i++)
+			{
+				subjects[i].checksum0 = attachData.checksum0;
+				subjects[i].checksum1 = attachData.checksum1;
+#if UNITY_EDITOR
+				UnityEditor.EditorUtility.SetDirty(subjects[i]);
+				UnityEditor.Undo.ClearUndo(subjects[i]);
+#endif
+			}
 		}
 
-		void AttachSubject(ref MeshInfo meshInfo, SkinAttachment subject)
+		void CommitSubject(ref MeshInfo meshInfo, SkinAttachment subject)
 		{
 			Profiler.BeginSample("attach-subj");
 
@@ -259,10 +267,11 @@ namespace Unity.DemoTeam.DigitalHuman
 						fixed (int* attachmentIndex = &subject.attachmentIndex)
 						fixed (int* attachmentCount = &subject.attachmentCount)
 						{
-							AttachToClosestVertex(ref meshInfo, &targetPosition, &targetNormal, 1, attachmentIndex, attachmentCount);
+							BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, &targetPosition, &targetNormal, 1);
 						}
 					}
 					break;
+
 				case SkinAttachment.AttachmentType.Mesh:
 					unsafe
 					{
@@ -285,11 +294,12 @@ namespace Unity.DemoTeam.DigitalHuman
 							fixed (int* attachmentIndex = &subject.attachmentIndex)
 							fixed (int* attachmentCount = &subject.attachmentCount)
 							{
-								AttachToClosestVertex(ref meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount, attachmentIndex, attachmentCount);
+								BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
 							}
 						}
 					}
 					break;
+
 				case SkinAttachment.AttachmentType.MeshRoots:
 					unsafe
 					{
@@ -470,7 +480,7 @@ namespace Unity.DemoTeam.DigitalHuman
 							fixed (int* attachmentIndex = &subject.attachmentIndex)
 							fixed (int* attachmentCount = &subject.attachmentCount)
 							{
-								AttachToVertex(ref meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount, attachmentIndex, attachmentCount);
+								BuildDataAttachToVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
 							}
 						}
 					}
@@ -483,151 +493,16 @@ namespace Unity.DemoTeam.DigitalHuman
 		//--------
 		// Attach
 
-		public static unsafe int BuildPosesTriangle(ref MeshInfo meshInfo, SkinAttachmentPose* pose, ref Vector3 target, int triangle)
-		{
-			var meshPositions = meshInfo.meshBuffers.vertexPositions;
-			var meshTriangles = meshInfo.meshBuffers.triangles;
-
-			int _0 = triangle * 3;
-			var v0 = meshTriangles[_0];
-			var v1 = meshTriangles[_0 + 1];
-			var v2 = meshTriangles[_0 + 2];
-
-			var p0 = meshPositions[v0];
-			var p1 = meshPositions[v1];
-			var p2 = meshPositions[v2];
-
-			var v0v1 = p1 - p0;
-			var v0v2 = p2 - p0;
-
-			var triangleNormal = Vector3.Cross(v0v1, v0v2);
-			var triangleArea = Vector3.Magnitude(triangleNormal);
-
-			triangleNormal /= triangleArea;
-			triangleArea *= 0.5f;
-
-			if (triangleArea < float.Epsilon)
-				return 0;// no pose
-
-			var targetDist = Vector3.Dot(triangleNormal, target - p0);
-			var targetProjected = target - targetDist * triangleNormal;
-			var targetCoord = new Barycentric(ref targetProjected, ref p0, ref p1, ref p2);
-
-			pose->v0 = v0;
-			pose->v1 = v1;
-			pose->v2 = v2;
-			pose->area = triangleArea;
-			pose->targetDist = targetDist;
-			pose->targetCoord = targetCoord;
-			return 1;
-		}
-
-		public static unsafe int BuildPosesVertex(ref MeshInfo meshInfo, SkinAttachmentPose* pose, ref Vector3 target, int vertex)
-		{
-			int poseCount = 0;
-			foreach (int triangle in meshInfo.meshAdjacency.vertexTriangles[vertex])
-			{
-				poseCount += BuildPosesTriangle(ref meshInfo, pose + poseCount, ref target, triangle);
-			}
-			return poseCount;
-		}
-
-		//TODO remove
-		public unsafe void AttachToTriangle(ref MeshInfo meshInfo, Vector3* targetPositions, int* targetTriangles, int targetCount, int* attachmentIndex, int* attachmentCount)
-		{
-			var poseIndex = attachData.poseCount;
-			var itemIndex = attachData.itemCount;
-
-			fixed (SkinAttachmentPose* pose = attachData.pose)
-			fixed (SkinAttachmentItem* item = attachData.item)
-			{
-				for (int i = 0; i != targetCount; i++)
-				{
-					var poseCount = BuildPosesTriangle(ref meshInfo, pose + poseIndex, ref targetPositions[i], targetTriangles[i]);
-					if (poseCount == 0)
-					{
-						Debug.LogError("no valid poses for target triangle " + i + ", aborting");
-						poseIndex = attachData.poseCount;
-						itemIndex = attachData.itemCount;
-						break;
-					}
-
-					item[itemIndex].poseIndex = poseIndex;
-					item[itemIndex].poseCount = poseCount;
-					item[itemIndex].baseVertex = meshInfo.meshBuffers.triangles[3 * targetTriangles[i]];
-					item[itemIndex].baseNormal = meshInfo.meshBuffers.vertexNormals[item[itemIndex].baseVertex];
-					item[itemIndex].targetNormal = item[itemIndex].baseNormal;
-					item[itemIndex].targetOffset = Vector3.zero;
-
-					poseIndex += poseCount;
-					itemIndex += 1;
-				}
-			}
-
-			*attachmentIndex = itemIndex > attachData.itemCount ? attachData.itemCount : -1;
-			*attachmentCount = itemIndex - attachData.itemCount;
-
-			attachData.poseCount = poseIndex;
-			attachData.itemCount = itemIndex;
-		}
-
-		public unsafe void AttachToVertex(ref MeshInfo meshInfo, Vector3* targetPositions, Vector3* targetOffsets, Vector3* targetNormals, int* targetVertices, int targetCount, int* attachmentIndex, int* attachmentCount)
-		{
-			var poseIndex = attachData.poseCount;
-			var descIndex = attachData.itemCount;
-
-			fixed (SkinAttachmentPose* pose = attachData.pose)
-			fixed (SkinAttachmentItem* desc = attachData.item)
-			{
-				for (int i = 0; i != targetCount; i++)
-				{
-					var poseCount = BuildPosesVertex(ref meshInfo, pose + poseIndex, ref targetPositions[i], targetVertices[i]);
-					if (poseCount == 0)
-					{
-						Debug.LogError("no valid poses for target vertex " + i + ", aborting");
-						poseIndex = attachData.poseCount;
-						descIndex = attachData.itemCount;
-						break;
-					}
-
-					desc[descIndex].poseIndex = poseIndex;
-					desc[descIndex].poseCount = poseCount;
-					desc[descIndex].baseVertex = targetVertices[i];
-					desc[descIndex].baseNormal = meshInfo.meshBuffers.vertexNormals[targetVertices[i]];
-					desc[descIndex].targetNormal = targetNormals[i];
-					desc[descIndex].targetOffset = targetOffsets[i];
-
-					poseIndex += poseCount;
-					descIndex += 1;
-				}
-			}
-
-			*attachmentIndex = descIndex > attachData.itemCount ? attachData.itemCount : -1;
-			*attachmentCount = descIndex - attachData.itemCount;
-
-			attachData.poseCount = poseIndex;
-			attachData.itemCount = descIndex;
-		}
-
-		public unsafe void AttachToClosestVertex(ref MeshInfo meshInfo, Vector3* targetPositions, Vector3* targetNormals, int targetCount, int* attachmentIndex, int* attachmentCount)
-		{
-			using (var targetOffsets = new UnsafeArrayVector3(targetCount))
-			using (var targetVertices = new UnsafeArrayInt(targetCount))
-			{
-				for (int i = 0; i != targetCount; i++)
-				{
-					targetOffsets.val[i] = Vector3.zero;
-					targetVertices.val[i] = meshInfo.meshVertexBSP.FindNearest(ref targetPositions[i]);
-				}
-				AttachToVertex(ref meshInfo, targetPositions, targetOffsets.val, targetNormals, targetVertices.val, targetCount, attachmentIndex, attachmentCount);
-			}
-		}
+		// moved to SkinAttachmentDataBuilder
 
 		//---------
 		// Resolve
 
 		void ResolveSubjects()
 		{
+			if (attachData == null)
+				return;
+
 			Profiler.BeginSample("resolve-subj-all");
 
 			subjects.RemoveAll(p => p == null);
@@ -657,6 +532,8 @@ namespace Unity.DemoTeam.DigitalHuman
 			for (int i = 0, n = subjects.Count; i != n; i++)
 			{
 				var subject = subjects[i];
+				if (subject.Checksum() != attachData.Checksum())
+					continue;
 
 				int attachmentIndex = subject.attachmentIndex;
 				int attachmentCount = subject.attachmentCount;
@@ -703,6 +580,8 @@ namespace Unity.DemoTeam.DigitalHuman
 				for (int i = 0, n = subjects.Count; i != n; i++)
 				{
 					var subject = subjects[i];
+					if (subject.Checksum() != attachData.Checksum())
+						continue;
 
 					var stillRunning = (stagingJobs[i].IsCompleted == false);
 					if (stillRunning)

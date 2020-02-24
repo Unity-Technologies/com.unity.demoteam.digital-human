@@ -8,9 +8,12 @@ namespace Unity.DemoTeam.DigitalHuman
 	public class SkinAttachmentEditor : Editor
 	{
 		private Editor attachmentTargetEditor;
+		private HashSet<SkinAttachmentTarget> attachmentTargetSet = new HashSet<SkinAttachmentTarget>();
 
 		public override void OnInspectorGUI()
 		{
+			attachmentTargetSet.Clear();
+
 			if (target == null)
 				return;
 
@@ -20,8 +23,9 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (attachment == null)
 					return;
 
-				EditorGUILayout.HelpBox(attachment.attached ? "Attached to " + attachment.target : "Detached", MessageType.Info);
-				DrawGUIAttachDetach(attachment);
+				EditorGUILayout.HelpBox(attachment.attached ? "Currently attached to " + attachment.target : "Currently detached.", MessageType.Info);
+				DrawGUIAttachDetach(attachment, attachmentTargetSet);
+				CommitTargetChanges(attachmentTargetSet);
 				EditorGUILayout.Separator();
 
 				base.OnInspectorGUI();
@@ -29,6 +33,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				var attachmentTarget = (target as SkinAttachment).target;
 				if (attachmentTarget != null)
 				{
+					EditorGUILayout.Separator();
 					Editor.CreateCachedEditor(attachmentTarget, null, ref attachmentTargetEditor);
 					attachmentTargetEditor.DrawHeader();
 					attachmentTargetEditor.OnInspectorGUI();
@@ -36,7 +41,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 			else
 			{
-				EditorGUILayout.HelpBox("Multiple attachments selected", MessageType.Warning);
+				EditorGUILayout.HelpBox("Multiple attachments selected.", MessageType.Warning);
 
 				foreach (var target in targets)
 				{
@@ -46,46 +51,58 @@ namespace Unity.DemoTeam.DigitalHuman
 
 					EditorGUILayout.BeginHorizontal();
 					EditorGUILayout.ObjectField(attachment, typeof(SkinAttachment), false);
-					DrawGUIAttachDetach(attachment);
+					DrawGUIAttachDetach(attachment, attachmentTargetSet);
+					CommitTargetChanges(attachmentTargetSet);
 					EditorGUILayout.EndHorizontal();
 				}
 			}
 		}
 
-		public static void DrawGUIAttachDetach(SkinAttachment attachment)
+		public static void CommitTargetChanges(HashSet<SkinAttachmentTarget> attachmentTargetSet)
+		{
+			foreach (var attachmentTarget in attachmentTargetSet)
+			{
+				if (attachmentTarget != null)
+					attachmentTarget.CommitSubjectsIfRequired();
+			}
+		}
+
+		public static void DrawGUIAttachDetach(SkinAttachment attachment, HashSet<SkinAttachmentTarget> attachmentTargetSet)
 		{
 			EditorGUILayout.BeginVertical();
-			DrawGUIAttach(attachment);
-			DrawGUIDetach(attachment);
+			DrawGUIAttach(attachment, attachmentTargetSet);
+			DrawGUIDetach(attachment, attachmentTargetSet);
 			EditorGUILayout.EndVertical();
 		}
 
-		public static void DrawGUIAttach(SkinAttachment attachment)
+		public static void DrawGUIAttach(SkinAttachment attachment, HashSet<SkinAttachmentTarget> attachmentTargetSet)
 		{
 			EditorGUI.BeginDisabledGroup(attachment.attached);
 			{
 				if (GUILayout.Button("Attach"))
 				{
-					attachment.attached = true;
+					attachmentTargetSet.Add(attachment.targetActive);
+					attachment.Attach(storePositionRotation: true);
+					attachmentTargetSet.Add(attachment.targetActive);
 				}
 			}
 			EditorGUI.EndDisabledGroup();
 		}
 
-		public static void DrawGUIDetach(SkinAttachment attachment)
+		public static void DrawGUIDetach(SkinAttachment attachment, HashSet<SkinAttachmentTarget> attachmentTargetSet)
 		{
 			EditorGUI.BeginDisabledGroup(!attachment.attached);
 			{
 				EditorGUILayout.BeginHorizontal();
 				if (GUILayout.Button("Detach"))
 				{
-					attachment.attached = false;
-					attachment.preserveResolved = false;
+					attachmentTargetSet.Add(attachment.targetActive);
+					attachment.Detach(revertPositionRotation: true);
 				}
 				if (GUILayout.Button("+ Hold", GUILayout.ExpandWidth(false)))
 				{
-					attachment.attached = false;
-					attachment.preserveResolved = true;
+					attachmentTargetSet.Add(attachment.targetActive);
+					attachment.Detach(revertPositionRotation: false);
 				}
 				EditorGUILayout.EndHorizontal();
 			}
