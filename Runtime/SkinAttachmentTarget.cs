@@ -618,10 +618,8 @@ namespace Unity.DemoTeam.DigitalHuman
 									break;
 								}
 
-								subject.meshInstance.EnableSilentWrites(true);
-								subject.meshInstance.vertices = stagingData[indexPos];
-								subject.meshInstance.normals = stagingData[indexNrm];
-								subject.meshInstance.EnableSilentWrites(false);
+								subject.meshInstance.SilentlySetVertices(stagingData[indexPos]);
+								subject.meshInstance.SilentlySetNormals(stagingData[indexPos]);
 
 								//Profiler.BeginSample("recalc-bounds");
 								//subject.meshInstance.RecalculateBounds();

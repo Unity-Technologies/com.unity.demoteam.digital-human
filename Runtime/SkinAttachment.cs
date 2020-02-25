@@ -176,16 +176,12 @@ namespace Unity.DemoTeam.DigitalHuman
 			var forceRecalculateAny = forceRecalculateBounds || forceRecalculateNormals || forceRecalculateTangents;
 			if (forceRecalculateAny && meshInstance != null)
 			{
-				meshInstance.EnableSilentWrites(true);
-
-				if (forceRecalculateNormals)
-					meshInstance.RecalculateNormals();
 				if (forceRecalculateTangents)
-					meshInstance.RecalculateTangents();
+					meshInstance.SilentlyRecalculateTangents();
+				if (forceRecalculateNormals)
+					meshInstance.SilentlyRecalculateNormals();
 				if (forceRecalculateBounds)
-					meshInstance.RecalculateBounds();
-
-				meshInstance.EnableSilentWrites(false);
+					meshInstance.SilentlyRecalculateBounds();
 			}
 		}
 

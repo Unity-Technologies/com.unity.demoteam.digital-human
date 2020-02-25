@@ -218,16 +218,12 @@ namespace Unity.DemoTeam.DigitalHuman
 				smr.SetPropertyBlock(smrProps);
 			}
 
-			meshInstance.EnableSilentWrites(true);
-			meshInstance.vertices = blendedPositions;
-			meshInstance.normals = blendedNormals;
-			meshInstance.EnableSilentWrites(false);
+			meshInstance.SilentlySetVertices(blendedPositions);
+			meshInstance.SilentlySetNormals(blendedNormals);
 
 			if (forceRecalculateTangents)
 			{
-				meshInstance.EnableSilentWrites(true);
-				meshInstance.RecalculateTangents();
-				meshInstance.EnableSilentWrites(false);
+				meshInstance.SilentlyRecalculateTangents();
 			}
 
 			if (renderFittedWeights)
