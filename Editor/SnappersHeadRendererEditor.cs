@@ -97,10 +97,14 @@ namespace Unity.DemoTeam.DigitalHuman
 						//		break;
 						//}
 
+						EditorGUI.BeginChangeCheck();
 						pos = Handles.FreeMoveHandle(pos, Quaternion.identity, hndSize, hndSnap * Vector3.one, Handles.SphereHandleCap);
-
-						t.localPosition = pos;
-						t.localRotation = rot;
+						if (EditorGUI.EndChangeCheck())
+						{
+							Undo.RecordObject(t, "Move control rig handle");
+							t.localPosition = pos;
+							t.localRotation = rot;
+						}
 					}
 				}
 			}
