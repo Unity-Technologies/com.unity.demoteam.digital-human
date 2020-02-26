@@ -14,9 +14,6 @@
 #elif defined(TEETH_DATA_VARIABLE_32)
 	#define SPHERICALPOLYGON_MAX_VERTS 32
 	#define SPHERICALPOLYGON_NUM_VERTS _TeethVertexCount
-#else
-	#define SPHERICALPOLYGON_MAX_VERTS 3
-	#define SPHERICALPOLYGON_NUM_VERTS 3
 #endif
 
 uniform float4 _TeethParams;// x = lit potential min, y = lit potential max

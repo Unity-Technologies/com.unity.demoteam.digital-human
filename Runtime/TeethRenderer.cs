@@ -49,6 +49,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		void PrepareKeyword(string keyword, bool enabled)
 		{
+#if UNITY_EDITOR
+			if (rndMat != rnd.sharedMaterial)
+				rndMat = rnd.sharedMaterial;
+#endif
+
 			if (rndMat.IsKeywordEnabled(keyword) != enabled)
 			{
 				if (enabled)
