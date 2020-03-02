@@ -619,7 +619,7 @@ namespace Unity.DemoTeam.DigitalHuman
 								}
 
 								subject.meshInstance.SilentlySetVertices(stagingData[indexPos]);
-								subject.meshInstance.SilentlySetNormals(stagingData[indexPos]);
+								subject.meshInstance.SilentlySetNormals(stagingData[indexNrm]);
 
 								//Profiler.BeginSample("recalc-bounds");
 								//subject.meshInstance.RecalculateBounds();

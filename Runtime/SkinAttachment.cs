@@ -55,6 +55,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		[Range(0, 6)]
 		public int debugIndex = 0;
 		public bool debugIndexEnabled = false;
+		public bool debugBounds = false;
 
 		[Header("Runtime options")]
 		public bool forceRecalculateBounds;
@@ -207,7 +208,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			if (attached)
 			{
-				if (attachmentType != AttachmentType.Transform)
+				if (attachmentType != AttachmentType.Transform && debugBounds)
 				{
 					Gizmos.matrix = this.transform.localToWorldMatrix;
 					Gizmos.DrawWireCube(meshInstance.bounds.center, meshInstance.bounds.extents * 2.0f);

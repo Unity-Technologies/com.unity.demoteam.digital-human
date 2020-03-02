@@ -1,4 +1,4 @@
-﻿Shader "Hidden/DigitalHuman/NormalBufferBlur"
+﻿Shader "Hidden/DigitalHuman/NormalBufferBlurPass"
 {
 	Properties
 	{
@@ -19,7 +19,7 @@
 		Texture2D<float4> _NormalBufferBlur_Decoded;
 
 #if defined(PLATFORM_NEEDS_UNORM_UAV_SPECIFIER) && defined(PLATFORM_SUPPORTS_EXPLICIT_BINDING)
-		RW_TEXTURE2D_X(unorm float4, _NormalBuffer) : register(u1);
+		RW_TEXTURE2D_X(unorm float4, _NormalBuffer) : register(u2);
 #else
 		RW_TEXTURE2D_X(float4, _NormalBuffer);
 #endif
@@ -46,6 +46,12 @@
 			float4 positionCS : SV_POSITION;
 			float2 texcoord : TEXCOORD0;
 			UNITY_VERTEX_OUTPUT_STEREO
+		};
+
+		struct FullScreenOutputs
+		{
+			float4 dbuffer0 : SV_Target0;
+			float4 dbuffer1 : SV_Target1;
 		};
 
 		SurfaceVaryings VertSurface(SurfaceAttributes input)
@@ -91,11 +97,8 @@
 			return float4(normalData.normalWS, normalData.perceptualRoughness);
 		}
 
-		[earlydepthstencil]
-		void FragFullScreen_BlurAndEncode(FullScreenVaryings input)
+		float4 NormalRoughnessRegionalBlur(int2 positionSS)
 		{
-			int2 positionSS = input.positionCS.xy;
-
 			const int MAX_EXT = 20;// PACKAGETODO variable?
 			const float RCP_MAX_EXT = 1.0 / float(MAX_EXT);
 
@@ -159,25 +162,43 @@
 			sum.xyz = normalize(sum.xyz);
 			sum.a = sum.a / gsum;
 
-//#define STRICT_TEARLINE
-#ifdef STRICT_TEARLINE
-			float4 raw = _NormalBufferBlur_Decoded[positionSS];
+			return sum;// xyz = normalWS, w = smoothness
+		}
 
-			const float tearlineRoughness = 0.3;
-			float tearlineDotN = abs(dot(sum.xyz, raw.xyz));
-			float tearline = 2.0 * saturate((1.0 - pow(tearlineDotN, 16)) - 0.5);
-#else
-			float tearline = ext * RCP_MAX_EXT;
-#endif
+		[earlydepthstencil]
+		void FragFullScreen_BlurAndEncode(FullScreenVaryings input)
+		{
+			float4 normalRoughness = NormalRoughnessRegionalBlur(input.positionCS.xy);
 
 			// write to gbuffer
 			NormalData normalData;
-			normalData.normalWS = sum.xyz;
-			normalData.perceptualRoughness = sum.a;// lerp(sum.a, 0.2, tearline);
+			normalData.normalWS = normalRoughness.xyz;
+			normalData.perceptualRoughness = normalRoughness.a;
 
 			float4 normalBuffer;
 			EncodeIntoNormalBuffer(normalData, uint2(0, 0), normalBuffer);
-			_NormalBuffer[COORD_TEXTURE2D_X(positionSS)] = normalBuffer;
+			_NormalBuffer[COORD_TEXTURE2D_X(input.positionCS.xy)] = normalBuffer;
+		}
+
+		[earlydepthstencil]
+		FullScreenOutputs FragFullScreen_BlurAndEncodeAndDecal(FullScreenVaryings input)
+		{
+			float4 normalRoughness = NormalRoughnessRegionalBlur(input.positionCS.xy);
+
+			// write to gbuffer
+			NormalData normalData;
+			normalData.normalWS = normalRoughness.xyz;
+			normalData.perceptualRoughness = normalRoughness.a;
+
+			float4 normalBuffer;
+			EncodeIntoNormalBuffer(normalData, uint2(0, 0), normalBuffer);
+			_NormalBuffer[COORD_TEXTURE2D_X(input.positionCS.xy)] = normalBuffer;
+
+			// write to dbuffer
+			FullScreenOutputs output;
+			output.dbuffer0 = float4(normalRoughness.xyz * 0.5 + 0.5, 0.0);
+			output.dbuffer1 = float4(0, 0, 1.0 - normalRoughness.w, 0.0);
+			return output;
 		}
 	ENDHLSL
 
@@ -263,6 +284,31 @@
 			HLSLPROGRAM
 				#pragma vertex VertFullScreen
 				#pragma fragment FragFullScreen_BlurAndEncode
+			ENDHLSL
+		}
+
+		Pass// == 4
+		{
+			Name "BlurAndEncodeAndDecal"
+
+			ZTest Always
+			ZWrite Off
+
+			ColorMask RGBA 0
+			ColorMask BA 1
+
+			Stencil
+			{
+				WriteMask [_StencilBit]
+				ReadMask [_StencilBit]
+				Ref [_StencilBit]
+				Comp Equal
+				Pass Zero
+			}
+
+			HLSLPROGRAM
+				#pragma vertex VertFullScreen
+				#pragma fragment FragFullScreen_BlurAndEncodeAndDecal
 			ENDHLSL
 		}
 	}

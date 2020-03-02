@@ -18,7 +18,7 @@
     "m_Groups": [
         {
             "m_GuidSerialized": "febe6ddc-bb7f-4364-929e-350dbb854b39",
-            "m_Title": "Is Forward Pass?",
+            "m_Title": "Forward Pass Predicate",
             "m_Position": {
                 "x": 10.0,
                 "y": 10.0
