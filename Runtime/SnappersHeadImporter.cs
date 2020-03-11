@@ -80,7 +80,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			sb.AppendLine();
 			sb.AppendFormat("	public class {0}_{1}\n", csClassPrefix, "SnappersHead : SnappersHeadDefinition");
 			sb.AppendLine("	{");
-			sb.AppendLine("		public override InstanceData CreateInstanceData(Mesh sourceMesh, Transform sourceRig, Warning warnings)");
+			sb.AppendLine("		public override InstanceData CreateInstanceData(Mesh sourceMesh, Transform sourceRig, Warnings warnings)");
 			sb.AppendLine("		{");
 			sb.AppendLine("			return CreateInstanceData<SnappersControllers, SnappersBlendShapes>(sourceMesh, sourceRig, warnings);");
 			sb.AppendLine("		}");

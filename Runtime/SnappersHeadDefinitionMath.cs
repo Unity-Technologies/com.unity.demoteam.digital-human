@@ -5,14 +5,19 @@ namespace Unity.DemoTeam.DigitalHuman
 {
 	public static class SnappersHeadDefinitionMath
 	{
+		public static float clamp(float value, float min, float max)
+		{
+			return Mathf.Clamp(value, min, max);
+		}
+
 		public static float min(float a, float b)
 		{
-			return Math.Min(a, b);
+			return Mathf.Min(a, b);
 		}
 
 		public static float max(float a, float b)
 		{
-			return Math.Max(a, b);
+			return Mathf.Max(a, b);
 		}
 
 		public static float hermite(float p0, float p1, float r0, float r1, float t)
