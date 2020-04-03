@@ -196,17 +196,35 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				subjects.RemoveAll(p => (p == null));
 
-				// pass 1: build poses
+				// pass 1: dry run
+				int dryRunPoseCount = 0;
+				int dryRunItemCount = 0;
+
 				for (int i = 0, n = subjects.Count; i != n; i++)
 				{
 					if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
 					{
 						subjects[i].RevertVertexData();
-						CommitSubject(ref meshInfo, subjects[i]);
+						CommitSubject(ref meshInfo, subjects[i], dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
 					}
 				}
 
-				// pass 2: reference poses
+				dryRunPoseCount = Mathf.NextPowerOfTwo(dryRunPoseCount);
+				dryRunItemCount = Mathf.NextPowerOfTwo(dryRunItemCount);
+
+				ArrayUtils.ResizeCheckedIfLessThan(ref attachData.pose, dryRunPoseCount);
+				ArrayUtils.ResizeCheckedIfLessThan(ref attachData.item, dryRunItemCount);
+
+				// pass 2: build poses
+				for (int i = 0, n = subjects.Count; i != n; i++)
+				{
+					if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
+					{
+						CommitSubject(ref meshInfo, subjects[i], dryRun: false, ref dryRunPoseCount, ref dryRunPoseCount);
+					}
+				}
+
+				// pass 3: reference poses
 				for (int i = 0, n = subjects.Count; i != n; i++)
 				{
 					switch (subjects[i].attachmentMode)
@@ -250,7 +268,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		void CommitSubject(ref MeshInfo meshInfo, SkinAttachment subject)
+		void CommitSubject(ref MeshInfo meshInfo, SkinAttachment subject, bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount)
 		{
 			Profiler.BeginSample("attach-subj");
 
@@ -267,7 +285,10 @@ namespace Unity.DemoTeam.DigitalHuman
 						fixed (int* attachmentIndex = &subject.attachmentIndex)
 						fixed (int* attachmentCount = &subject.attachmentCount)
 						{
-							BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, &targetPosition, &targetNormal, 1);
+							if (dryRun)
+								CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, &targetPosition, &targetNormal, 1);
+							else
+								BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, &targetPosition, &targetNormal, 1);
 						}
 					}
 					break;
@@ -294,7 +315,10 @@ namespace Unity.DemoTeam.DigitalHuman
 							fixed (int* attachmentIndex = &subject.attachmentIndex)
 							fixed (int* attachmentCount = &subject.attachmentCount)
 							{
-								BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
+								if (dryRun)
+									CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
+								else
+									BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
 							}
 						}
 					}
@@ -480,7 +504,10 @@ namespace Unity.DemoTeam.DigitalHuman
 							fixed (int* attachmentIndex = &subject.attachmentIndex)
 							fixed (int* attachmentCount = &subject.attachmentCount)
 							{
-								BuildDataAttachToVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
+								if (dryRun)
+									CountDataAttachToVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
+								else
+									BuildDataAttachToVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
 							}
 						}
 					}

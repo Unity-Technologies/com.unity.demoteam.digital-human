@@ -147,5 +147,52 @@ namespace Unity.DemoTeam.DigitalHuman
 				BuildDataAttachToVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions, targetOffsets.val, targetNormals, targetVertices.val, targetCount);
 			}
 		}
+
+		public static unsafe int CountPosesTriangle(in MeshInfo meshInfo, ref Vector3 target, int triangle)
+		{
+			SkinAttachmentPose dummyPose;
+			return BuildPosesTriangle(&dummyPose, meshInfo, ref target, triangle);
+		}
+
+		public static unsafe int CountPosesVertex(in MeshInfo meshInfo, ref Vector3 target, int vertex)
+		{
+			int poseCount = 0;
+			foreach (int triangle in meshInfo.meshAdjacency.vertexTriangles[vertex])
+			{
+				poseCount += CountPosesTriangle(meshInfo, ref target, triangle);
+			}
+			return poseCount;
+		}
+
+		public static unsafe void CountDataAttachToTriangle(ref int poseCount, ref int itemCount, in MeshInfo meshInfo, Vector3* targetPositions, int* targetTriangles, int targetCount)
+		{
+			for (int i = 0; i != targetCount; i++)
+			{
+				poseCount += CountPosesTriangle(meshInfo, ref targetPositions[i], targetTriangles[i]);
+				itemCount += 1;
+			}
+		}
+
+		public static unsafe void CountDataAttachToVertex(ref int poseCount, ref int itemCount, in MeshInfo meshInfo, Vector3* targetPositions, Vector3* targetOffsets, Vector3* targetNormals, int* targetVertices, int targetCount)
+		{
+			for (int i = 0; i != targetCount; i++)
+			{
+				poseCount += CountPosesVertex(meshInfo, ref targetPositions[i], targetVertices[i]);
+				itemCount += 1;
+			}
+		}
+
+		public static unsafe void CountDataAttachToClosestVertex(ref int poseCount, ref int itemCount, in MeshInfo meshInfo, Vector3* targetPositions, Vector3* targetNormals, int targetCount)
+		{
+			using (var targetOffsets = new UnsafeArrayVector3(targetCount))
+			using (var targetVertices = new UnsafeArrayInt(targetCount))
+			{
+				for (int i = 0; i != targetCount; i++)
+				{
+					targetVertices.val[i] = meshInfo.meshVertexBSP.FindNearest(ref targetPositions[i]);
+				}
+				CountDataAttachToVertex(ref poseCount, ref itemCount, meshInfo, targetPositions, targetOffsets.val, targetNormals, targetVertices.val, targetCount);
+			}
+		}
 	}
 }

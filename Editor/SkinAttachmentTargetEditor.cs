@@ -23,6 +23,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (driver.attachData == null)
 			{
 				EditorGUILayout.HelpBox("Must bind SkinAttachmentData asset before use.", MessageType.Error);
+				base.OnInspectorGUI();
 				return;
 			}
 
