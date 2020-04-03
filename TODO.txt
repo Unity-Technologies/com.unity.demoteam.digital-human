@@ -9,5 +9,4 @@ X pending HDRP tasks
 X implement the tearline
 	X blur decals?
 	X CustomPassInjectionPoint.AfterGBuffer (-> AfterOpaqueDepthAndNormal)
-
-* implement the control rig
+X implement the control rig

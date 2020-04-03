@@ -5,7 +5,7 @@ Library of digital human tech features from *The Heretic*.
 
 ## Requirements
 
-- Unity 2019.3.2f1 +
+- Unity 2019.3.3f1 +
 - HDRP 7.2.1 +
 
 
