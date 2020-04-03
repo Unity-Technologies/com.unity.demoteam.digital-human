@@ -245,6 +245,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			Gizmos.matrix = this.transform.localToWorldMatrix;
 
+			if (meshBuffers == null)
+			{
+				EnsureMeshInstance();
+			}
+
 			if (attachmentType == AttachmentType.Mesh)
 			{
 				var colorArray = new Color[] { Color.red, Color.green, Color.blue, Color.cyan, Color.magenta, Color.yellow, Color.white };
