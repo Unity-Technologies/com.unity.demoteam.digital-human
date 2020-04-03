@@ -7,39 +7,32 @@ using System.Reflection;
 
 //	basic procedure:
 //
-//	1. allocate temp
-//		a. custom stencil
+//	1. alloc temp
 //		b. custom color (R8)
 //		c. custom normal (ARGBHalf)
 //
 //	2. clear
-//		a. write 0 -> custom stencil
 //		b. write 1 -> custom color
 //
-//	3. copy depth
-//		a. write camera depth -> custom depth
+//	3. mark decals
+//		a. write 0 -> custom color
+//		b. write 1 -> custom stencil
 //
-//	4. render decals
-//		a. write 1 -> custom stencil
-//		b. write 0 -> custom color
+//	4. enable stencil
 //
-//	5. enable stencil
-//
-//	6. render fullscreen
+//	5. render fullscreen
 //		a. write decoded normal -> custom normal
 //
-//	7. render fullscreen
+//	6. render fullscreen
 //		a. write blurred decoded normal -> normal
 //
-//	8. free temp
+//	7. free temp
 
 public class NormalBufferBlurPass : CustomPass
 {
 	[HideInInspector] public RenderQueueType queue = RenderQueueType.AllOpaque;
 	[HideInInspector] public LayerMask layerMask = 0;// default to 'None'
 
-	static readonly int idInputDepth = Shader.PropertyToID("_InputDepth");
-	static readonly int rtStencil = Shader.PropertyToID("_NormalBufferBlur_Stencil");
 	static readonly int rtRegions = Shader.PropertyToID("_NormalBufferBlur_Regions");
 	static readonly int rtDecoded = Shader.PropertyToID("_NormalBufferBlur_Decoded");
 
@@ -54,21 +47,21 @@ public class NormalBufferBlurPass : CustomPass
 	};
 	static ShaderTagId[] NAME_PASS_REPLACE_TAG = null;
 
-	const int PASS_COPY_DEPTH = 0;
-	const int PASS_MARK = 1;
-	const int PASS_DECODE = 2;
-	const int PASS_BLUR_AND_ENCODE = 3;
-	const int PASS_BLUR_AND_ENCODE_AND_DECAL = 4;
+	const int PASS_MARK = 0;
+	const int PASS_DECODE = 1;
+	const int PASS_BLUR_AND_ENCODE = 2;
+	const int PASS_BLUR_AND_ENCODE_AND_DECAL = 3;
 
 	Material passMaterial;
 
 	const int DBUFFER_NORMALS = 1;
 	const int DBUFFER_MASK = 2;
 
+	private RTHandle[] dbufferRTs;
 	private RenderTargetIdentifier[] dbufferNormalMaskRTI;
 	private void FindDbufferRTs(HDRenderPipeline hdPipeline)
 	{
-		RTHandle[] dbufferRTs = null;
+		dbufferRTs = null;
 
 		var fieldInfo_m_DbufferManager = typeof(HDRenderPipeline).GetField("m_DbufferManager", BindingFlags.NonPublic | BindingFlags.Instance);
 		if (fieldInfo_m_DbufferManager != null)
@@ -117,6 +110,10 @@ public class NormalBufferBlurPass : CustomPass
 		FindDbufferRTs(RenderPipelineManager.currentPipeline as HDRenderPipeline);
 
 		EnsureMaterial(ref passMaterial, NAME_SHADER);
+		if (passMaterial != null)
+		{
+			passMaterial.SetInt("_StencilBit", (int)UserStencilUsage.UserBit0);
+		}
 
 		if (NAME_PASS_REPLACE_TAG == null)
 		{
@@ -146,42 +143,33 @@ public class NormalBufferBlurPass : CustomPass
 		if (!hdCamera.frameSettings.IsEnabled(FrameSettingsField.Decals))
 			return;
 
-		int viewportW = hdCamera.actualWidth;
-		int viewportH = hdCamera.actualHeight;
-
-		//Debug.Log("custom blur pass, w = " + viewportW + ", h = " + viewportH);
-
 		RTHandle cameraColor;
 		RTHandle cameraDepth;
 		GetCameraBuffers(out cameraColor, out cameraDepth);
 
+		int bufferW = cameraColor.rt.width;
+		int bufferH = cameraColor.rt.height;
+
 		// allocate temporary buffers
-		cmd.GetTemporaryRT(rtStencil, viewportW, viewportH, (int)DepthBits.Depth24, FilterMode.Point, RenderTextureFormat.Depth);
-		cmd.GetTemporaryRT(rtRegions, viewportW, viewportH, (int)DepthBits.None, FilterMode.Point, RenderTextureFormat.R8, RenderTextureReadWrite.Linear, 1, false);
-		cmd.GetTemporaryRT(rtDecoded, viewportW, viewportH, (int)DepthBits.None, FilterMode.Point, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear, 1, false);
-
-		// copy depth from camera depth
-		CoreUtils.SetRenderTarget(cmd,
-			rtRegions, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-			rtStencil, RenderBufferLoadAction.Load, RenderBufferStoreAction.DontCare,
-			ClearFlag.All, Color.white
-		);
-
-		cmd.SetGlobalTexture(idInputDepth, cameraDepth);
-		cmd.DrawProcedural(Matrix4x4.identity, passMaterial, PASS_COPY_DEPTH, MeshTopology.Triangles, 3, 1);
+		cmd.GetTemporaryRT(rtRegions, bufferW, bufferH, (int)DepthBits.None, FilterMode.Point, RenderTextureFormat.R8, RenderTextureReadWrite.Linear, 1, false);
+		cmd.GetTemporaryRT(rtDecoded, bufferW, bufferH, (int)DepthBits.None, FilterMode.Point, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear, 1, false);
 
 		// render decals to mark blur regions
-		var renderListDesc = new RendererListDesc(NAME_PASS_REPLACE_TAG, cullingResults, hdCamera.camera)
+		CoreUtils.SetRenderTarget(cmd,
+			rtRegions, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+			cameraDepth, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+			ClearFlag.Color, Color.white
+		);
+		CoreUtils.SetViewport(cmd, cameraDepth);
+
+		RendererListDesc renderListDesc = new RendererListDesc(NAME_PASS_REPLACE_TAG, cullingResults, hdCamera.camera)
 		{
 			rendererConfiguration = PerObjectData.None,
 			renderQueueRange = GetRenderQueueRange(queue),
-
 			sortingCriteria = SortingCriteria.None,
-
 			layerMask = layerMask,
 			overrideMaterial = passMaterial,
 			overrideMaterialPassIndex = PASS_MARK,
-
 			stateBlock = null,
 			excludeObjectMotionVectors = false,
 		};
@@ -191,9 +179,10 @@ public class NormalBufferBlurPass : CustomPass
 		// decode normal buffer in marked regions
 		CoreUtils.SetRenderTarget(cmd,
 			rtDecoded, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-			rtStencil, RenderBufferLoadAction.Load, RenderBufferStoreAction.DontCare,
+			cameraDepth, RenderBufferLoadAction.Load, RenderBufferStoreAction.DontCare,
 			ClearFlag.None
 		);
+		CoreUtils.SetViewport(cmd, cameraDepth);
 
 		cmd.SetRandomWriteTarget(2, GetNormalBuffer());
 		cmd.DrawProcedural(Matrix4x4.identity, passMaterial, PASS_DECODE, MeshTopology.Triangles, 3, 1);
@@ -207,7 +196,9 @@ public class NormalBufferBlurPass : CustomPass
 		{
 			CoreUtils.SetRenderTarget(cmd,
 				dbufferNormalMaskRTI,
-				rtStencil);
+				cameraDepth,
+				ClearFlag.None);
+			CoreUtils.SetViewport(cmd, cameraDepth);
 
 			cmd.SetRandomWriteTarget(2, GetNormalBuffer());
 			cmd.DrawProcedural(Matrix4x4.identity, passMaterial, PASS_BLUR_AND_ENCODE_AND_DECAL, MeshTopology.Triangles, 3, 1);
@@ -216,9 +207,10 @@ public class NormalBufferBlurPass : CustomPass
 		else
 		{
 			CoreUtils.SetRenderTarget(cmd,
-				rtStencil, RenderBufferLoadAction.Load, RenderBufferStoreAction.DontCare,
+				cameraDepth, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
 				ClearFlag.None
 			);
+			CoreUtils.SetViewport(cmd, cameraDepth);
 
 			cmd.SetRandomWriteTarget(2, GetNormalBuffer());
 			cmd.DrawProcedural(Matrix4x4.identity, passMaterial, PASS_BLUR_AND_ENCODE, MeshTopology.Triangles, 3, 1);
@@ -226,7 +218,6 @@ public class NormalBufferBlurPass : CustomPass
 		}
 
 		// free temporary buffers
-		cmd.ReleaseTemporaryRT(rtStencil);
 		cmd.ReleaseTemporaryRT(rtRegions);
 		cmd.ReleaseTemporaryRT(rtDecoded);
 	}

@@ -2,7 +2,7 @@
 {
 	Properties
 	{
-		[HideInInspector] _StencilBit("_StencilBit", Int) = 4
+		[HideInInspector] _StencilBit("_StencilBit", Int) = 64// UserStencilUsage.UserBit0
 	}
 
 	HLSLINCLUDE
@@ -12,8 +12,6 @@
 		#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderVariables.hlsl"
 		#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/NormalBuffer.hlsl"
 		#include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Decal/DecalUtilities.hlsl"
-
-		TEXTURE2D_X(_InputDepth);
 
 		Texture2D<float> _NormalBufferBlur_Regions;
 		Texture2D<float4> _NormalBufferBlur_Decoded;
@@ -28,7 +26,7 @@
 		{
 			float3 positionOS : POSITION;
 		};
-	
+
 		struct SurfaceVaryings
 		{
 			float4 positionCS : SV_POSITION;
@@ -40,7 +38,7 @@
 			uint vertexID : SV_VertexID;
 			UNITY_VERTEX_INPUT_INSTANCE_ID
 		};
-	
+
 		struct FullScreenVaryings
 		{
 			float4 positionCS : SV_POSITION;
@@ -64,11 +62,6 @@
 			return output;
 		}
 
-		float FragSurface_Mark(SurfaceVaryings input) : SV_Target0
-		{
-			return 0.0;// 0 == interior
-		}
-
 		FullScreenVaryings VertFullScreen(FullScreenAttributes input)
 		{
 			FullScreenVaryings output;
@@ -79,11 +72,9 @@
 			return output;
 		}
 
-		float FragFullScreen_CopyDepth(FullScreenVaryings input) : SV_Depth
+		float FragSurface_Mark(SurfaceVaryings input) : SV_Target0
 		{
-			UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-			uint2 positionSS = uint2(input.positionCS.xy);
-			return _InputDepth[COORD_TEXTURE2D_X(positionSS)].x;
+			return 0.0;// 0 == interior
 		}
 
 		[earlydepthstencil]
@@ -211,19 +202,6 @@
 
 		Pass// == 0
 		{
-			Name "CopyDepth"
-
-			ZTest Always
-			ZWrite On
-
-			HLSLPROGRAM
-				#pragma vertex VertFullScreen
-				#pragma fragment FragFullScreen_CopyDepth
-			ENDHLSL
-		}
-
-		Pass// == 1
-		{
 			Name "Mark"
 
 			ZTest LEqual
@@ -232,9 +210,8 @@
 			Stencil
 			{
 				WriteMask [_StencilBit]
-				ReadMask 0
 				Ref [_StencilBit]
-				Comp Equal
+				Comp Always
 				Pass Replace
 			}
 
@@ -244,7 +221,7 @@
 			ENDHLSL
 		}
 
-		Pass// == 2
+		Pass// == 1
 		{
 			Name "Decode"
 
@@ -265,7 +242,7 @@
 			ENDHLSL
 		}
 
-		Pass// == 3
+		Pass// == 2
 		{
 			Name "BlurAndEncode"
 
@@ -287,7 +264,7 @@
 			ENDHLSL
 		}
 
-		Pass// == 4
+		Pass// == 3
 		{
 			Name "BlurAndEncodeAndDecal"
 
