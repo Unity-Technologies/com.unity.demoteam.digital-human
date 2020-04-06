@@ -138,10 +138,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			Profiler.EndSample();
 		}
 
-		public ref MeshInfo GetCachedMeshInfo()
+		public ref MeshInfo GetCachedMeshInfo(bool forceRefresh = false)
 		{
 			int frameIndex = Time.frameCount;
-			if (frameIndex != cachedMeshInfoFrame)
+			if (frameIndex != cachedMeshInfoFrame || forceRefresh)
 			{
 				UpdateMeshInfo(ref cachedMeshInfo);
 
@@ -168,6 +168,9 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (attachData == null)
 				return false;
 
+			if (meshBuffers.vertexCount < attachData.driverVertexCount)
+				return true;
+
 			for (int i = 0, n = subjects.Count; i != n; i++)
 			{
 				if (subjects[i].Checksum() != attachData.Checksum())
@@ -188,11 +191,12 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (attachData == null)
 				return;
 
-			var meshInfo = GetCachedMeshInfo();
+			var meshInfo = GetCachedMeshInfo(forceRefresh: true);
 			if (meshInfo.valid == false)
 				return;
 
 			attachData.Clear();
+			attachData.driverVertexCount = meshInfo.meshBuffers.vertexCount;
 			{
 				subjects.RemoveAll(p => (p == null));
 
@@ -378,8 +382,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
 										foreach (var j in subject.meshAdjacency.vertexVertices[i])
 										{
-											var targetDelta = targetPositions.val[j] - meshBuffers.vertexPositions[targetNode];
-											var targetNormalDist = Vector3.Dot(targetDelta, meshBuffers.vertexNormals[targetNode]);
+											var targetDelta = targetPositions.val[j] - meshInfo.meshBuffers.vertexPositions[targetNode];
+											var targetNormalDist = Vector3.Dot(targetDelta, meshInfo.meshBuffers.vertexNormals[targetNode]);
 											if (targetNormalDist < 0.0f)
 											{
 												var d = Vector3.SqrMagnitude(targetDelta);
@@ -405,8 +409,8 @@ namespace Unity.DemoTeam.DigitalHuman
 											rootGen.val[i] = -1;
 
 											// see if node qualifies as second choice root
-											var targetDelta = targetPositions.val[i] - meshBuffers.vertexPositions[targetNode];
-											var targetNormalDist = Mathf.Abs(Vector3.Dot(targetDelta, meshBuffers.vertexNormals[targetNode]));
+											var targetDelta = targetPositions.val[i] - meshInfo.meshBuffers.vertexPositions[targetNode];
+											var targetNormalDist = Mathf.Abs(Vector3.Dot(targetDelta, meshInfo.meshBuffers.vertexNormals[targetNode]));
 											if (targetNormalDist < bestDist0)
 											{
 												bestDist1 = bestDist0;
@@ -431,7 +435,7 @@ namespace Unity.DemoTeam.DigitalHuman
 								{
 									visitor.Ignore(bestVert0);
 									rootIdx.val[bestVert0] = bestNode0;
-									rootDir.val[bestVert0] = Vector3.Normalize(meshBuffers.vertexPositions[bestNode0] - targetPositions.val[bestVert0]);
+									rootDir.val[bestVert0] = Vector3.Normalize(meshInfo.meshBuffers.vertexPositions[bestNode0] - targetPositions.val[bestVert0]);
 									rootGen.val[bestVert0] = 0;
 									rootCount++;
 
@@ -439,7 +443,7 @@ namespace Unity.DemoTeam.DigitalHuman
 									{
 										visitor.Ignore(bestVert1);
 										rootIdx.val[bestVert1] = bestNode1;
-										rootDir.val[bestVert1] = Vector3.Normalize(meshBuffers.vertexPositions[bestNode1] - targetPositions.val[bestVert1]);
+										rootDir.val[bestVert1] = Vector3.Normalize(meshInfo.meshBuffers.vertexPositions[bestNode1] - targetPositions.val[bestVert1]);
 										rootGen.val[bestVert1] = 0;
 										rootCount++;
 									}
@@ -530,6 +534,9 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (attachData == null)
 				return;
 
+			if (attachData.driverVertexCount > meshBuffers.vertexCount)
+				return;// prevent out of bounds if mesh shrunk since data was built
+
 			Profiler.BeginSample("resolve-subj-all");
 
 			subjects.RemoveAll(p => p == null);
@@ -566,6 +573,9 @@ namespace Unity.DemoTeam.DigitalHuman
 				int attachmentCount = subject.attachmentCount;
 				if (attachmentIndex == -1)
 					continue;
+
+				if (attachmentIndex + attachmentCount > attachData.itemCount)
+					continue;// prevent out of bounds if subject holds damaged index/count 
 
 				var indexPos = i * 2 + 0;
 				var indexNrm = i * 2 + 1;

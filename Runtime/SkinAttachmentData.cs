@@ -8,6 +8,11 @@ namespace Unity.DemoTeam.DigitalHuman
 	[PreferBinarySerialization]
 	public class SkinAttachmentData : ScriptableObject
 	{
+		//[HideInInspector]
+		//public int driverChecksum = -1;
+		[HideInInspector]
+		public int driverVertexCount = 0;
+
 		[HideInInspector]
 		public ulong checksum0 = 0;
 		[HideInInspector]
@@ -31,6 +36,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public void Clear()
 		{
+			driverVertexCount = 0;
 			checksum0 = 0;
 			checksum1 = 0;
 			poseCount = 0;

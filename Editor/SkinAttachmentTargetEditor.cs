@@ -82,7 +82,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			var checksumFailed = driver.CommitRequired();
 			if (checksumFailed)
 			{
-				EditorGUILayout.HelpBox("Rebuild required: Checksum of one or more subjects does not match checksum of data.", MessageType.Warning);
+				EditorGUILayout.HelpBox("Rebuild required: Checksum of driver or one or more subjects does not match checksum of data.", MessageType.Warning);
 			}
 			else if (driver.attachData.subjectCount != driver.subjects.Count)
 			{
