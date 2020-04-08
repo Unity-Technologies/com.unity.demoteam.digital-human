@@ -1,5 +1,7 @@
 ﻿using System;
 using UnityEngine;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.DemoTeam.Attributes;
 
 namespace Unity.DemoTeam.DigitalHuman
@@ -67,6 +69,53 @@ namespace Unity.DemoTeam.DigitalHuman
 		[NonSerialized] public MeshAdjacency meshAdjacency;
 		[NonSerialized] public MeshIslands meshIslands;
 
+		[NonSerialized] public Transform skinningBone;
+		[NonSerialized] public Matrix4x4 skinningBoneBindPose;
+		[NonSerialized] public Matrix4x4 skinningBoneBindPoseInverse;
+
+		void DiscoverSkinningBone()
+		{
+			skinningBone = null;
+			skinningBoneBindPose = Matrix4x4.identity;
+			skinningBoneBindPoseInverse = Matrix4x4.identity;
+
+			// search for skinning bone
+			var smr = GetComponent<SkinnedMeshRenderer>();
+			if (smr != null)
+			{
+				int skinningBoneIndex = -1;
+
+				unsafe
+				{
+					var boneWeights = meshAsset.GetAllBoneWeights();
+					var boneWeightPtr = (BoneWeight1*)boneWeights.GetUnsafeReadOnlyPtr();
+
+					for (int i = 0; i != boneWeights.Length; i++)
+					{
+						if (boneWeightPtr[i].weight > 0.0f)
+						{
+							if (skinningBoneIndex == -1)
+								skinningBoneIndex = boneWeightPtr[i].boneIndex;
+
+							if (skinningBoneIndex != boneWeightPtr[i].boneIndex)
+							{
+								skinningBoneIndex = -1;
+								break;
+							}
+						}
+					}
+				}
+
+				if (skinningBoneIndex != -1)
+				{
+					skinningBone = smr.bones[skinningBoneIndex];
+					skinningBoneBindPose = meshInstance.bindposes[skinningBoneIndex];
+					skinningBoneBindPoseInverse = skinningBoneBindPose.inverse;
+					//Debug.Log("discovered skinning bone for " + this.name + " : " + skinningBone.name);
+				}
+			}
+		}
+
 		protected override void OnMeshInstanceCreated()
 		{
 			meshAssetRadius = meshAsset.bounds.extents.magnitude;// conservative
@@ -85,6 +134,8 @@ namespace Unity.DemoTeam.DigitalHuman
 				meshIslands = new MeshIslands(meshAdjacency);
 			else
 				meshIslands.LoadFrom(meshAdjacency);
+
+			DiscoverSkinningBone();
 		}
 
 		protected override void OnMeshInstanceDeleted()
@@ -243,12 +294,16 @@ namespace Unity.DemoTeam.DigitalHuman
 				return;
 			}
 
-			Gizmos.matrix = this.transform.localToWorldMatrix;
-
 			if (meshBuffers == null)
 			{
 				EnsureMeshInstance();
 			}
+
+			if (skinningBone != null)
+				Gizmos.matrix = skinningBone.localToWorldMatrix * skinningBoneBindPose;
+			else
+				Gizmos.matrix = this.transform.localToWorldMatrix;
+
 
 			if (attachmentType == AttachmentType.Mesh)
 			{
@@ -287,8 +342,22 @@ namespace Unity.DemoTeam.DigitalHuman
 				var positions = meshBuffers.vertexPositions;
 
 				var targetPositions = new Vector3[positions.Length];
-				var subjectToTarget = target.transform.worldToLocalMatrix * this.transform.localToWorldMatrix;
-				var targetToSubject = this.transform.worldToLocalMatrix * target.transform.localToWorldMatrix;
+
+				Matrix4x4 targetToWorld = Matrix4x4.TRS(target.transform.position, target.transform.rotation, Vector3.one);
+				Matrix4x4 subjectToTarget;
+				Matrix4x4 targetToSubject;
+				{
+					if (skinningBone != null)
+					{
+						subjectToTarget = target.transform.worldToLocalMatrix * (skinningBone.localToWorldMatrix * skinningBoneBindPose);
+						targetToSubject = (skinningBoneBindPoseInverse * skinningBone.worldToLocalMatrix) * targetToWorld;
+					}
+					else
+					{
+						subjectToTarget = target.transform.worldToLocalMatrix * this.transform.localToWorldMatrix;
+						targetToSubject = this.transform.worldToLocalMatrix * targetToWorld;
+					}
+				}
 
 				for (int i = 0; i != positions.Length; i++)
 				{

@@ -276,7 +276,13 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			Profiler.BeginSample("attach-subj");
 
-			var subjectToTarget = this.transform.worldToLocalMatrix * subject.transform.localToWorldMatrix;
+			Matrix4x4 subjectToTarget;
+			{
+				if (subject.skinningBone != null)
+					subjectToTarget = this.transform.worldToLocalMatrix * (subject.skinningBone.localToWorldMatrix * subject.skinningBoneBindPose);
+				else
+					subjectToTarget = this.transform.worldToLocalMatrix * subject.transform.localToWorldMatrix;
+			}
 
 			switch (subject.attachmentType)
 			{
@@ -521,11 +527,6 @@ namespace Unity.DemoTeam.DigitalHuman
 			Profiler.EndSample();
 		}
 
-		//--------
-		// Attach
-
-		// moved to SkinAttachmentDataBuilder
-
 		//---------
 		// Resolve
 
@@ -600,7 +601,24 @@ namespace Unity.DemoTeam.DigitalHuman
 						case SkinAttachment.AttachmentType.Mesh:
 						case SkinAttachment.AttachmentType.MeshRoots:
 							{
-								var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+								Matrix4x4 targetToSubject;
+								{
+									// this used to always read:
+									//   var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+									//
+									// to support attachments that have skinning renderers, we sometimes have to transform
+									// the vertices into a space that takes into account the subsequently applied skinning:
+									//    var targetToSubject = (subject.skinningBone.localToWorldMatrix * subject.meshInstanceBoneBindPose).inverse * targetToWorld;
+									//
+									// we can reshuffle a bit to get rid of the per-resolve inverse:
+									//    var targetToSubject = (subject.skinningBoneBindPoseInverse * subject.meshInstanceBone.worldToLocalMatrix) * targetToWorld;
+
+									if (subject.skinningBone != null)
+										targetToSubject = (subject.skinningBoneBindPoseInverse * subject.skinningBone.worldToLocalMatrix) * targetToWorld;
+									else
+										targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+								}
+
 								stagingJobs[i] = ScheduleResolve(attachmentIndex, attachmentCount, ref targetToSubject, resolvedPositions, resolvedNormals);
 							}
 							break;
