@@ -38,8 +38,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			GUILayout.Label(string.Format("Attachments ({0})", driver.subjects.Count), EditorStyles.boldLabel);
 			var checksum = driver.attachData.Checksum();
 			var checksumFailed = driver.CommitRequired();
-			foreach (var attachment in driver.subjects)
+			for (int i = 0; i != driver.subjects.Count; i++)
 			{
+				var attachment = driver.subjects[i];
+
 				EditorGUILayout.BeginHorizontal();
 				EditorGUILayout.ObjectField(attachment, typeof(SkinAttachment), false);
 				SkinAttachmentEditor.DrawGUIDetach(attachment, attachmentTargetSet);
@@ -59,6 +61,9 @@ namespace Unity.DemoTeam.DigitalHuman
 						GUILayout.Label("Checksum passed:  " + attachment.Checksum(), EditorStyles.helpBox);
 					}
 				}
+
+				if (i >= driver.subjects.Count || driver.subjects[i] != attachment)
+					i--;
 			}
 
 			SkinAttachmentEditor.CommitTargetChanges(attachmentTargetSet);
