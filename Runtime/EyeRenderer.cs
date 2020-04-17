@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
+using UnityEngine.Serialization;
 using Unity.DemoTeam.Attributes;
 
 namespace Unity.DemoTeam.DigitalHuman
@@ -10,45 +12,6 @@ namespace Unity.DemoTeam.DigitalHuman
 		private Renderer rnd;
 		private MaterialPropertyBlock rndProps;
 
-		public float eyeRadius = 0.014265f;
-
-		[Space]
-		[Tooltip("The Z offset from the eye origin of the iris plane")]
-		public float eyeCorneaRadiusStart = 0.01325f;
-		[Tooltip("The Z offset from the cornea that contains limbus darkening (the dark ring around the iris)")]
-		public float eyeCorneaLimbusDarkeningOffset = 0.00075f;// was 0.001
-		[Range(1.0f, 1.4f), Tooltip("The index of refraction of a human cornea is 1.376, but our geometry works well with a value of 1.2. Affects magnitude of iris distortion from cornea lens.")]
-		public float eyeCorneaIndexOfRefraction = 1.3f;// was 1.2
-		[Range(0.0f, 1.0f)]
-		public float eyeCorneaSSSScale = 0.0f;
-		[Range(0.0f, 1.0f)]
-		public float eyeCorneaSmoothness = 0.917f;
-		public bool eyeCorneaDebug = false;
-
-		[Space]
-		public bool eyeIrisBentLightingDebug = false;
-		public bool eyeIrisBentLighting = true;
-		public float eyeIrisPlaneOffset = 0.002f;// was 0
-		[Range(-1.0f, 1.0f)]
-		public float eyeIrisConcavity = 0.0f;
-
-		[Space]
-		[Tooltip("Texture space pupil offset")]
-		public Vector2 eyePupilOffset = new Vector2(0.002f, 0.016f);
-		[Tooltip("Texture space pupil diameter")]
-		public float eyePupilDiameter = 0.095f;
-		[Tooltip("Texture space pupil falloff")]
-		public float eyePupilFalloff = 0.015f;
-		[Tooltip("Texture space pupil scale")]
-		public float eyePupilScale = 1.0f;
-
-		[Space]
-		public bool eyeWrappedLighting = false;
-		[Range(0.0f, 1.0f)]
-		public float eyeWrappedLightingCosine = 0.5f;
-		[Range(1.0f, 4.0f)]
-		public float eyeWrappedLightingPower = 4.0f;
-
 		// http://hyperphysics.phy-astr.gsu.edu/hbase/vision/eyescal.html
 		const float IOR_HUMAN_AQUEOUS_HUMOR = 1.336f;
 		const float IOR_HUMAN_CORNEA = 1.376f;
@@ -57,36 +20,66 @@ namespace Unity.DemoTeam.DigitalHuman
 		// https://journals.lww.com/optvissci/Abstract/1995/10000/Refractive_Index_and_Osmolality_of_Human_Tears_.4.aspx
 		const float IOR_HUMAN_TEARS = 1.33698f;
 
-		[Space]
-		[Range(1.0f, 2.0f)]
-		public float eyeLitIORCornea = IOR_HUMAN_CORNEA;
-		[Range(1.0f, 2.0f)]
-		public float eyeLitIORSclera = IOR_HUMAN_TEARS;
+		[Header("Geometry")]
+		public float geometryRadius = 0.014265f;
+		public Vector3 geometryOrigin = Vector3.zero;
+		public Vector3 geometryAngle = Vector3.zero;
 
-		[Space]
-		public Transform eyePolygonContainer;
-		private const int eyePolygonSize = 4;// should match size in EyeLitForward.shader
-		private Vector4[] eyePolygonOS = new Vector4[eyePolygonSize];
-		private Vector3 eyeAsgOriginOS = new Vector3(0.0f, 0.0f, 0.0f);
-		private Vector3 eyeAsgMeanOS = new Vector3(0.0f, 0.0f, 1.0f);
-		private Vector3 eyeAsgTangentOS = new Vector3(1.0f, 0.0f, 0.0f);
-		private Vector3 eyeAsgBitangentOS = new Vector3(0.0f, 1.0f, 0.0f);
-		private Vector2 eyeAsgSharpness = new Vector2(1.25f, 9.0f);
-		[Range(1e-1f, 128.0f)]
-		public float eyeAsgPower = 16.0f;
-		[Range(1e-7f, 1e-1f)]
-		public float eyeAsgThreshold = 1e-1f;
-		private Vector2 eyeAsgThresholdScaleBias = new Vector2(1.0f, 0.0f);
-		[Range(0.0f, 1.0f)]
-		public float eyeAsgModulateAlbedo = 0.5f;
+		[Header("Sclera")]
+		[FormerlySerializedAs("eyeLitIORSclera"), Range(1.0f, 2.0f)]
+		public float scleraIOR = IOR_HUMAN_TEARS;
 
-		[Space]
-		public ConeMapping coneMapping = ConeMapping.ClosingAxisSpaceSplit;
+		[Header("Cornea")]
+		public bool corneaCrossSectionEditMode = false;
+		[FormerlySerializedAs("eyeCorneaRadiusStart")]
+		public float corneaCrossSection = 0.01325f;
+		[FormerlySerializedAs("eyeIrisPlaneOffset")]
+		public float corneaCrossSectionIrisOffset = 0.002f;
+		[FormerlySerializedAs("eyeCorneaLimbusDarkeningOffset")]
+		public float corneaCrossSectionFadeOffset = 0.00075f;
+		[FormerlySerializedAs("eyeLitIORCornea"), Range(1.0f, 2.0f)]
+		public float corneaIOR = IOR_HUMAN_CORNEA;
+		[FormerlySerializedAs("eyeCorneaIndexOfRefraction"), Range(1.0f, 2.0f)]
+		public float corneaIORIrisRay = 1.3f;
+		[FormerlySerializedAs("eyeCorneaSmoothness"), Range(0.0f, 1.0f)]
+		public float corneaSmoothness = 0.917f;
+		[FormerlySerializedAs("eyeCorneaSSSScale"), Range(0.0f, 1.0f)]
+		public float corneaSSS = 0.0f;
+
+		[Header("Iris")]
+		[FormerlySerializedAs("eyeIrisBentLighting")]
+		public bool irisRefractedLighting = true;
+		[Tooltip("Enables constant step (being the specified iris offset) along the refracted ray below the cornea cross section, rather than stepping all the way to the plane defined by the iris offset. Effectively curves the iris towards the refracted ray.")]
+		public bool irisRefractedOffset = true;
+
+		[Header("Pupil")]
+		[FormerlySerializedAs("eyePupilOffset")]
+		public Vector2 pupilUVOffset = new Vector2(0.002f, 0.016f);
+		[FormerlySerializedAs("eyePupilDiameter")]
+		public float pupilUVDiameter = 0.095f;
+		[FormerlySerializedAs("eyePupilFalloff")]
+		public float pupilUVFalloff = 0.015f;
+		[FormerlySerializedAs("eyePupilScale"), Range(0.5f, 2.2f)]
+		public float pupilScale = 1.0f;
+
+		[Header("Occlusion")]
+		[FormerlySerializedAs("eyeAsgPower"), Range(1e-1f, 128.0f)]
+		public float asgPower = 10.0f;
+		[FormerlySerializedAs("eyeAsgThreshold"), Range(1e-7f, 1e-1f)]
+		public float asgThreshold = 1e-7f;
+		[FormerlySerializedAs("eyeAsgModulateAlbedo"), Range(0.0f, 1.0f)]
+		public float asgModulateAlbedo = 0.65f;
+		[FormerlySerializedAs("eyePolygonContainer")]
+		public Transform asgMarkerPolygon;
+
 		public enum ConeMapping
 		{
 			ObjectSpaceMean,
 			ClosingAxisSpaceSplit,
 		}
+
+		[Space]
+		public ConeMapping coneMapping = ConeMapping.ClosingAxisSpaceSplit;
 		[VisibleIf("coneMapping", ConeMapping.ClosingAxisSpaceSplit)]
 		public float coneOriginOffset = 1.0f;
 		[VisibleIf("coneMapping", ConeMapping.ClosingAxisSpaceSplit)]
@@ -95,244 +88,226 @@ namespace Unity.DemoTeam.DigitalHuman
 		public Vector3 coneBias = Vector3.zero;
 		public bool coneDebug = false;
 
+		[NonSerialized]
+		public Vector3 asgOriginOS = new Vector3(0.0f, 0.0f, 0.0f);
+		[NonSerialized]
+		public Vector3 asgMeanOS = new Vector3(0.0f, 0.0f, 1.0f);
+		[NonSerialized]
+		public Vector3 asgTangentOS = new Vector3(1.0f, 0.0f, 0.0f);
+		[NonSerialized]
+		public Vector3 asgBitangentOS = new Vector3(0.0f, 1.0f, 0.0f);
+		[NonSerialized]
+		public Vector2 asgSharpness = new Vector2(1.25f, 9.0f);
+		[NonSerialized]
+		public Vector2 asgThresholdScaleBias = new Vector2(1.0f, 0.0f);
+
 		void Awake()
 		{
 			rnd = GetComponent<Renderer>();
 			rndProps = new MaterialPropertyBlock();
 		}
 
-		// amplitude * e^(pow(sharpness * (cosTheta - 1), power)) = epsilon
-		// e^(pow(sharpness * (cosTheta - 1), power)) = epsilon / amplitude
-		// pow(sharpness * (cosTheta - 1), power) = log(epsilon / amplitude)
-		// pow(sharpness * (cosTheta - 1), power) = log(epsilon) - log(amplitude)
-		// sharpness * (cosTheta - 1) = pow(log(epsilon) - log(amplitude), 1.0 / power)
-		// sharpness = pow(log(epsilon) - log(amplitude), 1.0 / power) / (cosTheta - 1)
-
 		// https://mynameismjp.wordpress.com/2016/10/09/sg-series-part-2-spherical-gaussians-101/
 		float AsgSharpnessFromThreshold(float epsilon, float amplitude, float power, float cosTheta)
 		{
+			// amplitude * e^(pow(sharpness * (cosTheta - 1), power)) = epsilon
+			// e^(pow(sharpness * (cosTheta - 1), power)) = epsilon / amplitude
+			// pow(sharpness * (cosTheta - 1), power) = log(epsilon / amplitude)
+			// pow(sharpness * (cosTheta - 1), power) = log(epsilon) - log(amplitude)
+			// sharpness * (cosTheta - 1) = pow(log(epsilon) - log(amplitude), 1.0 / power)
+			// sharpness = pow(log(epsilon) - log(amplitude), 1.0 / power) / (cosTheta - 1)
 			return 0.5f * Mathf.Pow(-Mathf.Log(epsilon) - Mathf.Log(amplitude), 1.0f / power) / -(cosTheta - 1.0f);
+		}
+
+		void AsgParameterUpdate()
+		{
+			Vector3 osMarkerL = (1.1f * geometryRadius) * Vector3.Normalize(Vector3.forward + Vector3.left);
+			Vector3 osMarkerR = (1.1f * geometryRadius) * Vector3.Normalize(Vector3.forward + Vector3.right);
+			Vector3 osMarkerT = (1.1f * geometryRadius) * Vector3.Normalize(Vector3.forward + 0.35f * Vector3.up);
+			Vector3 osMarkerB = (1.1f * geometryRadius) * Vector3.Normalize(Vector3.forward + 0.35f * Vector3.down);
+
+			if (asgMarkerPolygon != null && asgMarkerPolygon.childCount == 4)
+			{
+				//       1
+				//   .-´   `-.
+				// 0           2
+				//   `-.   .-´
+				//       3
+
+				osMarkerL = this.transform.InverseTransformPoint(asgMarkerPolygon.GetChild(0).position);
+				osMarkerR = this.transform.InverseTransformPoint(asgMarkerPolygon.GetChild(2).position);
+				osMarkerT = this.transform.InverseTransformPoint(asgMarkerPolygon.GetChild(1).position);
+				osMarkerB = this.transform.InverseTransformPoint(asgMarkerPolygon.GetChild(3).position);
+			}
+
+			if (coneDebug)
+			{
+				DrawLocalRay(Vector3.zero, osMarkerT, Color.white);
+				DrawLocalRay(Vector3.zero, osMarkerR, Color.white);
+				DrawLocalRay(Vector3.zero, osMarkerB, Color.white);
+				DrawLocalRay(Vector3.zero, osMarkerL, Color.white);
+			}
+
+			float cosThetaTangent = 0.0f;
+			float cosThetaBitangent = 0.0f;
+
+			switch (coneMapping)
+			{
+				case ConeMapping.ObjectSpaceMean:
+					{
+						asgOriginOS = geometryOrigin;
+						asgMeanOS = Vector3.Normalize(
+							Vector3.Normalize(osMarkerT) +
+							Vector3.Normalize(osMarkerR) +
+							Vector3.Normalize(osMarkerB) +
+							Vector3.Normalize(osMarkerL)
+						);
+						asgBitangentOS = Vector3.Cross(asgMeanOS, Vector3.Normalize(osMarkerR - osMarkerL));
+						asgTangentOS = Vector3.Cross(asgBitangentOS, asgMeanOS);
+
+						float cosThetaMeanToLeft = Vector3.Dot(Vector3.Normalize(osMarkerL), asgMeanOS);
+						float cosThetaMeanToRight = Vector3.Dot(Vector3.Normalize(osMarkerR), asgMeanOS);
+						float cosThetaMeanToTop = Vector3.Dot(Vector3.Normalize(osMarkerT), asgMeanOS);
+						float cosThetaMeanToBottom = Vector3.Dot(Vector3.Normalize(osMarkerB), asgMeanOS);
+
+						cosThetaTangent = (cosThetaMeanToLeft + cosThetaMeanToRight) * 0.5f;
+						cosThetaBitangent = (cosThetaMeanToTop + cosThetaMeanToBottom) * 0.5f;
+					}
+					break;
+
+				case ConeMapping.ClosingAxisSpaceSplit:
+					{
+						var asgPolygonRot = Quaternion.Euler(coneBias.y, coneBias.x, coneBias.z);
+						osMarkerL = asgPolygonRot * osMarkerL;
+						osMarkerR = asgPolygonRot * osMarkerR;
+						osMarkerT = asgPolygonRot * osMarkerT;
+						osMarkerB = asgPolygonRot * osMarkerB;
+
+						var closingPlaneNormal = Vector3.Normalize(osMarkerR - osMarkerL);
+						var closingPlaneOrigin = Vector3.ProjectOnPlane(osMarkerL, closingPlaneNormal);
+
+						var closingPlanePosTop = Vector3.ProjectOnPlane(osMarkerT, closingPlaneNormal) - closingPlaneOrigin;
+						var closingPlanePosBottom = Vector3.ProjectOnPlane(osMarkerB, closingPlaneNormal) - closingPlaneOrigin;
+						var closingPlaneDirTop = Vector3.Normalize(closingPlanePosTop);
+						var closingPlaneDirBottom = Vector3.Normalize(closingPlanePosBottom);
+
+						var closingPlaneForward = Vector3.Normalize(closingPlaneDirTop + closingPlaneDirBottom);
+						{
+							closingPlaneOrigin -= closingPlaneForward * (0.01f * coneOriginOffset);
+							//TODO pick an origin that sends the resulting forward vector through the original origin in the closing plane
+
+							closingPlanePosTop = Vector3.ProjectOnPlane(osMarkerT, closingPlaneNormal) - closingPlaneOrigin;
+							closingPlanePosBottom = Vector3.ProjectOnPlane(osMarkerB, closingPlaneNormal) - closingPlaneOrigin;
+							closingPlaneDirTop = Vector3.Normalize(closingPlanePosTop);
+							closingPlaneDirBottom = Vector3.Normalize(closingPlanePosBottom);
+
+							closingPlaneForward = Vector3.Normalize(closingPlaneDirTop + closingPlaneDirBottom);
+						}
+
+						var openingPosLeft = (osMarkerL - closingPlaneOrigin);
+						var openingPosRight = (osMarkerR - closingPlaneOrigin);
+						var openingDirLeft = Vector3.Normalize(openingPosLeft);
+						var openingDirRight = Vector3.Normalize(openingPosRight);
+
+						var closingPlaneAltitude = coneScale.y * 0.5f * Mathf.Deg2Rad * Vector3.Angle(closingPlaneDirTop, closingPlaneDirBottom);
+						var closingPlaneAzimuth = coneScale.x * 0.5f * Mathf.Deg2Rad * Vector3.Angle(openingDirLeft, openingDirRight);
+
+						if (coneDebug)
+						{
+							DrawLocalRay(closingPlaneOrigin, closingPlanePosTop, Color.yellow);
+							DrawLocalRay(closingPlaneOrigin, closingPlanePosBottom, Color.yellow);
+							DrawLocalRay(closingPlaneOrigin, openingPosLeft, Color.yellow);
+							DrawLocalRay(closingPlaneOrigin, openingPosRight, Color.yellow);
+						}
+
+						asgOriginOS = closingPlaneOrigin;
+						asgMeanOS = closingPlaneForward;
+						asgTangentOS = closingPlaneNormal;
+						asgBitangentOS = Vector3.Normalize(Vector3.Cross(asgMeanOS, asgTangentOS));
+
+						cosThetaTangent = Mathf.Cos(closingPlaneAzimuth);
+						cosThetaBitangent = Mathf.Cos(closingPlaneAltitude);
+					}
+					break;
+
+			}// switch (coneMapping)
+
+			if (coneDebug)
+			{
+				var orange = Color.Lerp(Color.yellow, Color.red, 0.5f);
+				DrawLocalRay(asgOriginOS, (1.5f * geometryRadius) * asgMeanOS, orange);
+				DrawLocalRay(asgOriginOS, (1.5f * geometryRadius) * asgBitangentOS, orange);
+				DrawLocalRay(asgOriginOS, (1.5f * geometryRadius) * asgTangentOS, orange);
+			}
+
+			asgSharpness.x = AsgSharpnessFromThreshold(asgThreshold, 1.0f, asgPower, cosThetaTangent);
+			asgSharpness.y = AsgSharpnessFromThreshold(asgThreshold, 1.0f, asgPower, cosThetaBitangent);
+
+			asgThresholdScaleBias.x = 1.0f / (1.0f - asgThreshold);
+			asgThresholdScaleBias.y = -asgThreshold / (1.0f - asgThreshold);
 		}
 
 		void LateUpdate()
 		{
-			var eyePolygonComplete = (eyePolygonContainer != null) && (eyePolygonContainer.childCount == eyePolygonSize);
-			if (eyePolygonComplete)
-			{
-				for (int i = 0; i != eyePolygonSize; i++)
-				{
-					eyePolygonOS[i] = this.transform.InverseTransformPoint(eyePolygonContainer.GetChild(i).position);
-					if (coneDebug)
-					{
-						DrawRayLocal(Vector3.zero, eyePolygonOS[i], Color.white);
-					}
-				}
-
-				float cosThetaTangent = 0.0f;
-				float cosThetaBitangent = 0.0f;
-
-				switch (coneMapping)
-				{
-					case ConeMapping.ObjectSpaceMean:
-						{
-							eyeAsgOriginOS = Vector3.zero;
-							eyeAsgMeanOS = Vector3.Normalize(
-								Vector3.Normalize(eyePolygonOS[0])
-								+ Vector3.Normalize(eyePolygonOS[1])
-								+ Vector3.Normalize(eyePolygonOS[2])
-								+ Vector3.Normalize(eyePolygonOS[3])
-							);
-							eyeAsgBitangentOS = Vector3.Normalize(
-								Vector3.Cross(eyeAsgMeanOS, Vector3.Normalize(eyePolygonOS[2] - eyePolygonOS[0]))
-							);
-							eyeAsgTangentOS = Vector3.Cross(eyeAsgBitangentOS, eyeAsgMeanOS);
-
-							float cosThetaMeanToLeft = Vector3.Dot(Vector3.Normalize(eyePolygonOS[0]), eyeAsgMeanOS);
-							float cosThetaMeanToRight = Vector3.Dot(Vector3.Normalize(eyePolygonOS[2]), eyeAsgMeanOS);
-							float cosThetaMeanToTop = Vector3.Dot(Vector3.Normalize(eyePolygonOS[1]), eyeAsgMeanOS);
-							float cosThetaMeanToBottom = Vector3.Dot(Vector3.Normalize(eyePolygonOS[3]), eyeAsgMeanOS);
-
-							cosThetaTangent = (cosThetaMeanToLeft + cosThetaMeanToRight) * 0.5f;
-							cosThetaBitangent = (cosThetaMeanToTop + cosThetaMeanToBottom) * 0.5f;
-						}
-						break;
-					case ConeMapping.ClosingAxisSpaceSplit:
-						{
-							var eyePolygonRot = Quaternion.Euler(coneBias.y, coneBias.x, coneBias.z);
-
-							for (int i = 0; i != eyePolygonSize; i++)
-							{
-								eyePolygonOS[i] = eyePolygonRot * eyePolygonOS[i];
-							}
-
-							var closingPlaneNormal = Vector3.Normalize(eyePolygonOS[2] - eyePolygonOS[0]);
-							var closingPlaneOrigin = Vector3.ProjectOnPlane(eyePolygonOS[0], closingPlaneNormal);
-
-							var closingPlanePosTop = Vector3.ProjectOnPlane(eyePolygonOS[1], closingPlaneNormal) - closingPlaneOrigin;
-							var closingPlanePosBottom = Vector3.ProjectOnPlane(eyePolygonOS[3], closingPlaneNormal) - closingPlaneOrigin;
-							var closingPlaneDirTop = Vector3.Normalize(closingPlanePosTop);
-							var closingPlaneDirBottom = Vector3.Normalize(closingPlanePosBottom);
-
-							var closingPlaneForward = Vector3.Normalize(closingPlaneDirTop + closingPlaneDirBottom);
-							{
-								closingPlaneOrigin -= closingPlaneForward * (0.01f * coneOriginOffset);
-								//TODO pick an origin that sends the resulting forward vector through the original origin in the closing plane
-
-								closingPlanePosTop = Vector3.ProjectOnPlane(eyePolygonOS[1], closingPlaneNormal) - closingPlaneOrigin;
-								closingPlanePosBottom = Vector3.ProjectOnPlane(eyePolygonOS[3], closingPlaneNormal) - closingPlaneOrigin;
-								closingPlaneDirTop = Vector3.Normalize(closingPlanePosTop);
-								closingPlaneDirBottom = Vector3.Normalize(closingPlanePosBottom);
-
-								closingPlaneForward = Vector3.Normalize(closingPlaneDirTop + closingPlaneDirBottom);
-							}
-
-							var openingPosLeft = (Vector3)eyePolygonOS[0] - closingPlaneOrigin;
-							var openingPosRight = (Vector3)eyePolygonOS[2] - closingPlaneOrigin;
-							var openingDirLeft = Vector3.Normalize(openingPosLeft);
-							var openingDirRight = Vector3.Normalize(openingPosRight);
-
-							var closingPlaneAltitude = coneScale.y * 0.5f * Mathf.Deg2Rad * Vector3.Angle(closingPlaneDirTop, closingPlaneDirBottom);
-							var closingPlaneAzimuth = coneScale.x * 0.5f * Mathf.Deg2Rad * Vector3.Angle(openingDirLeft, openingDirRight);
-
-							if (coneDebug)
-							{
-								DrawRayLocal(closingPlaneOrigin, closingPlanePosTop, Color.yellow);
-								DrawRayLocal(closingPlaneOrigin, closingPlanePosBottom, Color.yellow);
-								DrawRayLocal(closingPlaneOrigin, openingPosLeft, Color.yellow);
-								DrawRayLocal(closingPlaneOrigin, openingPosRight, Color.yellow);
-							}
-
-							eyeAsgOriginOS = closingPlaneOrigin;
-							eyeAsgMeanOS = closingPlaneForward;
-							eyeAsgTangentOS = closingPlaneNormal;
-							eyeAsgBitangentOS = Vector3.Normalize(Vector3.Cross(eyeAsgMeanOS, eyeAsgTangentOS));
-
-							cosThetaTangent = Mathf.Cos(closingPlaneAzimuth);
-							cosThetaBitangent = Mathf.Cos(closingPlaneAltitude);
-						}
-						break;
-				}
-
-				if (coneDebug)
-				{
-					DrawRayLocal(eyeAsgOriginOS, eyeAsgMeanOS, Color.red);
-					DrawRayLocal(eyeAsgOriginOS, eyeAsgBitangentOS, Color.green);
-					DrawRayLocal(eyeAsgOriginOS, eyeAsgTangentOS, Color.blue);
-				}
-
-				eyeAsgSharpness.x = AsgSharpnessFromThreshold(eyeAsgThreshold, 1.0f, eyeAsgPower, cosThetaTangent);
-				eyeAsgSharpness.y = AsgSharpnessFromThreshold(eyeAsgThreshold, 1.0f, eyeAsgPower, cosThetaBitangent);
-
-				eyeAsgThresholdScaleBias.x = 1.0f / (1.0f - eyeAsgThreshold);
-				eyeAsgThresholdScaleBias.y = -eyeAsgThreshold / (1.0f - eyeAsgThreshold);
-			}
-			else
-			{
-				for (int i = 0; i != eyePolygonSize; i++)
-				{
-					eyePolygonOS[i] = Vector4.zero;
-				}
-			}
-
-			if (eyeCorneaDebug)
-			{
-				var pos = this.transform.position;
-				var rot = this.transform.rotation;
-
-				var dirBF = rot * Vector3.forward;
-				var dirBT = rot * Vector3.up;
-				var dirLR = rot * Vector3.right;
-
-				var rot45 = rot * Quaternion.AngleAxis(45.0f, Vector3.forward);
-
-				var dirBT45 = rot45 * dirBT;
-				var dirLR45 = rot45 * dirLR;
-
-				var posIris = pos + dirBF * eyeCorneaRadiusStart;
-				var posFade = pos + dirBF * (eyeCorneaRadiusStart + eyeCorneaLimbusDarkeningOffset);
-				var posSide = pos + dirLR * eyeRadius;
-
-				var lineIris = eyeRadius * 0.6f;
-				{
-					Debug.DrawLine(posIris - dirBT * lineIris, posIris + dirBT * lineIris, Color.red);
-					Debug.DrawLine(posIris - dirLR * lineIris, posIris + dirLR * lineIris, Color.red);
-
-					Debug.DrawLine(posIris - dirBT45 * lineIris, posIris + dirBT45 * lineIris, Color.red);
-					Debug.DrawLine(posIris - dirLR45 * lineIris, posIris + dirLR45 * lineIris, Color.red);
-				}
-
-				var lineFade = eyeRadius * 0.5f;
-				{
-					Debug.DrawLine(posFade - dirBT45 * lineFade, posFade + dirBT45 * lineFade, Color.magenta);
-					Debug.DrawLine(posFade - dirLR45 * lineFade, posFade + dirLR45 * lineFade, Color.magenta);
-
-					Debug.DrawLine(posFade - dirBT45 * lineFade, posIris - dirBT45 * lineFade, Color.magenta);
-					Debug.DrawLine(posFade + dirBT45 * lineFade, posIris + dirBT45 * lineFade, Color.magenta);
-
-					Debug.DrawLine(posFade - dirLR45 * lineFade, posIris - dirLR45 * lineFade, Color.magenta);
-					Debug.DrawLine(posFade + dirLR45 * lineFade, posIris + dirLR45 * lineFade, Color.magenta);
-				}
-
-				var lineSide = eyeRadius * 0.25f;
-				{
-					Debug.DrawLine(posSide - dirBT * lineSide, posSide + dirBT * lineSide, Color.blue);
-					Debug.DrawLine(posSide - dirBF * lineSide, posSide + dirBF * lineSide, Color.blue);
-				}
-			}
+			AsgParameterUpdate();
 
 			if (rndProps == null)
 				rndProps = new MaterialPropertyBlock();
 
 			rnd.GetPropertyBlock(rndProps);
 			{
-				rndProps.SetFloat("_EyeRadius", eyeRadius);
-				rndProps.SetFloat("_EyeCorneaRadiusStart", eyeCorneaRadiusStart);
-				rndProps.SetFloat("_EyeCorneaLimbusDarkeningOffset", eyeCorneaLimbusDarkeningOffset);
-				rndProps.SetFloat("_EyeCorneaIndexOfRefraction", eyeCorneaIndexOfRefraction);
-				rndProps.SetFloat("_EyeCorneaIndexOfRefractionRatio", 1.0f / eyeCorneaIndexOfRefraction);
-				rndProps.SetFloat("_EyeCorneaSSS", eyeCorneaSSSScale);
-				rndProps.SetFloat("_EyeCorneaSmoothness", eyeCorneaSmoothness);
+				var geometryLookRotation = Quaternion.Euler(geometryAngle);
 
-				rndProps.SetFloat("_EyeIrisBentLightingDebug", eyeIrisBentLightingDebug ? 1 : 0);
-				rndProps.SetFloat("_EyeIrisBentLighting", eyeIrisBentLighting ? 1 : 0);
-				rndProps.SetFloat("_EyeIrisPlaneOffset", eyeIrisPlaneOffset);
-				rndProps.SetFloat("_EyeIrisConcavity", eyeIrisConcavity);
+				rndProps.SetFloat("_EyeGeometryRadius", geometryRadius);
+				rndProps.SetVector("_EyeGeometryOrigin", geometryOrigin);
+				rndProps.SetVector("_EyeGeometryForward", Vector3.Normalize(geometryLookRotation * Vector3.forward));
+				rndProps.SetVector("_EyeGeometryRight", Vector3.Normalize(geometryLookRotation * Vector3.right));
+				rndProps.SetVector("_EyeGeometryUp", Vector3.Normalize(geometryLookRotation * Vector3.up));
 
-				rndProps.SetVector("_EyePupilOffset", eyePupilOffset);
-				rndProps.SetFloat("_EyePupilDiameter", eyePupilDiameter);
-				rndProps.SetFloat("_EyePupilFalloff", eyePupilFalloff);
-				rndProps.SetFloat("_EyePupilScale", eyePupilScale);
-
-				if (eyeWrappedLighting)
+				if (corneaCrossSectionEditMode && Application.isEditor)
 				{
-					rndProps.SetFloat("_EyeWrappedLightingCosine", eyeWrappedLightingCosine);
-					rndProps.SetFloat("_EyeWrappedLightingPower", eyeWrappedLightingPower);
+					rndProps.SetFloat("_EyeCorneaCrossSection", 1e+7f);
+					rndProps.SetFloat("_EyeCorneaCrossSectionIrisOffset", 0.0f);
+					rndProps.SetFloat("_EyeCorneaCrossSectionFadeOffset", 0.0f);
 				}
 				else
 				{
-					rndProps.SetFloat("_EyeWrappedLightingCosine", 0.0f);
-					rndProps.SetFloat("_EyeWrappedLightingPower", 1.0f);
+					rndProps.SetFloat("_EyeCorneaCrossSection", corneaCrossSection);
+					rndProps.SetFloat("_EyeCorneaCrossSectionIrisOffset", Mathf.Max(0.0f, corneaCrossSectionIrisOffset));
+					rndProps.SetFloat("_EyeCorneaCrossSectionFadeOffset", Mathf.Max(0.0f, corneaCrossSectionFadeOffset));
 				}
 
-				rndProps.SetFloat("_EyeLitIORCornea", eyeLitIORCornea);
-				rndProps.SetFloat("_EyeLitIORSclera", eyeLitIORSclera);
+				rndProps.SetFloat("_EyeCorneaIOR", corneaIOR);
+				rndProps.SetFloat("_EyeCorneaIORIrisRay", corneaIORIrisRay);
+				rndProps.SetFloat("_EyeCorneaSmoothness", corneaSmoothness);
+				rndProps.SetFloat("_EyeCorneaSSS", corneaSSS);
 
-				rndProps.SetVector("_EyeAsgOriginOS", eyeAsgOriginOS);
-				rndProps.SetVector("_EyeAsgMeanOS", eyeAsgMeanOS);
-				rndProps.SetVector("_EyeAsgTangentOS", eyeAsgTangentOS);
-				rndProps.SetVector("_EyeAsgBitangentOS", eyeAsgBitangentOS);
-				rndProps.SetVector("_EyeAsgSharpness", eyeAsgSharpness);
-				rndProps.SetFloat("_EyeAsgPower", eyeAsgPower);
-				rndProps.SetVector("_EyeAsgThresholdScaleBias", eyeAsgThresholdScaleBias);
-				rndProps.SetFloat("_EyeAsgModulateAlbedo", eyeAsgModulateAlbedo);
+				rndProps.SetFloat("_EyeIrisRefractedLighting", irisRefractedLighting ? 1 : 0);
+				rndProps.SetFloat("_EyeIrisRefractedOffset", irisRefractedOffset ? 1 : 0);
+
+				rndProps.SetVector("_EyePupilUVOffset", pupilUVOffset);
+				rndProps.SetFloat("_EyePupilUVDiameter", pupilUVDiameter);
+				rndProps.SetFloat("_EyePupilUVFalloff", pupilUVFalloff);
+				rndProps.SetFloat("_EyePupilScale", pupilScale);
+
+				rndProps.SetFloat("_EyeScleraIOR", scleraIOR);
+
+				rndProps.SetFloat("_EyeAsgPower", asgPower);
+				rndProps.SetVector("_EyeAsgSharpness", asgSharpness);
+				rndProps.SetVector("_EyeAsgThresholdScaleBias", asgThresholdScaleBias);
+				rndProps.SetVector("_EyeAsgOriginOS", asgOriginOS);
+				rndProps.SetVector("_EyeAsgMeanOS", asgMeanOS);
+				rndProps.SetVector("_EyeAsgTangentOS", asgTangentOS);
+				rndProps.SetVector("_EyeAsgBitangentOS", asgBitangentOS);
+				rndProps.SetFloat("_EyeAsgModulateAlbedo", asgModulateAlbedo);
 			}
 			rnd.SetPropertyBlock(rndProps);
 		}
 
-		void DrawRayLocal(Vector3 localPosition, Vector3 localVector, Color color)
+		void DrawLocalRay(Vector3 p, Vector3 v, Color color)
 		{
-			Vector3 worldPosition = this.transform.TransformPoint(localPosition);
-			Vector3 worldVector = this.transform.TransformVector(localVector);
+			Vector3 worldPosition = this.transform.TransformPoint(p);
+			Vector3 worldVector = this.transform.TransformVector(v);
 			Debug.DrawRay(worldPosition, worldVector, color);
 		}
 	}

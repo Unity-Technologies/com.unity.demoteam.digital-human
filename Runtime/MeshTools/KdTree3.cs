@@ -205,7 +205,7 @@ public class KdTree3
 
     unsafe static void SelectByAxis(int nth, Point3* points, int length, int axis)
     {
-        // note: this function adapted from public domain variants listed in KdTreeUtils
+        // note: this function adapted from public domain variants listed in KdTreeUtils.cs
         const int strideLsh = 2;
 
         var i = 0;
