@@ -78,6 +78,19 @@ namespace Unity.DemoTeam.DigitalHuman
 			ClosingAxisSpaceSplit,
 		}
 
+		public struct ConeData
+		{
+			public Vector3 osMarkerL;
+			public Vector3 osMarkerR;
+			public Vector3 osMarkerT;
+			public Vector3 osMarkerB;
+			public Vector3 closingPlaneOrigin;
+			public Vector3 closingPlanePosTop;
+			public Vector3 closingPlanePosBottom;
+			public Vector3 openingPosLeft;
+			public Vector3 openingPosRight;
+		}
+
 		[Space]
 		public ConeMapping coneMapping = ConeMapping.ClosingAxisSpaceSplit;
 		[VisibleIf("coneMapping", ConeMapping.ClosingAxisSpaceSplit)]
@@ -87,6 +100,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		[VisibleIf("coneMapping", ConeMapping.ClosingAxisSpaceSplit)]
 		public Vector3 coneBias = Vector3.zero;
 		public bool coneDebug = false;
+		private ConeData coneDebugData;
 
 		[NonSerialized]
 		public Vector3 asgOriginOS = new Vector3(0.0f, 0.0f, 0.0f);
@@ -140,13 +154,10 @@ namespace Unity.DemoTeam.DigitalHuman
 				osMarkerB = this.transform.InverseTransformPoint(asgMarkerPolygon.GetChild(3).position);
 			}
 
-			if (coneDebug)
-			{
-				DrawLocalRay(Vector3.zero, osMarkerT, Color.white);
-				DrawLocalRay(Vector3.zero, osMarkerR, Color.white);
-				DrawLocalRay(Vector3.zero, osMarkerB, Color.white);
-				DrawLocalRay(Vector3.zero, osMarkerL, Color.white);
-			}
+			coneDebugData.osMarkerL = osMarkerL;
+			coneDebugData.osMarkerR = osMarkerR;
+			coneDebugData.osMarkerT = osMarkerT;
+			coneDebugData.osMarkerB = osMarkerB;
 
 			float cosThetaTangent = 0.0f;
 			float cosThetaBitangent = 0.0f;
@@ -212,13 +223,11 @@ namespace Unity.DemoTeam.DigitalHuman
 						var closingPlaneAltitude = coneScale.y * 0.5f * Mathf.Deg2Rad * Vector3.Angle(closingPlaneDirTop, closingPlaneDirBottom);
 						var closingPlaneAzimuth = coneScale.x * 0.5f * Mathf.Deg2Rad * Vector3.Angle(openingDirLeft, openingDirRight);
 
-						if (coneDebug)
-						{
-							DrawLocalRay(closingPlaneOrigin, closingPlanePosTop, Color.yellow);
-							DrawLocalRay(closingPlaneOrigin, closingPlanePosBottom, Color.yellow);
-							DrawLocalRay(closingPlaneOrigin, openingPosLeft, Color.yellow);
-							DrawLocalRay(closingPlaneOrigin, openingPosRight, Color.yellow);
-						}
+						coneDebugData.closingPlaneOrigin = closingPlaneOrigin;
+						coneDebugData.closingPlanePosTop = closingPlanePosTop;
+						coneDebugData.closingPlanePosBottom = closingPlanePosBottom;
+						coneDebugData.openingPosLeft = openingPosLeft;
+						coneDebugData.openingPosRight = openingPosRight;
 
 						asgOriginOS = closingPlaneOrigin;
 						asgMeanOS = closingPlaneForward;
@@ -231,14 +240,6 @@ namespace Unity.DemoTeam.DigitalHuman
 					break;
 
 			}// switch (coneMapping)
-
-			if (coneDebug)
-			{
-				var orange = Color.Lerp(Color.yellow, Color.red, 0.5f);
-				DrawLocalRay(asgOriginOS, (1.5f * geometryRadius) * asgMeanOS, orange);
-				DrawLocalRay(asgOriginOS, (1.5f * geometryRadius) * asgBitangentOS, orange);
-				DrawLocalRay(asgOriginOS, (1.5f * geometryRadius) * asgTangentOS, orange);
-			}
 
 			asgSharpness.x = AsgSharpnessFromThreshold(asgThreshold, 1.0f, asgPower, cosThetaTangent);
 			asgSharpness.y = AsgSharpnessFromThreshold(asgThreshold, 1.0f, asgPower, cosThetaBitangent);
@@ -304,11 +305,42 @@ namespace Unity.DemoTeam.DigitalHuman
 			rnd.SetPropertyBlock(rndProps);
 		}
 
-		void DrawLocalRay(Vector3 p, Vector3 v, Color color)
+		void OnDrawGizmos()
 		{
-			Vector3 worldPosition = this.transform.TransformPoint(p);
-			Vector3 worldVector = this.transform.TransformVector(v);
-			Debug.DrawRay(worldPosition, worldVector, color);
+			if (!coneDebug)
+				return;
+
+			var oldColor = Gizmos.color;
+			var oldMatrix = Gizmos.matrix;
+			{
+				Gizmos.matrix = transform.localToWorldMatrix;
+
+				// cone markers
+				Gizmos.color = Color.white;
+				Gizmos.DrawRay(Vector3.zero, coneDebugData.osMarkerT);
+				Gizmos.DrawRay(Vector3.zero, coneDebugData.osMarkerR);
+				Gizmos.DrawRay(Vector3.zero, coneDebugData.osMarkerB);
+				Gizmos.DrawRay(Vector3.zero, coneDebugData.osMarkerL);
+
+				// cone closing axis
+				if (coneMapping == ConeMapping.ClosingAxisSpaceSplit)
+				{
+					Gizmos.color = Color.yellow;
+					Gizmos.DrawRay(coneDebugData.closingPlaneOrigin, coneDebugData.closingPlanePosTop);
+					Gizmos.DrawRay(coneDebugData.closingPlaneOrigin, coneDebugData.closingPlanePosBottom);
+					Gizmos.DrawRay(coneDebugData.closingPlaneOrigin, coneDebugData.openingPosLeft);
+					Gizmos.DrawRay(coneDebugData.closingPlaneOrigin, coneDebugData.openingPosRight);
+				}
+
+				// asg frame
+				Gizmos.color = Color.Lerp(Color.yellow, Color.red, 0.5f);
+				Gizmos.DrawRay(asgOriginOS, (1.5f * geometryRadius) * asgMeanOS);
+				Gizmos.DrawRay(asgOriginOS, (1.5f * geometryRadius) * asgBitangentOS);
+				Gizmos.DrawRay(asgOriginOS, (1.5f * geometryRadius) * asgTangentOS);
+			}
+
+			Gizmos.color = oldColor;
+			Gizmos.matrix = oldMatrix;
 		}
 	}
 }
