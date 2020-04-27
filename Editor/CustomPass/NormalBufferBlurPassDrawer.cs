@@ -3,42 +3,45 @@ using UnityEngine.Rendering.HighDefinition;
 using UnityEditor;
 using UnityEditor.Rendering.HighDefinition;
 
-[CustomPassDrawer(typeof(NormalBufferBlurPass))]
-class NormalBufferBlurPassDrawer : CustomPassDrawer
+namespace Unity.DemoTeam.DigitalHuman
 {
-	static readonly float lineFeed = EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
-
-	SerializedProperty queue;
-	SerializedProperty layerMask;
-
-	protected override void Initialize(SerializedProperty customPass)
+	[CustomPassDrawer(typeof(NormalBufferBlurPass))]
+	class NormalBufferBlurPassDrawer : CustomPassDrawer
 	{
-		queue = customPass.FindPropertyRelative("queue");
-		layerMask = customPass.FindPropertyRelative("layerMask");
-	}
+		static readonly float lineFeed = EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing;
 
-	protected override PassUIFlag commonPassUIFlags => PassUIFlag.Name;
+		SerializedProperty queue;
+		SerializedProperty layerMask;
 
-	protected override float GetPassHeight(SerializedProperty customPass)
-	{
-		float height = base.GetPassHeight(customPass);
+		protected override void Initialize(SerializedProperty customPass)
+		{
+			queue = customPass.FindPropertyRelative("queue");
+			layerMask = customPass.FindPropertyRelative("layerMask");
+		}
 
-		height += lineFeed;
-		height += lineFeed;
+		protected override PassUIFlag commonPassUIFlags => PassUIFlag.Name;
 
-		return height;
-	}
+		protected override float GetPassHeight(SerializedProperty customPass)
+		{
+			float height = base.GetPassHeight(customPass);
 
-	protected override void DoPassGUI(SerializedProperty customPass, Rect rect)
-	{
-		base.DoPassGUI(customPass, rect);
+			height += lineFeed;
+			height += lineFeed;
 
-		// queue
-		queue.intValue = (int)(CustomPass.RenderQueueType)EditorGUI.EnumPopup(rect, "Queue", (CustomPass.RenderQueueType)queue.intValue);
-		rect.y += lineFeed;
+			return height;
+		}
 
-		// layerMask
-		EditorGUI.PropertyField(rect, layerMask);
-		rect.y += lineFeed;
+		protected override void DoPassGUI(SerializedProperty customPass, Rect rect)
+		{
+			base.DoPassGUI(customPass, rect);
+
+			// queue
+			queue.intValue = (int)(CustomPass.RenderQueueType)EditorGUI.EnumPopup(rect, "Queue", (CustomPass.RenderQueueType)queue.intValue);
+			rect.y += lineFeed;
+
+			// layerMask
+			EditorGUI.PropertyField(rect, layerMask);
+			rect.y += lineFeed;
+		}
 	}
 }

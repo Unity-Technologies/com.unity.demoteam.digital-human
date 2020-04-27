@@ -54,10 +54,12 @@ namespace Unity.DemoTeam.DigitalHuman
 		public ulong checksum1 = 0;
 
 		[Header("Debug options")]
-		[Range(0, 6)]
-		public int debugIndex = 0;
-		public bool debugIndexEnabled = false;
-		public bool debugBounds = false;
+		public bool showBounds = false;
+		public bool showIslands = false;
+		public bool showRootLines = false;
+		private const int debugColorsSize = 7;
+		private static Color[] debugColors = new Color[debugColorsSize] { Color.red, Color.green, Color.blue, Color.cyan, Color.magenta, Color.yellow, Color.white };
+		private static SkinAttachmentData debugData;
 
 		[Header("Runtime options")]
 		public bool forceRecalculateBounds;
@@ -72,6 +74,22 @@ namespace Unity.DemoTeam.DigitalHuman
 		[NonSerialized] public Transform skinningBone;
 		[NonSerialized] public Matrix4x4 skinningBoneBindPose;
 		[NonSerialized] public Matrix4x4 skinningBoneBindPoseInverse;
+
+		public Matrix4x4 GetWorldToLocalSkinning()
+		{
+			if (skinningBone != null)
+				return (skinningBoneBindPoseInverse * skinningBone.worldToLocalMatrix);
+			else
+				return (this.transform.worldToLocalMatrix);
+		}
+
+		public Matrix4x4 GetLocalSkinningToWorld()
+		{
+			if (skinningBone != null)
+				return (skinningBone.localToWorldMatrix * skinningBoneBindPose);
+			else
+				return (this.transform.localToWorldMatrix);
+		}
 
 		void DiscoverSkinningBone()
 		{
@@ -248,6 +266,31 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (isActiveAndEnabled == false)
 				return;
 
+			if (attached)
+				DrawGizmosAttached();
+			else
+				DrawGizmosDetached();
+		}
+
+		void DrawGizmosAttached()
+		{
+			if (attachmentType != AttachmentType.Transform)
+			{
+				if (meshInstance == null)
+					return;
+
+				Gizmos.matrix = this.transform.localToWorldMatrix;
+
+				if (showBounds)
+				{
+					Gizmos.color = Color.white;
+					Gizmos.DrawWireCube(meshInstance.bounds.center, meshInstance.bounds.extents * 2.0f);
+				}
+			}
+		}
+
+		void DrawGizmosDetached()
+		{
 			if (target == null)
 				return;
 
@@ -255,310 +298,101 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (targetMeshInfo.valid == false)
 				return;
 
-			//TODO get rid of duplicate code
-
-			if (attached)
-			{
-				if (attachmentType != AttachmentType.Transform && debugBounds)
-				{
-					Gizmos.matrix = this.transform.localToWorldMatrix;
-					Gizmos.DrawWireCube(meshInstance.bounds.center, meshInstance.bounds.extents * 2.0f);
-				}
-				return;
-			}
-
 			if (attachmentType == AttachmentType.Transform)
 			{
-				var targetPosition = target.transform.InverseTransformPoint(this.transform.position);
-
+				// draw sphere with radius to closest vertex
 				var closestDist = float.MaxValue;
 				var closestNode = -1;
 
-				if (targetMeshInfo.meshVertexBSP.FindNearest(ref closestDist, ref closestNode, ref targetPosition))
+				var targetLocalPos = target.transform.InverseTransformPoint(this.transform.position);
+				if (targetMeshInfo.meshVertexBSP.FindNearest(ref closestDist, ref closestNode, ref targetLocalPos))
 				{
 					Gizmos.matrix = target.transform.localToWorldMatrix;
 
-					var r = targetPosition - target.meshBuffers.vertexPositions[closestNode];
+					var r = targetLocalPos - target.meshBuffers.vertexPositions[closestNode];
 					var d = Vector3.Dot(target.meshBuffers.vertexNormals[closestNode], r);
 					var c = (d >= 0.0f) ? Color.cyan : Color.magenta;
 
 					Gizmos.color = Color.Lerp(Color.clear, c, 0.75f);
-					Gizmos.DrawSphere(targetPosition, Mathf.Sqrt(closestDist));
+					Gizmos.DrawSphere(targetLocalPos, Mathf.Sqrt(closestDist));
 
 					Gizmos.color = Color.Lerp(Color.clear, c, 0.75f);
-					Gizmos.DrawLine(targetPosition, target.meshBuffers.vertexPositions[closestNode]);
+					Gizmos.DrawLine(targetLocalPos, target.meshBuffers.vertexPositions[closestNode]);
 
-					target.meshBuffers.DrawTriangles(targetMeshInfo.meshAdjacency.vertexTriangles[closestNode]);
+					target.meshBuffers.DrawGizmoTriangles(targetMeshInfo.meshAdjacency.vertexTriangles[closestNode]);
 				}
-
-				return;
 			}
-
-			if (meshBuffers == null)
+			else
 			{
 				EnsureMeshInstance();
-			}
 
-			if (skinningBone != null)
-				Gizmos.matrix = skinningBone.localToWorldMatrix * skinningBoneBindPose;
-			else
-				Gizmos.matrix = this.transform.localToWorldMatrix;
+				if (meshInstance == null)
+					return;
 
+				var subjectPositions = meshBuffers.vertexPositions;
 
-			if (attachmentType == AttachmentType.Mesh)
-			{
-				var colorArray = new Color[] { Color.red, Color.green, Color.blue, Color.cyan, Color.magenta, Color.yellow, Color.white };
-				var colorIndex = -1;
+				if (skinningBone != null)
+					Gizmos.matrix = skinningBone.localToWorldMatrix * skinningBoneBindPose;
+				else
+					Gizmos.matrix = this.transform.localToWorldMatrix;
 
-				var positions = meshBuffers.vertexPositions;
-
-				for (int island = 0; island != meshIslands.islandCount; island++)
+				if (showIslands)
 				{
-					colorIndex++;
-					colorIndex %= colorArray.Length;
-
-					if (colorIndex != debugIndex && debugIndexEnabled)
-						continue;
-
-					Gizmos.color = Color.Lerp(Color.clear, colorArray[colorIndex], 0.3f);
-
-					foreach (var i in meshIslands.islandVertices[island])
+					for (int island = 0; island != meshIslands.islandCount; island++)
 					{
-						foreach (var j in meshAdjacency.vertexVertices[i])
+						Gizmos.color = Color.Lerp(Color.clear, debugColors[island % debugColors.Length], 0.3f);
+						foreach (var i in meshIslands.islandVertices[island])
 						{
-							Gizmos.DrawLine(positions[i], positions[j]);
+							foreach (var j in meshAdjacency.vertexVertices[i])
+							{
+								Gizmos.DrawLine(subjectPositions[i], subjectPositions[j]);
+							}
 						}
 					}
 				}
 
-				return;
-			}
-
-			if (attachmentType == AttachmentType.MeshRoots)
-			{
-				var colorArray = new Color[] { Color.red, Color.green, Color.blue, Color.cyan, Color.magenta, Color.yellow, Color.white };
-				var colorIndex = -1;
-
-				var positions = meshBuffers.vertexPositions;
-
-				var targetPositions = new Vector3[positions.Length];
-
-				Matrix4x4 targetToWorld = Matrix4x4.TRS(target.transform.position, target.transform.rotation, Vector3.one);
-				Matrix4x4 subjectToTarget;
-				Matrix4x4 targetToSubject;
+				if (showRootLines)
 				{
-					if (skinningBone != null)
+					if (debugData == null)
 					{
-						subjectToTarget = target.transform.worldToLocalMatrix * (skinningBone.localToWorldMatrix * skinningBoneBindPose);
-						targetToSubject = (skinningBoneBindPoseInverse * skinningBone.worldToLocalMatrix) * targetToWorld;
+						debugData = SkinAttachmentData.CreateInstance<SkinAttachmentData>();
+						debugData.hideFlags = HideFlags.HideAndDontSave;
 					}
 					else
 					{
-						subjectToTarget = target.transform.worldToLocalMatrix * this.transform.localToWorldMatrix;
-						targetToSubject = this.transform.worldToLocalMatrix * targetToWorld;
+						debugData.Clear();
 					}
-				}
 
-				for (int i = 0; i != positions.Length; i++)
-				{
-					targetPositions[i] = subjectToTarget.MultiplyPoint3x4(positions[i]);
-				}
+					int dryRunPoseCount = -1;
+					int dryRunItemCount = -1;
 
-				for (int island = 0; island != meshIslands.islandCount; island++)
-				{
-					colorIndex++;
-					colorIndex %= colorArray.Length;
-
-					if (colorIndex != debugIndex && debugIndexEnabled)
-						continue;
-
-					Gizmos.color = colorArray[colorIndex];
-
-					// draw the faces
-					foreach (int i in meshIslands.islandVertices[island])
+					SkinAttachmentDataBuilder.BuildDataAttachSubject(ref debugData, target.transform, target.GetCachedMeshInfo(), this, dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
 					{
-						foreach (int j in meshAdjacency.vertexVertices[i])
-						{
-							Gizmos.DrawLine(positions[i], positions[j]);
-						}
+						ArrayUtils.ResizeCheckedIfLessThan(ref debugData.pose, dryRunPoseCount);
+						ArrayUtils.ResizeCheckedIfLessThan(ref debugData.item, dryRunItemCount);
 					}
 
-					// draw root-lines
-					unsafe
+					SkinAttachmentDataBuilder.BuildDataAttachSubject(ref debugData, target.transform, target.GetCachedMeshInfo(), this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount);
+
+					Matrix4x4 targetToWorld = Matrix4x4.TRS(target.transform.position, target.transform.rotation, Vector3.one);
+					// NOTE: targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
+
+					Matrix4x4 targetToSubject;
 					{
-						var rootIdx = new UnsafeArrayInt(positions.Length);
-						var rootDir = new UnsafeArrayVector3(positions.Length);
-						var rootGen = new UnsafeArrayInt(positions.Length);
-						var visitor = new UnsafeBFS(positions.Length);
-
-						visitor.Clear();
-
-						// find island roots
-						{
-							int rootCount = 0;
-
-							var bestDist0 = float.PositiveInfinity;
-							var bestNode0 = -1;
-							var bestVert0 = -1;
-
-							var bestDist1 = float.PositiveInfinity;
-							var bestNode1 = -1;
-							var bestVert1 = -1;
-
-							foreach (var i in meshIslands.islandVertices[island])
-							{
-								var targetDist = float.PositiveInfinity;
-								var targetNode = -1;
-
-								if (targetMeshInfo.meshVertexBSP.FindNearest(ref targetDist, ref targetNode, ref targetPositions[i]))
-								{
-									// found a root if one or more neighbouring vertices are below
-									var bestDist = float.PositiveInfinity;
-									var bestNode = -1;
-
-									foreach (var j in meshAdjacency.vertexVertices[i])
-									{
-										var targetDelta = targetPositions[j] - target.meshBuffers.vertexPositions[targetNode];
-										var targetNormalDist = Vector3.Dot(targetDelta, target.meshBuffers.vertexNormals[targetNode]);
-										if (targetNormalDist < 0.0f)
-										{
-											var d = Vector3.SqrMagnitude(targetDelta);
-											if (d < bestDist)
-											{
-												bestDist = d;
-												bestNode = j;
-											}
-										}
-									}
-
-									if (bestNode != -1)
-									{
-										visitor.Ignore(i);
-										rootIdx.val[i] = targetNode;
-										rootDir.val[i] = Vector3.Normalize(targetPositions[bestNode] - targetPositions[i]);
-										rootGen.val[i] = 0;
-										rootCount++;
-									}
-									else
-									{
-										rootIdx.val[i] = -1;
-										rootGen.val[i] = -1;
-
-										// see if node qualifies as second choice root
-										var targetDelta = targetPositions[i] - target.meshBuffers.vertexPositions[targetNode];
-										var targetNormalDist = Mathf.Abs(Vector3.Dot(targetDelta, target.meshBuffers.vertexNormals[targetNode]));
-										if (targetNormalDist < bestDist0)
-										{
-											bestDist1 = bestDist0;
-											bestNode1 = bestNode0;
-											bestVert1 = bestVert0;
-
-											bestDist0 = targetNormalDist;
-											bestNode0 = targetNode;
-											bestVert0 = i;
-										}
-										else if (targetNormalDist < bestDist1)
-										{
-											bestDist1 = targetNormalDist;
-											bestNode1 = targetNode;
-											bestVert1 = i;
-										}
-									}
-								}
-							}
-
-							if (rootCount < 2 && bestVert0 != -1)
-							{
-								visitor.Ignore(bestVert0);
-								rootIdx.val[bestVert0] = bestNode0;
-								rootDir.val[bestVert0] = Vector3.Normalize(target.meshBuffers.vertexPositions[bestNode0] - targetPositions[bestVert0]);
-								rootGen.val[bestVert0] = 0;
-								rootCount++;
-
-								if (rootCount < 2 && bestVert1 != -1)
-								{
-									visitor.Ignore(bestVert1);
-									rootIdx.val[bestVert1] = bestNode1;
-									rootDir.val[bestVert1] = Vector3.Normalize(target.meshBuffers.vertexPositions[bestNode1] - targetPositions[bestVert1]);
-									rootGen.val[bestVert1] = 0;
-									rootCount++;
-								}
-							}
-						}
-
-						// find boundary
-						foreach (var i in meshIslands.islandVertices[island])
-						{
-							if (rootIdx.val[i] != -1)
-								continue;
-
-							foreach (var j in meshAdjacency.vertexVertices[i])
-							{
-								if (rootIdx.val[j] != -1)
-								{
-									visitor.Insert(i);
-									break;
-								}
-							}
-						}
-
-						// propagate roots
-						while (visitor.MoveNext())
-						{
-							var i = visitor.position;
-
-							var bestDist = float.PositiveInfinity;
-							var bestNode = -1;
-
-							foreach (var j in meshAdjacency.vertexVertices[i])
-							{
-								if (rootIdx.val[j] != -1)
-								{
-									var d = -Vector3.Dot(rootDir.val[j], Vector3.Normalize(targetPositions[j] - targetPositions[i]));
-									if (d < bestDist)
-									{
-										bestDist = d;
-										bestNode = j;
-									}
-								}
-								else
-								{
-									visitor.Insert(j);
-								}
-							}
-
-							rootIdx.val[i] = rootIdx.val[bestNode];
-							rootDir.val[i] = Vector3.Normalize(targetPositions[bestNode] - targetPositions[i]);
-							rootGen.val[i] = rootGen.val[bestNode] + 1;
-
-							Gizmos.color = colorArray[rootGen.val[i] % colorArray.Length];
-							Gizmos.DrawSphere(positions[bestNode], 0.0002f);
-							Gizmos.DrawSphere(0.5f * (positions[i] + positions[bestNode]), 0.0001f);
-						}
-
-						// draw roots
-						foreach (var i in meshIslands.islandVertices[island])
-						{
-							var root = rootIdx.val[i];
-							if (root < 0)
-							{
-								Debug.Log("i " + i + " has rootIdx " + root);
-								Gizmos.DrawLine(positions[i], positions[i] + Vector3.up);
-							}
-							Gizmos.DrawLine(positions[i], targetToSubject.MultiplyPoint3x4(target.meshBuffers.vertexPositions[root]));
-						}
-
-						// dispose
-						visitor.Dispose();
-						rootGen.Dispose();
-						rootDir.Dispose();
-						rootIdx.Dispose();
+						if (skinningBone != null)
+							targetToSubject = (skinningBoneBindPoseInverse * skinningBone.worldToLocalMatrix) * targetToWorld;
+						else
+							targetToSubject = this.transform.worldToLocalMatrix * targetToWorld;
 					}
 
-					//-------------
-				}
+					Gizmos.color = Color.white;
 
-				return;
+					for (int i = 0; i != meshBuffers.vertexCount; i++)
+					{
+						Vector3 rootOffset = targetToSubject.MultiplyVector(-debugData.item[i].targetOffset);
+						Gizmos.DrawRay(subjectPositions[i], rootOffset);
+					}
+				}
 			}
 		}
 #endif

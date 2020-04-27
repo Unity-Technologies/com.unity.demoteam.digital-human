@@ -135,11 +135,6 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (driver == null)
 				return;
 
-			if (driver.showWireframe)
-			{
-
-			}
-
 			if (driver.showMouseOver)
 			{
 				DrawSceneGUIMouseOver(driver);

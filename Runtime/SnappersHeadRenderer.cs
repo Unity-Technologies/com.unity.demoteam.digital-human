@@ -19,7 +19,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		[EnumFlag]
 		public SnappersHeadDefinition.Warnings warnings;
 
-		[Header("Activation Masks")]
+		[Header("Activation masks")]
 		public Texture2D mask1;
 		public Texture2D mask2;
 		public Texture2D mask3;
@@ -33,7 +33,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		public Texture2D mask11;
 		public Texture2D mask12;
 
-		[Header("Activation Maps")]
+		[Header("Activation maps")]
 		public Texture2D albedo1;
 		public Texture2D albedo2;
 		public Texture2D albedo3;
@@ -122,26 +122,6 @@ namespace Unity.DemoTeam.DigitalHuman
 					SnappersHeadDefinition.ApplyControllers(ref headInstance);
 					SnappersHeadDefinition.ApplyBlendShapes(ref headInstance, smr);
 					SnappersHeadDefinition.ApplyShaderParam(ref headInstance, smrProps);
-
-					/*
-					SnappersHeadDefinition.UpdateInstanceData(ref headData, headDefinition, smr);
-					if (injectFittedWeights)
-					{
-						var skinDeform = GetComponent<SkinDeformationRenderer>();
-						if (skinDeform != null && skinDeform.fittedWeightsAvailable)
-						{
-							var fittedWeights = skinDeform.fittedWeights;
-							var inputIndices = headData.blendShapeIndices;
-							var inputWeights = headData.blendShapeWeights;
-							for (int i = 0; i != headData.blendShapeIndices.Length; i++)
-							{
-								inputWeights[i] = Mathf.Clamp01(Mathf.Max(injectFittedWeightsScale * fittedWeights[inputIndices[i]], inputWeights[i]));
-							}
-						}
-					}
-					SnappersHeadDefinition.UpdateMaskParams(ref headData, headDefinition);
-					SnappersHeadDefinition.UpdatePropertyBlock(smrProps, headData);
-					*/
 				}
 				else
 				{

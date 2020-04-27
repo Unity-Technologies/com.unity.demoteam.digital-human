@@ -71,16 +71,17 @@ namespace Unity.DemoTeam.DigitalHuman
 		private Vector3[] blendedPositions;
 		private Vector3[] blendedNormals;
 
+		[Header("Stream options")]
 		public bool renderAlbedo;
 		public bool renderFittedWeights;
 		[Range(1.0f, 10.0f)]
 		public float renderFittedWeightsScale = 1.0f;
 		private bool renderFittedWeightsPrev;
 
-		[Space]
+		[Header("Runtime options")]
 		public bool forceRecalculateTangents = false;
 
-		[Space]
+		[Header("Blendshape overrides")]
 		public bool muteFacialRig = false;
 		[TextArea(1, 20)]
 		public string muteFacialRigExclude = "";
@@ -114,22 +115,22 @@ namespace Unity.DemoTeam.DigitalHuman
 				smrProps = new MaterialPropertyBlock();
 
 #if UNITY_EDITOR
-			if (enabledInstances.Contains(this) == false)
-				enabledInstances.Add(this);
+			if (SkinDeformationRenderer.enabledInstances.Contains(this) == false)
+				SkinDeformationRenderer.enabledInstances.Add(this);
 #endif
 		}
 
 		void OnDisable()
 		{
+#if UNITY_EDITOR
+			SkinDeformationRenderer.enabledInstances.Remove(this);
+#endif
+
 			if (smr == null || smr.sharedMesh == null || smr.sharedMesh.GetInstanceID() >= 0)
 				return;
 
 			for (int i = 0; i != smr.sharedMesh.blendShapeCount; i++)
 				smr.SetBlendShapeWeight(i, 0.0f);
-
-#if UNITY_EDITOR
-			enabledInstances.Remove(this);
-#endif
 		}
 
 		void OnDestroy()
