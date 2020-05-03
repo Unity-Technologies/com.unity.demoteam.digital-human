@@ -35,7 +35,7 @@ void SkinDeformationBlend_float(in float2 uv, in float3 inAlbedo, out float3 out
 		blendInputsWeight += _BlendInput1_ClipWeight;
 	}
 
-	outAlbedo = lerp(inAlbedo, blendInputsAlbedo, saturate(blendInputsWeight)/* sanity */);
+	outAlbedo = lerp(inAlbedo, blendInputsAlbedo, saturate(blendInputsWeight));
 }
 
 #endif//__SKINDEFORMATIONBLEND_HLSL__

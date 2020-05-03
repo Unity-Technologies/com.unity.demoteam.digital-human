@@ -9,7 +9,6 @@ namespace Unity.DemoTeam.DigitalHuman
 		public Texture2D albedo;
 
 		[NonSerialized] public Vector3[] deltaPositions;
-		[NonSerialized] public Vector3[] deltaTangents;
 		[NonSerialized] public Vector3[] deltaNormals;
 
 		[NonSerialized] public float[] fittedWeights;
@@ -17,14 +16,12 @@ namespace Unity.DemoTeam.DigitalHuman
 		public void Allocate(int vertexCount, int fittedWeightsCount)
 		{
 			ArrayUtils.ResizeChecked(ref deltaPositions, vertexCount);
-			ArrayUtils.ResizeChecked(ref deltaTangents, vertexCount);
 			ArrayUtils.ResizeChecked(ref deltaNormals, vertexCount);
 			ArrayUtils.ResizeChecked(ref fittedWeights, fittedWeightsCount);
 
 			for (int i = 0; i != vertexCount; i++)
 			{
 				deltaPositions[i] = Vector3.zero;
-				deltaTangents[i] = Vector3.zero;
 				deltaNormals[i] = Vector3.zero;
 			}
 
@@ -53,13 +50,11 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 
 			ArrayUtils.ResizeChecked(ref deltaPositions, vertexCount);
-			ArrayUtils.ResizeChecked(ref deltaTangents, vertexCount);
 			ArrayUtils.ResizeChecked(ref deltaNormals, vertexCount);
 
 			for (int i = 0; i != vertexCount; i++)
 			{
 				deltaPositions[i] = buffersFrameX.vertexPositions[i] - buffersFrame0.vertexPositions[i];
-				deltaTangents[i] = buffersFrameX.vertexTangents[i] - buffersFrame0.vertexTangents[i];
 				deltaNormals[i] = buffersFrameX.vertexNormals[i] - buffersFrame0.vertexNormals[i];
 			}
 		}

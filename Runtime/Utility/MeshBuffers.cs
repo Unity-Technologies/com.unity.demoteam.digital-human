@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Profiling;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Jobs;
-using Unity.Burst;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
@@ -14,12 +12,11 @@ namespace Unity.DemoTeam.DigitalHuman
 		public static List<Vector4> __tempVertexTangents = new List<Vector4>();
 		public static List<Vector3> __tempVertexNormals = new List<Vector3>();
 
-		public static Vector4[] __tempVector4;
 		public static List<int> __tempIndices = new List<int>();
 
 		public int vertexCount;
 		public Vector3[] vertexPositions;
-		public Vector3[] vertexTangents;
+		public Vector4[] vertexTangents;
 		public Vector3[] vertexNormals;
 
 		public int triangleCount;
@@ -29,7 +26,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			vertexCount = 0;
 			vertexPositions = new Vector3[vertexCapacity];
-			vertexTangents = new Vector3[vertexCapacity];
+			vertexTangents = new Vector4[vertexCapacity];
 			vertexNormals = new Vector3[vertexCapacity];
 
 			triangleCount = 0;
@@ -55,23 +52,8 @@ namespace Unity.DemoTeam.DigitalHuman
 				ArrayUtils.ResizeCheckedIfLessThan(ref vertexPositions, vertexCount);
 				__tempVertexPositions.CopyTo(vertexPositions);
 
-				ArrayUtils.ResizeCheckedIfLessThan(ref __tempVector4, vertexCount);
-				__tempVertexTangents.CopyTo(__tempVector4);
-
 				ArrayUtils.ResizeCheckedIfLessThan(ref vertexTangents, vertexCount);
-				unsafe
-				{
-					fixed (Vector3* dst = vertexTangents)
-					fixed (Vector4* src = __tempVector4)
-					{
-						var job = new CopyTangentsJob()
-						{
-							dst = dst,
-							src = src,
-						};
-						job.Schedule(vertexCount, 1024).Complete();
-					}
-				}
+				__tempVertexTangents.CopyTo(vertexTangents);
 
 				ArrayUtils.ResizeCheckedIfLessThan(ref vertexNormals, vertexCount);
 				__tempVertexNormals.CopyTo(vertexNormals);
@@ -172,34 +154,32 @@ namespace Unity.DemoTeam.DigitalHuman
 			Profiler.EndSample();
 		}
 
-		[BurstCompile]
-		unsafe struct CopyTangentsJob : IJobParallelFor
-		{
-			[NativeDisableUnsafePtrRestriction] public Vector3* dst;
-			[NativeDisableUnsafePtrRestriction] public Vector4* src;
-
-			public void Execute(int i)
-			{
-				dst[i].x = src[i].x * src[i].w;
-				dst[i].y = src[i].y * src[i].w;
-				dst[i].z = src[i].z * src[i].w;
-			}
-		}
-
 		public void ApplyRotation(Quaternion q)
 		{
 			for (int i = 0; i != vertexCount; i++)
+			{
 				vertexPositions[i] = q * vertexPositions[i];
+			}
 			for (int i = 0; i != vertexCount; i++)
-				vertexTangents[i] = q * vertexTangents[i];
+			{
+				Vector3 tangent3 = q * ((Vector3)vertexTangents[i]);
+				vertexTangents[i].x = tangent3.x;
+				vertexTangents[i].y = tangent3.y;
+				vertexTangents[i].z = tangent3.z;
+				vertexTangents[i].w = vertexTangents[i].w;
+			}
 			for (int i = 0; i != vertexCount; i++)
+			{
 				vertexNormals[i] = q * vertexNormals[i];
+			}
 		}
 
 		public void ApplyScale(float s)
 		{
 			for (int i = 0; i != vertexCount; i++)
+			{
 				vertexPositions[i] = s * vertexPositions[i];
+			}
 		}
 
 		public void ApplySmoothing(MeshAdjacency meshAdjacency, int iterations)
@@ -330,35 +310,5 @@ namespace Unity.DemoTeam.DigitalHuman
 				}
 			}
 		}
-
-#if UNITY_EDITOR
-		public void DrawGizmoTriangle(int triangle)
-		{
-			int _0 = triangle * 3;
-			int v0 = triangles[_0];
-			int v1 = triangles[_0 + 1];
-			int v2 = triangles[_0 + 2];
-
-			Gizmos.DrawLine(vertexPositions[v0], vertexPositions[v1]);
-			Gizmos.DrawLine(vertexPositions[v1], vertexPositions[v2]);
-			Gizmos.DrawLine(vertexPositions[v2], vertexPositions[v0]);
-		}
-
-		public void DrawGizmoTriangles(IEnumerable<int> triangleEnumerable)
-		{
-			var triangleEnumerator = triangleEnumerable.GetEnumerator();
-			while (triangleEnumerator.MoveNext())
-			{
-				int _0 = triangleEnumerator.Current * 3;
-				int v0 = triangles[_0];
-				int v1 = triangles[_0 + 1];
-				int v2 = triangles[_0 + 2];
-
-				Gizmos.DrawLine(vertexPositions[v0], vertexPositions[v1]);
-				Gizmos.DrawLine(vertexPositions[v1], vertexPositions[v2]);
-				Gizmos.DrawLine(vertexPositions[v2], vertexPositions[v0]);
-			}
-		}
-#endif
 	}
 }

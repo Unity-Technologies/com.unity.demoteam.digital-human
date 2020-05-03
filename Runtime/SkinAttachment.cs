@@ -319,7 +319,17 @@ namespace Unity.DemoTeam.DigitalHuman
 					Gizmos.color = Color.Lerp(Color.clear, c, 0.75f);
 					Gizmos.DrawLine(targetLocalPos, target.meshBuffers.vertexPositions[closestNode]);
 
-					target.meshBuffers.DrawGizmoTriangles(targetMeshInfo.meshAdjacency.vertexTriangles[closestNode]);
+					foreach (var triangle in targetMeshInfo.meshAdjacency.vertexTriangles[closestNode])
+					{
+						int _0 = triangle * 3;
+						int v0 = target.meshBuffers.triangles[_0];
+						int v1 = target.meshBuffers.triangles[_0 + 1];
+						int v2 = target.meshBuffers.triangles[_0 + 2];
+
+						Gizmos.DrawLine(target.meshBuffers.vertexPositions[v0], target.meshBuffers.vertexPositions[v1]);
+						Gizmos.DrawLine(target.meshBuffers.vertexPositions[v1], target.meshBuffers.vertexPositions[v2]);
+						Gizmos.DrawLine(target.meshBuffers.vertexPositions[v2], target.meshBuffers.vertexPositions[v0]);
+					}
 				}
 			}
 			else

@@ -3,8 +3,7 @@ using Unity.DemoTeam.Attributes;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	[ExecuteAlways]
-	[RequireComponent(typeof(Renderer))]
+	[ExecuteAlways, RequireComponent(typeof(Renderer))]
 	public class TeethRenderer : MonoBehaviour
 	{
 		private Renderer rnd;
@@ -129,7 +128,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			rnd.GetPropertyBlock(rndProps);
 			{
-				rndProps.Clear();// TODO would be nice if SetVectorArray didn't truncate ...
+				rndProps.Clear();//TODO would be nice if SetVectorArray didn't truncate ...
 				rndProps.SetVector("_TeethParams", new Vector4(litPotentialMin, litPotentialMax, litPotentialFalloff));
 				rndProps.SetVectorArray("_TeethVertexData", vertexData);
 				rndProps.SetInt("_TeethVertexCount", outputSize);
@@ -211,92 +210,5 @@ namespace Unity.DemoTeam.DigitalHuman
 				Gizmos.DrawLine(O + preDir, O + curDir);
 			}
 		}
-
-		//----
-		/*
-		const int NUM_VERTS = 6;
-		const float NUM_VERTS_FLT = 6.0f;
-		const int LAST_VERT = NUM_VERTS - 1;
-		const float PI = 3.14159265359f;
-
-		static Vector3 normalize(Vector3 v) { return Vector3.Normalize(v); }
-		static Vector3 cross(Vector3 a, Vector3 b) { return -Vector3.Cross(a, b); }
-		static float dot(Vector3 a, Vector3 b) { return Vector3.Dot(a, b); }
-		static float sign(float s) { return Mathf.Sign(s); }
-		static float acos(float s) { return Mathf.Acos(s); }
-
-		void SphericalPoly_CalcInteriorAngles(Vector3[] P, float[] A)
-		{
-			Vector3[] N = new Vector3[NUM_VERTS];
-
-			// calc plane normals
-			// where N[i] = normal of incident plane
-			//   eg. N[i+0] = cross(C, A);
-			//       N[i+1] = cross(A, B);
-			{
-				N[0] = normalize(cross(P[LAST_VERT], P[0]));
-				for (int i = 1; i != NUM_VERTS; i++)
-				{
-					N[i] = normalize(cross(P[i - 1], P[i]));
-				}
-			}
-
-			// calc interior angles
-			{
-				string As = "   A = [ ";
-				string Ds = " dot = [ ";
-				for (int i = 0; i != LAST_VERT; i++)
-				{
-					A[i] = PI - sign(dot(N[i], P[i + 1])) * acos(dot(N[i], N[i + 1]));
-					{
-						As += A[i] + ", ";
-						Ds += dot(N[i], P[i + 1]) + ", ";
-					}
-				}
-				A[LAST_VERT] = PI - sign(dot(N[LAST_VERT], P[0])) * acos(dot(N[LAST_VERT], N[0]));
-				{
-					As += A[LAST_VERT] + " ]";
-					Ds += sign(dot(N[LAST_VERT], P[0])) + " ]";
-				}
-				Debug.Log(As + "\n" + Ds);
-			}
-		}
-
-		void SphericalPoly_CalcAreaFromInteriorAngles(float[] A, out float area)
-		{
-			float E = 0.0f;
-			for (int i = 0; i != NUM_VERTS; i++)
-			{
-				E += A[i];
-			}
-			area = E - (NUM_VERTS_FLT - 2.0f) * PI;
-		}
-
-		void SphericalPoly_CalcAreaFromProjectedPositions(Vector3[] P, out float area)
-		{
-			float[] A = new float[NUM_VERTS];
-			SphericalPoly_CalcInteriorAngles(P, A);
-			SphericalPoly_CalcAreaFromInteriorAngles(A, out area);
-		}
-
-		void DebugSpherical()
-		{
-			if (skyPolygonDebugSphere == null)
-				return;
-
-			Vector3[] P = new Vector3[NUM_VERTS];
-			for (int i = 0; i != NUM_VERTS; i++)
-			{
-				Vector3 vertPos = vertices[i];
-				//P[i] = normalize(mul(input.worldToTangent, _TeethSkyPolygon[i].xyz - positionWS));
-				P[i] = normalize(vertPos - skyPolygonDebugSphere.position);
-			}
-
-			float skyIncident;
-			float maxIncident = 2.0f * Mathf.PI;// hemisphere
-			SphericalPoly_CalcAreaFromProjectedPositions(P, out skyIncident);
-
-			Debug.Log("skyIncident = " + skyIncident + ", maxIncident = " + maxIncident);
-		}*/
 	}
 }

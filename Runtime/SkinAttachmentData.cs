@@ -86,6 +86,6 @@ namespace Unity.DemoTeam.DigitalHuman
 		public int baseVertex;
 		public Vector3 baseNormal;
 		public Vector3 targetNormal;
-		public Vector3 targetOffset;// TODO split this into leaf type item that doesn't perform full resolve
+		public Vector3 targetOffset;//TODO split this into leaf type item that doesn't perform full resolve
 	}
 }

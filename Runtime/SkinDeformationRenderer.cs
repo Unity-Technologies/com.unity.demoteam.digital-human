@@ -7,8 +7,7 @@ using Unity.Burst;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	[ExecuteAlways]
-	[RequireComponent(typeof(SkinnedMeshRenderer))]
+	[ExecuteAlways, RequireComponent(typeof(SkinnedMeshRenderer))]
 	public class SkinDeformationRenderer : MeshInstanceBehaviour
 	{
 #if UNITY_EDITOR
@@ -322,20 +321,18 @@ namespace Unity.DemoTeam.DigitalHuman
 				{
 					const int innerLoopBatchCount = 128;//TODO?
 
-					var jobPositions = new AddBlendedStridedDeltaJob()
+					var jobPositions = new AddBlendedDeltaJob()
 					{
-						deltaA = (Vector3*)(frameLo.deltaPosTanNrm + SkinDeformationClip.Frame.FLT_OFFSET_POSITION),
-						deltaB = (Vector3*)(frameHi.deltaPosTanNrm + SkinDeformationClip.Frame.FLT_OFFSET_POSITION),
-						stride = SkinDeformationClip.Frame.FLT_STRIDE / 3,
+						deltaA = (Vector3*)(frameLo.deltaPositions),
+						deltaB = (Vector3*)(frameHi.deltaPositions),
 						output = outputPositions,
 						cursor = frameFraction,
 						weight = clipWeight,
 					};
-					var jobNormals = new AddBlendedStridedDeltaJob()
+					var jobNormals = new AddBlendedDeltaJob()
 					{
-						deltaA = (Vector3*)(frameLo.deltaPosTanNrm + SkinDeformationClip.Frame.FLT_OFFSET_NORMAL),
-						deltaB = (Vector3*)(frameHi.deltaPosTanNrm + SkinDeformationClip.Frame.FLT_OFFSET_NORMAL),
-						stride = SkinDeformationClip.Frame.FLT_STRIDE / 3,
+						deltaA = (Vector3*)(frameLo.deltaNormals),
+						deltaB = (Vector3*)(frameHi.deltaNormals),
 						output = outputNormals,
 						cursor = frameFraction,
 						weight = clipWeight,
@@ -378,7 +375,6 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		/* PACKAGETODO reuse when data is not interleaved
 		[BurstCompile(FloatMode = FloatMode.Fast)]
 		unsafe struct AddBlendedDeltaJob : IJobParallelFor
 		{
@@ -392,23 +388,6 @@ namespace Unity.DemoTeam.DigitalHuman
 			public void Execute(int i)
 			{
 				output[i] += weight * Vector3.Lerp(deltaA[i], deltaB[i], cursor);
-			}
-		}*/
-
-		[BurstCompile(FloatMode = FloatMode.Fast)]
-		unsafe struct AddBlendedStridedDeltaJob : IJobParallelFor
-		{
-			[NativeDisableUnsafePtrRestriction] public Vector3* deltaA;
-			[NativeDisableUnsafePtrRestriction] public Vector3* deltaB;
-			[NativeDisableUnsafePtrRestriction] public Vector3* output;
-
-			public int stride;
-			public float cursor;
-			public float weight;
-
-			public void Execute(int i)
-			{
-				output[i] += weight * Vector3.Lerp(deltaA[i * stride], deltaB[i * stride], cursor);
 			}
 		}
 	}

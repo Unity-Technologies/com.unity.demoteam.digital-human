@@ -180,7 +180,7 @@ void SnappersBlend_float(in float2 uv, in float3 inAlbedo, in float4 inNormal, i
 	float AddOpAll_upperbound_1 = min(AddOpAll, 1);
 
 	float IntersectionNorm = AddOpAll - AddOpAll_upperbound_1 + 1.0;
-	float IntersectionInv = (1.0 / IntersectionNorm);//* AddOpAll + (1-IntersectionNorm);
+	float IntersectionInv = (1.0 / IntersectionNorm);// * AddOpAll + (1-IntersectionNorm);
 
 	// blend albedo
 	{

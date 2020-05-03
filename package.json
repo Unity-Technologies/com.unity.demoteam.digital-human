@@ -10,7 +10,7 @@
     "com.unity.collections": "0.1.1-preview",
     "com.unity.jobs": "0.1.1-preview",
     "com.unity.mathematics": "1.1.0",
-    "com.unity.render-pipelines.high-definition": "7.2.1",
-    "com.unity.timeline": "1.2.12"
+    "com.unity.render-pipelines.high-definition": "7.3.1",
+    "com.unity.timeline": "1.2.14"
   }
 }

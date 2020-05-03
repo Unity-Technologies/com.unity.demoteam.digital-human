@@ -16,13 +16,13 @@ namespace Unity.DemoTeam.DigitalHuman
 		static GUIStyle miniLabelAlignLeft;
 		static GUIStyle miniLabelAlignRight;
 
-		static bool framesFoldout = true;
+		static bool framesFoldout = false;
 		static Vector2 framesScroll = Vector2.zero;
 
 		void FittedIndices_SetFromTargetMesh(object userData)
 		{
 			var clip = userData as SkinDeformationClip;
-			var iarr = SkinDeformationFittingImpl.GetBlendShapeIndices(clip.importSettings.transferTarget);
+			var iarr = SkinDeformationFitting.GetBlendShapeIndices(clip.importSettings.transferTarget);
 
 			clip.importSettings.fittedIndices = String.Join(",", iarr.Select(i => i.ToString()).ToArray());
 		}
@@ -30,14 +30,15 @@ namespace Unity.DemoTeam.DigitalHuman
 		void FittedIndices_SetPrecomputed(object userData)
 		{
 			var clip = userData as SkinDeformationClip;
-			var iarr = new int[] {
-            // all indices from snappers head
-            //    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317
-            // subtract linearly dependent indices
-            //    23,106,107,108,109,176,177,178,179,296,297,298,299
-            // =>
-            0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317
-		};
+			var iarr = new int[]
+			{
+				// all indices from snappers head
+				//    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317
+				// subtract linearly dependent indices
+				//    23,106,107,108,109,176,177,178,179,296,297,298,299
+				// =>
+				0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,300,301,302,303,304,305,306,307,308,309,310,311,312,313,314,315,316,317
+			};
 
 			clip.importSettings.fittedIndices = String.Join(",", iarr.Select(i => i.ToString()).ToArray());
 		}
@@ -45,11 +46,12 @@ namespace Unity.DemoTeam.DigitalHuman
 		void FittedIndices_SetPrecomputedWrinkles(object userData)
 		{
 			var clip = userData as SkinDeformationClip;
-			var iarr = new int[] {
-            // all indices from snappers head that contribute to wrinkle maps
-            // =>
-            1,14,15,44,48,51,54,59,62,67,72,80,85,87,89,91,93,95,97,110,113,116,118,119,121,123,126,129,132,135,138,141,144,147,150,158,163,181,183,184,187,191,194,197,200,207,209,219,221,227,229,230,231,232,233,235,237,240,241,250,251,252,253,254,255,256,257,258,259,264,265,290,291,292,293,294,295
-		};
+			var iarr = new int[]
+			{
+				// all indices from snappers head that contribute to wrinkle maps
+				// =>
+				1,14,15,44,48,51,54,59,62,67,72,80,85,87,89,91,93,95,97,110,113,116,118,119,121,123,126,129,132,135,138,141,144,147,150,158,163,181,183,184,187,191,194,197,200,207,209,219,221,227,229,230,231,232,233,235,237,240,241,250,251,252,253,254,255,256,257,258,259,264,265,290,291,292,293,294,295
+			};
 
 			clip.importSettings.fittedIndices = String.Join(",", iarr.Select(i => i.ToString()).ToArray());
 		}
@@ -72,7 +74,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			var iarr = Array.ConvertAll<string, int>(istr.Split(','), int.Parse);
 
 			Array.Sort<int>(iarr);
-			iarr = SkinDeformationFittingImpl.ComputeLinearlyIndependentBlendShapeIndices(clip.importSettings.transferTarget, iarr);
+			iarr = SkinDeformationFitting.ComputeLinearlyIndependentBlendShapeIndices(clip.importSettings.transferTarget, iarr);
 
 			if (iarr == null)
 			{
@@ -85,7 +87,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		void OnDisable()
 		{
-			SkinDeformationClipPreview.Disable();
+			SkinDeformationClipRegions.Disable();
 		}
 
 		public override void OnInspectorGUI()
@@ -107,9 +109,9 @@ namespace Unity.DemoTeam.DigitalHuman
 				SkinDeformationClip clip = (SkinDeformationClip)target;
 
 				if (clip.importSettings.solveRegionPreview)
-					SkinDeformationClipPreview.Enable(clip);
+					SkinDeformationClipRegions.Enable(clip);
 				else
-					SkinDeformationClipPreview.Disable();
+					SkinDeformationClipRegions.Disable();
 
 				EditorGUILayout.HelpBox(GetInfoString(clip), MessageType.Info, true);
 				if (GUILayout.Button("Import"))
@@ -196,7 +198,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 			else
 			{
-				SkinDeformationClipPreview.Disable();
+				SkinDeformationClipRegions.Disable();
 
 				EditorGUILayout.HelpBox("Skin Deformation Clip (multiple)", MessageType.Info, true);
 				if (GUILayout.Button("Import"))
@@ -258,7 +260,6 @@ namespace Unity.DemoTeam.DigitalHuman
 			s += "\n -- contains albedo: " + GetInfoString(clip.framesContainAlbedo);
 			s += "\n -- contains fitted weights: " + GetInfoString(clip.framesContainFittedWeights);
 			s += "\n -- (rev " + clip.version + ")";
-			//s += "\n" + clip.frameDataFilename;
 			return s;
 		}
 
@@ -302,39 +303,39 @@ namespace Unity.DemoTeam.DigitalHuman
 
 				EditorUtility.DisplayProgressBar(progressTitle, "Loading assets", progressIndex++ / progressCount);
 
-				var sourceObjs = null as string[];
-				var sourceMeshes = null as Mesh[];
-				var sourceAlbedos = null as Texture2D[];
+				var sourceObjPaths = null as string[];
+				var sourceMeshAssets = null as Mesh[];
+				var sourceAlbedoAssets = null as Texture2D[];
 
 				int frameCount = 0;
 				int frameVertexCount = 0;
 
-				var useExternalLoader = clip.importSettings.externalLoader;
+				var useExternalLoader = (clip.importSettings.readFrom == SkinDeformationClip.InputType.ExternalObj);
 				if (useExternalLoader)
 				{
-					sourceObjs = GetFilesAtPath(clip.importSettings.externalObjPath, clip.importSettings.externalObjPattern);
-					Debug.Assert(sourceObjs.Length > 0, ".obj count == 0 (check import settings)");
+					sourceObjPaths = GetFilesAtPath(clip.importSettings.externalObjPath, clip.importSettings.externalObjPattern);
+					Debug.Assert(sourceObjPaths.Length > 0, "source .obj count == 0 (check import settings)");
 
-					using (var nativeMesh = NativeMeshObjLoader.Parse(sourceObjs[0]))
+					using (var nativeMesh = NativeMeshObjLoader.Parse(sourceObjPaths[0]))
 					{
-						frameCount = sourceObjs.Length;
+						frameCount = sourceObjPaths.Length;
 						frameVertexCount = nativeMesh.vertexCount;
 					}
 				}
 				else
 				{
-					sourceMeshes = GetAssetsAtPath<Mesh>(clip.importSettings.meshFolder, clip.importSettings.meshPrefix);
-					Debug.Assert(sourceMeshes.Length > 0, "mesh count == 0 (check import settings)");
+					sourceMeshAssets = GetAssetsAtPath<Mesh>(clip.importSettings.meshAssetPath, clip.importSettings.meshAssetPrefix);
+					Debug.Assert(sourceMeshAssets.Length > 0, "mesh count == 0 (check import settings)");
 
-					sourceAlbedos = GetAssetsAtPath<Texture2D>(clip.importSettings.albedoFolder, clip.importSettings.albedoPrefix);
-					if (sourceAlbedos.Length != sourceMeshes.Length)
+					sourceAlbedoAssets = GetAssetsAtPath<Texture2D>(clip.importSettings.albedoAssetPath, clip.importSettings.albedoAssetPrefix);
+					if (sourceAlbedoAssets.Length != sourceMeshAssets.Length)
 					{
-						sourceAlbedos = null;
-						Debug.LogWarning("mesh count != albedo count: skipping albedos");
+						sourceAlbedoAssets = null;
+						Debug.LogWarning("mesh asset count != albedo asset count: skipping albedos");
 					}
 
-					frameCount = sourceMeshes.Length;
-					frameVertexCount = sourceMeshes[0].vertexCount;
+					frameCount = sourceMeshAssets.Length;
+					frameVertexCount = sourceMeshAssets[0].vertexCount;
 				}
 
 				int frameFittedWeightsCount = 0;// modified later
@@ -361,7 +362,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 					if (useExternalLoader)
 					{
-						using (var nativeMesh = NativeMeshObjLoader.Parse(sourceObjs[0]))
+						using (var nativeMesh = NativeMeshObjLoader.Parse(sourceObjPaths[0]))
 						{
 							buffersFrame0.LoadFrom(nativeMesh);
 							buffersFrame0.ApplyRotation(sourceRotation);
@@ -370,70 +371,69 @@ namespace Unity.DemoTeam.DigitalHuman
 					}
 					else
 					{
-						buffersFrame0.LoadFrom(sourceMeshes[0]);
+						buffersFrame0.LoadFrom(sourceMeshAssets[0]);
 						buffersFrame0.ApplyRotation(sourceRotation);
 						buffersFrame0.ApplyScale(sourceScale);
 					}
 
-					var denoiseFactor = clip.importSettings.denoiseFactor;
-					var denoiseIndices = ResolveIndexArrayFromVertexSelectionArray(clip.importSettings.denoiseRegion, weldedAdjacency);
+					var denoiseIndices = ResolveIndexArrayFromVertexSelectionArray(clip.importSettings.denoiseRegions, weldedAdjacency);
+					var denoiseFactor = clip.importSettings.denoiseStrength;
 
 					if (denoiseFactor < float.Epsilon)
 						denoiseIndices = new int[0];
 
-					var transplantFactor = clip.importSettings.transplantFactor;
-					var transplantIndices = ResolveIndexArrayFromVertexSelectionArray(clip.importSettings.transplantRegion, weldedAdjacency);
+					var transplantIndices = ResolveIndexArrayFromVertexSelectionArray(clip.importSettings.transplantRegions, weldedAdjacency);
+					var transplantFactor = clip.importSettings.transplantStrength;
+					var transplantSource = clip.importSettings.transferTarget;
 
-					if (transplantFactor < float.Epsilon || clip.importSettings.transferTarget == null)
+					if (transplantFactor < float.Epsilon || transplantSource == null)
 						transplantIndices = new int[0];
 
-					//TODO cleanup
-					var transferIndices = ResolveIndexArrayFromVertexSelection(clip.importSettings.transferRegion, weldedAdjacency);
-
 #if SOLVE_FULL_LAPLACIAN
-                var laplacianConstraintCount = frameVertexCount;
-                var laplacianConstraintIndices = null as int[];
+					var laplacianConstraintCount = frameVertexCount;
+					var laplacianConstraintIndices = null as int[];
 
-                unsafe
-                {
-                    using (var laplacianFreeVertexMap = new UnsafeArrayBool(frameVertexCount))
-                    {
-                        laplacianFreeVertexMap.Clear(false);
+					unsafe
+					{
 
-                        for (int k = 0; k != denoiseIndices.Length; k++)
-                        {
-                            if (laplacianFreeVertexMap.val[denoiseIndices[k]] == false)
-                            {
-                                laplacianFreeVertexMap.val[denoiseIndices[k]] = true;
-                                laplacianConstraintCount--;
-                            }
-                        }
+						using (var laplacianFreeVertexMap = new UnsafeArrayBool(frameVertexCount))
+						{
+							laplacianFreeVertexMap.Clear(false);
 
-                        for (int k = 0; k != transplantIndices.Length; k++)
-                        {
-                            if (laplacianFreeVertexMap.val[transplantIndices[k]] == false)
-                            {
-                                laplacianFreeVertexMap.val[transplantIndices[k]] = true;
-                                laplacianConstraintCount--;
-                            }
-                        }
+							for (int k = 0; k != denoiseIndices.Length; k++)
+							{
+								if (laplacianFreeVertexMap.val[denoiseIndices[k]] == false)
+								{
+									laplacianFreeVertexMap.val[denoiseIndices[k]] = true;
+									laplacianConstraintCount--;
+								}
+							}
 
-                        laplacianConstraintIndices = new int[laplacianConstraintCount];
+							for (int k = 0; k != transplantIndices.Length; k++)
+							{
+								if (laplacianFreeVertexMap.val[transplantIndices[k]] == false)
+								{
+									laplacianFreeVertexMap.val[transplantIndices[k]] = true;
+									laplacianConstraintCount--;
+								}
+							}
 
-                        for (int i = 0, k = 0; i != frameVertexCount; i++)
-                        {
-                            if (laplacianFreeVertexMap.val[i] == false)
-                                laplacianConstraintIndices[k++] = i;
-                        }
-                    }
-                }
+							laplacianConstraintIndices = new int[laplacianConstraintCount];
+
+							for (int i = 0, k = 0; i != frameVertexCount; i++)
+							{
+								if (laplacianFreeVertexMap.val[i] == false)
+									laplacianConstraintIndices[k++] = i;
+							}
+						}
+					}
 #else
 					var laplacianROIIndices = denoiseIndices.Union(transplantIndices).ToArray();
 					var laplacianConstraintCount = frameVertexCount - laplacianROIIndices.Length;
 #endif
 
 #if SOLVE_FULL_LAPLACIAN
-                var meshLaplacianTransform = null as MeshLaplacianTransform;
+					var meshLaplacianTransform = null as MeshLaplacianTransform;
 #else
 					var meshLaplacianTransform = null as MeshLaplacianTransformROI;
 #endif
@@ -447,7 +447,7 @@ namespace Unity.DemoTeam.DigitalHuman
 					if (laplacianResolve)
 					{
 #if SOLVE_FULL_LAPLACIAN
-                    meshLaplacianTransform = new MeshLaplacianTransform(weldedAdjacency, laplacianConstraintIndices);
+						meshLaplacianTransform = new MeshLaplacianTransform(weldedAdjacency, laplacianConstraintIndices);
 #else
 						meshLaplacianTransform = new MeshLaplacianTransformROI(weldedAdjacency, laplacianROIIndices, 0);
 						{
@@ -459,22 +459,11 @@ namespace Unity.DemoTeam.DigitalHuman
 #endif
 						meshLaplacianTransform.ComputeMeshLaplacian(meshLaplacianDenoised, buffersFrame0);
 
-						if (transplantIndices.Length > 0 && clip.importSettings.transferTarget != null)
+						if (transplantIndices.Length > 0 && transplantSource != null)
 						{
-							transplantBuffers.LoadFrom(clip.importSettings.transferTarget);
+							transplantBuffers.LoadFrom(transplantSource);
 							meshLaplacianTransform.ComputeMeshLaplacian(transplantLaplacian, transplantBuffers);
 						}
-					}
-
-					//TODO cleanup
-					var transferTemp = new MeshBuffers(frameVertexCount);
-					var transferLaplacianTransform = null as MeshLaplacianTransformROI;
-					var transferLaplacian = new MeshLaplacian();
-
-					var laplacianTransfer = (transferIndices.Length > 0) && (clip.importSettings.transferTarget != null);
-					if (laplacianTransfer)
-					{
-						transferLaplacianTransform = new MeshLaplacianTransformROI(weldedAdjacency, transferIndices, 0);
 					}
 
 					for (int i = 0; i != frameCount; i++)
@@ -483,7 +472,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 						if (useExternalLoader)
 						{
-							using (var nativeMesh = NativeMeshObjLoader.Parse(sourceObjs[i]))
+							using (var nativeMesh = NativeMeshObjLoader.Parse(sourceObjPaths[i]))
 							{
 								buffersFrameX.LoadFrom(nativeMesh);
 								buffersFrameX.ApplyRotation(sourceRotation);
@@ -492,7 +481,7 @@ namespace Unity.DemoTeam.DigitalHuman
 						}
 						else
 						{
-							buffersFrameX.LoadFrom(sourceMeshes[i]);
+							buffersFrameX.LoadFrom(sourceMeshAssets[i]);
 							buffersFrameX.ApplyRotation(sourceRotation);
 							buffersFrameX.ApplyScale(sourceScale);
 						}
@@ -528,30 +517,14 @@ namespace Unity.DemoTeam.DigitalHuman
 							buffersFrameX.ApplyWeldedChanges(weldedAdjacency);
 						}
 
-						//TODO cleanup
-						if (laplacianTransfer)
-						{
-							buffersTarget.CopyTo(transferTemp);
-							transferLaplacianTransform.ComputeMeshLaplacian(transferLaplacian, buffersFrameX);
-							transferLaplacianTransform.ResolveMeshBuffers(transferTemp, transferLaplacian);
-							transferTemp.CopyTo(buffersFrameX);
+						frames[i].SetAlbedo((sourceAlbedoAssets != null) ? sourceAlbedoAssets[i] : null);
+						frames[i].SetDeltas(buffersFrame0, buffersFrameX);
 
-							buffersFrameX.RecalculateNormals(weldedAdjacency);
-							buffersFrameX.ApplyWeldedChanges(weldedAdjacency);
-						}
-
-						frames[i].SetAlbedo((sourceAlbedos != null) ? sourceAlbedos[i] : null);
-						//frames[i].SetDeltas(buffersFrame0, buffersFrameX);
-
-						//TODO cleanup
-						if (laplacianTransfer)
-							frames[i].SetDeltas(buffersTarget, buffersFrameX);
-						else
-							frames[i].SetDeltas(buffersFrame0, buffersFrameX);
-
-						var targetVertexCount = laplacianTransfer ? buffersTarget.vertexCount : buffersFrame0.vertexCount;
+						var targetVertexCount = buffersFrame0.vertexCount;
 						if (targetVertexCount != buffersFrameX.vertexCount)
-							Debug.LogWarning("frame " + i + " has different vertexCount (" + buffersFrameX.vertexCount + " vs. " + targetVertexCount + " in frame 0)");
+						{
+							Debug.LogWarning("frame " + i + " has different vertexCount (" + buffersFrameX.vertexCount + " vs " + targetVertexCount + " in frame 0)");
+						}
 					}
 
 					for (int i = 0; i != subframeCount; i++)
@@ -562,7 +535,10 @@ namespace Unity.DemoTeam.DigitalHuman
 						subframes[i].fractionHi = 1.0f;
 					}
 
-					ImportFrameIntervalsFromCSV(clip.importSettings.keyframesCSV, frameCount - 1, ref subframeCount, ref subframes);
+					if (clip.importSettings.keyframes)
+					{
+						ImportFrameIntervalsFromCSV(clip.importSettings.keyframesCSV, frameCount - 1, ref subframeCount, ref subframes);
+					}
 				}
 
 				EditorUtility.DisplayProgressBar(progressTitle, "Retargeting frames", progressIndex++ / progressCount);
@@ -598,7 +574,6 @@ namespace Unity.DemoTeam.DigitalHuman
 									for (int j = 0; j != frameVertexCount; j++)
 									{
 										frames[i].deltaPositions[j] += firstFrameDelta.deltaPositions[j];
-										frames[i].deltaTangents[j] += firstFrameDelta.deltaTangents[j];
 										frames[i].deltaNormals[j] += firstFrameDelta.deltaNormals[j];
 									}
 								}
@@ -622,13 +597,13 @@ namespace Unity.DemoTeam.DigitalHuman
 						var blendShapeIndicesCommaSep = clip.importSettings.fittedIndices;
 						var blendShapeIndices = Array.ConvertAll<string, int>(blendShapeIndicesCommaSep.Split(','), int.Parse);
 
-						SkinDeformationFittingImpl.FitFramesToBlendShapes(frames, clip.importSettings.transferTarget, blendShapeIndices, clip.importSettings.fittingMethod, clip.importSettings.fittingParam);
+						SkinDeformationFitting.FitFramesToBlendShapes(frames, clip.importSettings.transferTarget, blendShapeIndices, clip.importSettings.fittingMethod, clip.importSettings.fittingParam);
 					}
 				}
 
 				EditorUtility.DisplayProgressBar(progressTitle, "Saving binary", progressIndex++ / progressCount);
 				{
-					clip.lastBuild = clip.importSettings.Clone();
+					clip.lastImport = clip.importSettings.Clone();
 					clip.frameCount = frameCount;
 					clip.frameVertexCount = frameVertexCount;
 					clip.frameFittedWeightsCount = frameFittedWeightsCount;
@@ -656,9 +631,9 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		static void ImportFrameIntervalsFromCSV(string filename, int maxFrameIndex, ref int subframeCount, ref SkinDeformationClip.Subframe[] subframes)
+		static void ImportFrameIntervalsFromCSV(TextAsset textAsset, int maxFrameIndex, ref int subframeCount, ref SkinDeformationClip.Subframe[] subframes)
 		{
-			if (!File.Exists(filename))
+			if (textAsset == null)
 				return;
 
 			// skip 1st column of every row
@@ -676,13 +651,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			var vals = new int[NUM_ROWS][];
 			var valCount = NO_VALUE;
 
-			using (StreamReader reader = new StreamReader(filename))
+			using (StringReader reader = new StringReader(textAsset.text))
 			{
 				for (int row = 0; row != NUM_ROWS; row++)
 				{
-					if (reader.EndOfStream)
-						return;// bad input, missing rows
-
 					var line = reader.ReadLine();
 					if (line == null)
 						return;// bad input, missing rows

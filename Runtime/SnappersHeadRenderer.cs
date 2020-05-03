@@ -1,12 +1,12 @@
 ﻿//#define _SNAPPERS_TEXTURE_ARRAYS
 
 using UnityEngine;
+using UnityEngine.Serialization;
 using Unity.DemoTeam.Attributes;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	[ExecuteAlways]
-	[RequireComponent(typeof(SkinnedMeshRenderer))]
+	[ExecuteAlways, RequireComponent(typeof(SkinnedMeshRenderer))]
 	public class SnappersHeadRenderer : MonoBehaviour
 	{
 		private SkinnedMeshRenderer smr;
@@ -15,7 +15,8 @@ namespace Unity.DemoTeam.DigitalHuman
 		[Header("Facial Rig")]
 		public SnappersHeadDefinition.InstanceData headInstance;
 		public SnappersHeadDefinition headDefinition;
-		public Transform headController;
+		[FormerlySerializedAs("headController")]
+		public Transform headControllers;
 		[EnumFlag]
 		public SnappersHeadDefinition.Warnings warnings;
 
@@ -75,7 +76,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			smr.GetPropertyBlock(smrProps);
 			{
-				if (headInstance.shaderParamFloats != null)//PACKAGETODO introduce IsCreated() or similar?
+				if (headInstance.shaderParamFloats != null)//TODO introduce IsCreated() or similar?
 				{
 					SnappersHeadDefinition.ResetShaderParam(ref headInstance);
 					SnappersHeadDefinition.ApplyShaderParam(ref headInstance, smrProps);
@@ -93,7 +94,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				if (headDefinition != null)
 				{
-					headDefinition.PrepareInstance(ref headInstance, smr, headController, warnings);
+					headDefinition.PrepareInstance(ref headInstance, smr, headControllers, warnings);
 					headDefinition.ResolveControllers(ref headInstance);
 					headDefinition.ResolveBlendShapes(ref headInstance, smr);
 

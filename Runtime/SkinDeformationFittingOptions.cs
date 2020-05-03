@@ -1,6 +1,6 @@
 ﻿namespace Unity.DemoTeam.DigitalHuman
 {
-	public static class SkinDeformationFitting
+	public static class SkinDeformationFittingOptions
 	{
 		public enum Method
 		{

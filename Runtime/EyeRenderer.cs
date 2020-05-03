@@ -5,8 +5,7 @@ using Unity.DemoTeam.Attributes;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	[ExecuteAlways]
-	[RequireComponent(typeof(Renderer))]
+	[ExecuteAlways, RequireComponent(typeof(Renderer))]
 	public class EyeRenderer : MonoBehaviour
 	{
 		private Renderer rnd;

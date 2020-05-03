@@ -4,7 +4,6 @@ using UnityEngine;
 using Unity.DemoTeam.Attributes;
 #if UNITY_EDITOR
 using UnityEditor;
-using System.Text.RegularExpressions;
 #endif
 
 namespace Unity.DemoTeam.DigitalHuman
@@ -14,15 +13,8 @@ namespace Unity.DemoTeam.DigitalHuman
 	{
 		public unsafe struct Frame
 		{
-			public const int FLT_STRIDE = 9;
-			public const int FLT_OFFSET_POSITION = 0;
-			public const int FLT_OFFSET_TANGENT = 3;
-			public const int FLT_OFFSET_NORMAL = 6;
-			public float* deltaPosTanNrm;
-			//TODO don't write the data interleaved if we're not going to use it as such!
-			//public float* deltaPositions;
-			//public float* deltaTangents;
-			//public float* deltaNormals;
+			public float* deltaPositions;
+			public float* deltaNormals;
 			public float* fittedWeights;
 			public Texture2D albedo;
 		}
@@ -92,18 +84,15 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (frameDataPending)
 			{
 				Debug.Log("hotloading frame data");
-
 				LoadFrameData();
 			}
 
 			var floatPtr = (float*)frameData.ReadFrame(frameIndex);
 			{
 				Frame frame;
-				//frame.deltaPositions = floatPtr + 0 * frameVertexCount;
-				//frame.deltaTangents = floatPtr + 3 * frameVertexCount;
-				//frame.deltaNormals = floatPtr + 6 * frameVertexCount;
-				frame.deltaPosTanNrm = floatPtr + 0 * frameVertexCount;
-				frame.fittedWeights = floatPtr + 9 * frameVertexCount;
+				frame.deltaPositions = floatPtr + 0 * frameVertexCount;
+				frame.deltaNormals = floatPtr + 3 * frameVertexCount;
+				frame.fittedWeights = floatPtr + 6 * frameVertexCount;
 				frame.albedo = frames[frameIndex].albedo;
 				return frame;
 			}
@@ -111,7 +100,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public int GetFrameSizeBytes()
 		{
-			return (9 * frameVertexCount + frameFittedWeightsCount) * sizeof(float);
+			return (6 * frameVertexCount + 1 * frameFittedWeightsCount) * sizeof(float);
 		}
 
 		public void PrepareFrame(int frameIndex)
@@ -126,63 +115,75 @@ namespace Unity.DemoTeam.DigitalHuman
 			PassThroughWithFirstFrameDelta,
 		}
 
+		public enum InputType
+		{
+			ExternalObj,
+			ProjectAssets,
+		}
+
 		[Serializable]
 		public class ImportSettings
 		{
-			[Header("Asset paths")]
-			public string keyframesCSV;
-			[EditableIf("externalLoader", false)] public string meshFolder;
-			[EditableIf("externalLoader", false)] public string meshPrefix;
-			[EditableIf("externalLoader", false)] public string albedoFolder;
-			[EditableIf("externalLoader", false)] public string albedoPrefix;
-			public bool externalLoader = false;
-			[EditableIf("externalLoader", true)] public string externalObjPath;
-			[EditableIf("externalLoader", true)] public string externalObjPattern = "*.obj";
+			[Header("Sequence")]
+			public InputType readFrom = InputType.ExternalObj;
+			[VisibleIf("readFrom", InputType.ExternalObj)] public string externalObjPath;
+			[VisibleIf("readFrom", InputType.ExternalObj)] public string externalObjPattern = "*.obj";
+			[VisibleIf("readFrom", InputType.ProjectAssets)] public string meshAssetPath;
+			[VisibleIf("readFrom", InputType.ProjectAssets)] public string meshAssetPrefix;
+			[VisibleIf("readFrom", InputType.ProjectAssets)] public string albedoAssetPath;
+			[VisibleIf("readFrom", InputType.ProjectAssets)] public string albedoAssetPrefix;
+
+			[Space]
+			public bool keyframes = false;
+			[Tooltip("CSV specifying how the frames are distributed. The first column is ignored. Rows read as follows:\nRow 1: Frame indices\nRow 2: Keyframe indices\nRow 3: Frame progress (0-100) between keys")]
+			[EditableIf("keyframes", true)]
+			public TextAsset keyframesCSV;
 
 			[Header("Mesh transform")]
 			public Vector3 applyRotation = Vector3.zero;
 			public float applyScale = 1.0f;
 
-			[Header("Mesh processing")]
+			[Header("Mesh differential processing")]
+			[Tooltip("Regions are specified in text files. Each file should contain an array of vertex indices on the form: [i, j, k, ...]")]
+			public TextAsset[] denoiseRegions;
 			[Range(0.0f, 1.0f)]
-			public float denoiseFactor = 0.0f;
-			public TextAsset[] denoiseRegion;
+			public float denoiseStrength = 0.0f;
+			[Tooltip("Regions are specified in text files. Each file should contain an array of vertex indices on the form: [i, j, k, ...]")]
+			public TextAsset[] transplantRegions;
 			[Range(0.0f, 1.0f)]
-			public float transplantFactor = 0.0f;
-			public TextAsset[] transplantRegion;
+			public float transplantStrength = 0.0f;
 			public bool solveRegionPreview = false;
-			public bool solveWelded = false;
+			public bool solveWelded = true;
 
 			[Header("Frame transfer")]
-			//PACKAGETODO cleanup
 			public Mesh transferTarget;
-			public TextAsset transferRegion;
 			public TransferMode transferMode;
 
 			[Header("Frame fitting")]
 			public bool fitToBlendShapes = false;
 			[TextArea(1, 20)]
 			public string fittedIndices = "";
-			public SkinDeformationFitting.Method fittingMethod = SkinDeformationFitting.Method.LinearLeastSquares;
-			public SkinDeformationFitting.Param fittingParam = SkinDeformationFitting.Param.DeltaPosition;
+			public SkinDeformationFittingOptions.Method fittingMethod = SkinDeformationFittingOptions.Method.LinearLeastSquares;
+			public SkinDeformationFittingOptions.Param fittingParam = SkinDeformationFittingOptions.Param.DeltaPosition;
 
 			public ImportSettings Clone()
 			{
 				var c = this.MemberwiseClone() as ImportSettings;
-				c.keyframesCSV = c.keyframesCSV.Clone() as string;
-				c.meshFolder = c.meshFolder.Clone() as string;
-				c.meshPrefix = c.meshPrefix.Clone() as string;
-				c.albedoFolder = c.albedoFolder.Clone() as string;
-				c.albedoPrefix = c.albedoPrefix.Clone() as string;
-				c.denoiseRegion = c.denoiseRegion.Clone() as TextAsset[];
-				c.transplantRegion = c.transplantRegion.Clone() as TextAsset[];
+				c.externalObjPath = c.externalObjPath.Clone() as string;
+				c.externalObjPattern = c.externalObjPattern.Clone() as string;
+				c.meshAssetPath = c.meshAssetPath.Clone() as string;
+				c.meshAssetPrefix = c.meshAssetPrefix.Clone() as string;
+				c.albedoAssetPath = c.albedoAssetPath.Clone() as string;
+				c.albedoAssetPrefix = c.albedoAssetPrefix.Clone() as string;
+				c.denoiseRegions = c.denoiseRegions.Clone() as TextAsset[];
+				c.transplantRegions = c.transplantRegions.Clone() as TextAsset[];
 				c.fittedIndices = c.fittedIndices.Clone() as string;
 				return c;
 			}
 		}
 
 		[ReadOnly]
-		public ImportSettings lastBuild = new ImportSettings();
+		public ImportSettings lastImport = new ImportSettings();
 		public ImportSettings importSettings = new ImportSettings();
 		//--- import settings end ---
 
@@ -226,62 +227,6 @@ namespace Unity.DemoTeam.DigitalHuman
 				Debug.LogError("failed to load frame data (filename = " + filename + ")");
 				return;
 			}
-
-			/* OLD
-			for (int i = 0; i != frameCount; i++)
-			{
-				frames[i].Allocate(frameVertexCount, frameFittedWeightsCount);
-			}
-
-			using (FileStream stream = File.OpenRead(filename))
-			{
-				using (BinaryReader reader = new BinaryReader(stream))
-				{
-					int __frameCount = reader.ReadInt32();
-					int __frameVertexCount = reader.ReadInt32();
-					int __frameFittedWeightsCount = reader.ReadInt32();
-
-					Debug.Assert(__frameCount == frameCount);
-					Debug.Assert(__frameVertexCount == frameVertexCount);
-					Debug.Assert(__frameFittedWeightsCount == frameFittedWeightsCount);
-
-					var srcCursor = 0;
-					var srcBuffer = new float[3 * 3 * frameVertexCount + 1 * frameFittedWeightsCount];
-					var dstBuffer = new byte[4 * srcBuffer.Length];
-
-					for (int i = 0; i != frameCount; i++)
-					{
-						reader.Read(dstBuffer, 0, dstBuffer.Length);
-
-						Buffer.BlockCopy(dstBuffer, 0, srcBuffer, 0, dstBuffer.Length);
-
-						for (int j = 0; j != frameVertexCount; j++)
-						{
-							frames[i].deltaPositions[j].x = srcBuffer[srcCursor++];
-							frames[i].deltaPositions[j].y = srcBuffer[srcCursor++];
-							frames[i].deltaPositions[j].z = srcBuffer[srcCursor++];
-
-							frames[i].deltaTangents[j].x = srcBuffer[srcCursor++];
-							frames[i].deltaTangents[j].y = srcBuffer[srcCursor++];
-							frames[i].deltaTangents[j].z = srcBuffer[srcCursor++];
-
-							frames[i].deltaNormals[j].x = srcBuffer[srcCursor++];
-							frames[i].deltaNormals[j].y = srcBuffer[srcCursor++];
-							frames[i].deltaNormals[j].z = srcBuffer[srcCursor++];
-						}
-
-						for (int j = 0; j != frameFittedWeightsCount; j++)
-						{
-							frames[i].fittedWeights[j] = srcBuffer[srcCursor++];
-						}
-
-						srcCursor = 0;
-					}
-
-					frameDataPending = false;
-				}
-			}
-			*/
 		}
 
 		public void UnloadFrameData()
@@ -309,37 +254,40 @@ namespace Unity.DemoTeam.DigitalHuman
 					writer.Write(frameVertexCount);
 					writer.Write(frameFittedWeightsCount);
 
-					var srcCursor = 0;
-					var srcBuffer = new float[3 * 3 * frameVertexCount + 1 * frameFittedWeightsCount];
-					var dstBuffer = new byte[4 * srcBuffer.Length];
+					var fltCursor = 0;
+					var fltBuffer = new float[6 * frameVertexCount + 1 * frameFittedWeightsCount];
+					var dstBuffer = new byte[4 * fltBuffer.Length];
 
 					for (int i = 0; i != frameCount; i++)
 					{
-						srcCursor = 0;
-
 						Debug.Assert(frames[i].deltaPositions.Length == frameVertexCount, "invalid vertex count");
+						Debug.Assert(frames[i].fittedWeights.Length == frameFittedWeightsCount, "invalid fitted weights count");
+
+						fltCursor = 0;
+
+						// write positions
 						for (int j = 0; j != frameVertexCount; j++)
 						{
-							srcBuffer[srcCursor++] = frames[i].deltaPositions[j].x;
-							srcBuffer[srcCursor++] = frames[i].deltaPositions[j].y;
-							srcBuffer[srcCursor++] = frames[i].deltaPositions[j].z;
-
-							srcBuffer[srcCursor++] = frames[i].deltaTangents[j].x;
-							srcBuffer[srcCursor++] = frames[i].deltaTangents[j].y;
-							srcBuffer[srcCursor++] = frames[i].deltaTangents[j].z;
-
-							srcBuffer[srcCursor++] = frames[i].deltaNormals[j].x;
-							srcBuffer[srcCursor++] = frames[i].deltaNormals[j].y;
-							srcBuffer[srcCursor++] = frames[i].deltaNormals[j].z;
+							fltBuffer[fltCursor++] = frames[i].deltaPositions[j].x;
+							fltBuffer[fltCursor++] = frames[i].deltaPositions[j].y;
+							fltBuffer[fltCursor++] = frames[i].deltaPositions[j].z;
 						}
 
-						Debug.Assert(frames[i].fittedWeights.Length == frameFittedWeightsCount, "invalid fitted weights count");
+						// write normals
+						for (int j = 0; j != frameVertexCount; j++)
+						{
+							fltBuffer[fltCursor++] = frames[i].deltaNormals[j].x;
+							fltBuffer[fltCursor++] = frames[i].deltaNormals[j].y;
+							fltBuffer[fltCursor++] = frames[i].deltaNormals[j].z;
+						}
+
+						// write fitted weights
 						for (int j = 0; j != frameFittedWeightsCount; j++)
 						{
-							srcBuffer[srcCursor++] = frames[i].fittedWeights[j];
+							fltBuffer[fltCursor++] = frames[i].fittedWeights[j];
 						}
 
-						Buffer.BlockCopy(srcBuffer, 0, dstBuffer, 0, dstBuffer.Length);
+						Buffer.BlockCopy(fltBuffer, 0, dstBuffer, 0, dstBuffer.Length);
 
 						writer.Write(dstBuffer, 0, dstBuffer.Length);
 						writer.Flush();
@@ -349,12 +297,9 @@ namespace Unity.DemoTeam.DigitalHuman
 				}
 			}
 		}
-#endif
-		//--- frame data serialization end ---
 
-#if UNITY_EDITOR
-		[ContextMenu("Save To StreamingAssets")]
-		public void SaveToStreamingAssets()
+		[ContextMenu("Copy To StreamingAssets")]
+		public void CopyToStreamingAssets()
 		{
 			string filenameAsset = AssetDatabase.GetAssetPath(this);
 			string filenameFrameData = filenameAsset + "_frames.bin";
@@ -383,22 +328,6 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 #endif
+		//--- frame data serialization end ---
 	}
-
-#if UNITY_EDITOR
-	public class SkinDeformationClipBuildProcessor : UnityEditor.Build.IPreprocessBuildWithReport
-	{
-		public int callbackOrder { get { return 0; } }
-		public void OnPreprocessBuild(UnityEditor.Build.Reporting.BuildReport report)
-		{
-			var clips = Resources.FindObjectsOfTypeAll<SkinDeformationClip>();
-			foreach (var clip in clips)
-			{
-				clip.SaveToStreamingAssets();
-				EditorUtility.SetDirty(clip);
-			}
-			AssetDatabase.SaveAssets();
-		}
-	}
-#endif
 }

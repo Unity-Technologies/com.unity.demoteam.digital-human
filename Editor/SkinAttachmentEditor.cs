@@ -55,6 +55,12 @@ namespace Unity.DemoTeam.DigitalHuman
 					CommitTargetChanges(attachmentTargetSet);
 					EditorGUILayout.EndHorizontal();
 				}
+
+				EditorGUILayout.Separator();
+				EditorGUILayout.BeginVertical();
+				DrawGUIAttachDetachAll(targets, attachmentTargetSet);
+				CommitTargetChanges(attachmentTargetSet);
+				EditorGUILayout.EndVertical();
 			}
 		}
 
@@ -63,7 +69,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			foreach (var attachmentTarget in attachmentTargetSet)
 			{
 				if (attachmentTarget != null)
+				{
 					attachmentTarget.CommitSubjectsIfRequired();
+					EditorUtility.SetDirty(attachmentTarget);
+				}
 			}
 		}
 
@@ -81,9 +90,9 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				if (GUILayout.Button("Attach"))
 				{
-					attachmentTargetSet.Add(attachment.targetActive);
 					attachment.Attach(storePositionRotation: true);
 					attachmentTargetSet.Add(attachment.targetActive);
+					EditorUtility.SetDirty(attachment);
 				}
 			}
 			EditorGUI.EndDisabledGroup();
@@ -98,15 +107,47 @@ namespace Unity.DemoTeam.DigitalHuman
 				{
 					attachmentTargetSet.Add(attachment.targetActive);
 					attachment.Detach(revertPositionRotation: true);
+					EditorUtility.SetDirty(attachment);
 				}
 				if (GUILayout.Button("+ Hold", GUILayout.ExpandWidth(false)))
 				{
 					attachmentTargetSet.Add(attachment.targetActive);
 					attachment.Detach(revertPositionRotation: false);
+					EditorUtility.SetDirty(attachment);
 				}
 				EditorGUILayout.EndHorizontal();
 			}
 			EditorGUI.EndDisabledGroup();
+		}
+
+		public static void DrawGUIAttachDetachAll(Object[] targets, HashSet<SkinAttachmentTarget> attachmentTargetSet)
+		{
+			if (GUILayout.Button("Attach all"))
+			{
+				foreach (var target in targets)
+				{
+					var attachment = target as SkinAttachment;
+					if (attachment != null && !attachment.attached)
+					{
+						attachment.Attach(storePositionRotation: true);
+						attachmentTargetSet.Add(attachment.targetActive);
+						EditorUtility.SetDirty(attachment);
+					}
+				}
+			}
+			if (GUILayout.Button("Detach all"))
+			{
+				foreach (var target in targets)
+				{
+					var attachment = target as SkinAttachment;
+					if (attachment != null && attachment.attached)
+					{
+						attachmentTargetSet.Add(attachment.targetActive);
+						attachment.Detach(revertPositionRotation: true);
+						EditorUtility.SetDirty(attachment);
+					}
+				}
+			}
 		}
 	}
 }

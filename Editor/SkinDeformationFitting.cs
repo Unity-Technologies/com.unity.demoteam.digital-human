@@ -5,10 +5,10 @@ using Accord.Statistics.Models.Regression.Fitting;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	using Param = SkinDeformationFitting.Param;
-	using Method = SkinDeformationFitting.Method;
+	using Param = SkinDeformationFittingOptions.Param;
+	using Method = SkinDeformationFittingOptions.Method;
 
-	public static partial class SkinDeformationFittingImpl
+	public static class SkinDeformationFitting
 	{
 		private static T[][] MakeJagged<T>(T[,] m)
 		{
@@ -314,7 +314,6 @@ namespace Unity.DemoTeam.DigitalHuman
 				int k = frameIndex;
 
 				var tmpPositions = new UnityEngine.Vector3[sharedJobData.numVertices];
-				var tmpTangents = new UnityEngine.Vector3[sharedJobData.numVertices];
 				var tmpNormals = new UnityEngine.Vector3[sharedJobData.numVertices];
 
 				var edgeLengths = null as float[];
@@ -324,7 +323,6 @@ namespace Unity.DemoTeam.DigitalHuman
 				var b = new double[sharedJobData.numEquations];
 				{
 					Array.Copy(sharedJobData.frames[k].deltaPositions, tmpPositions, tmpPositions.Length);
-					Array.Copy(sharedJobData.frames[k].deltaTangents, tmpTangents, tmpTangents.Length);
 					Array.Copy(sharedJobData.frames[k].deltaNormals, tmpNormals, tmpNormals.Length);
 
 					switch (sharedJobData.fittingParam)

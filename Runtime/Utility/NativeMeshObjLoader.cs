@@ -43,7 +43,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			Debug.LogFormat("trying {0}", path);
 #endif
 
-			var text = File.ReadAllText(path);// TODO replace with native variant
+			var text = File.ReadAllText(path);//TODO replace with native variant
 			var textSize = text.Length;
 
 			// measure the data

@@ -19,7 +19,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		public Vector3 neutralChinPos;
 		public Vector3 neutralChinDir;
 
-		[Range(0.0f, 1.0f)]
+		[Range(0.0f, 2.0f)]
 		public float jawForward = 1.0f;
 
 		[ContextMenu("Initialize Neutral Position")]

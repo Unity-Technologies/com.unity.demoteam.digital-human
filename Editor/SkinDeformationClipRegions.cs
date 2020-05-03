@@ -4,7 +4,7 @@ using UnityEditor;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	public static class SkinDeformationClipPreview
+	public static class SkinDeformationClipRegions
 	{
 		private static bool active;
 
@@ -59,8 +59,8 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (mesh == null)
 				return;
 
-			var updateDenoiseIndices = !CompareTextAssetArrays(activeDenoiseIndices, clip.importSettings.denoiseRegion);
-			var updateTransplantIndices = !CompareTextAssetArrays(activeTransplantIndices, clip.importSettings.transplantRegion);
+			var updateDenoiseIndices = !CompareTextAssetArrays(activeDenoiseIndices, clip.importSettings.denoiseRegions);
+			var updateTransplantIndices = !CompareTextAssetArrays(activeTransplantIndices, clip.importSettings.transplantRegions);
 
 			foreach (var deformationRenderer in SkinDeformationRenderer.enabledInstances)
 			{
@@ -78,14 +78,14 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (updateDenoiseIndices)
 				{
 					updateDenoiseIndices = false;
-					activeDenoiseIndices = clip.importSettings.denoiseRegion.Clone() as TextAsset[];
+					activeDenoiseIndices = clip.importSettings.denoiseRegions.Clone() as TextAsset[];
 					pairedDenoiseIndices = BuildPairsFromIndices(targetMeshInfo.meshAdjacency, SkinDeformationClipEditor.ResolveIndexArrayFromVertexSelectionArray(activeDenoiseIndices));
 				}
 
 				if (updateTransplantIndices)
 				{
 					updateTransplantIndices = false;
-					activeTransplantIndices = clip.importSettings.transplantRegion.Clone() as TextAsset[];
+					activeTransplantIndices = clip.importSettings.transplantRegions.Clone() as TextAsset[];
 					pairedTransplantIndices = BuildPairsFromIndices(targetMeshInfo.meshAdjacency, SkinDeformationClipEditor.ResolveIndexArrayFromVertexSelectionArray(activeTransplantIndices));
 				}
 
@@ -106,7 +106,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public static void Enable(SkinDeformationClip clip)
 		{
-			SkinDeformationClipPreview.clip = clip;
+			SkinDeformationClipRegions.clip = clip;
 
 			if (active == false)
 			{
@@ -118,7 +118,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public static void Disable()
 		{
-			SkinDeformationClipPreview.clip = null;
+			SkinDeformationClipRegions.clip = null;
 
 			if (active)
 			{

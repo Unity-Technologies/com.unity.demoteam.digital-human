@@ -521,17 +521,11 @@ namespace Unity.DemoTeam.DigitalHuman
 					triangleNormal /= triangleArea;
 					triangleArea *= 0.5f;
 
-					//var n0 = meshNormals[pose.v0];
-					//var n1 = meshNormals[pose.v1];
-					//var n2 = meshNormals[pose.v2];
-
 					var targetProjected = pose.targetCoord.Resolve(ref p0, ref p1, ref p2);
-					//var targetNormal = pose.targetCoord.Resolve(n0, n1, n2);
 					var target = targetProjected + triangleNormal * pose.targetDist;
 
-					//TODO back to orig. area?
-					targetBlended += /*pose.area*/triangleArea * target;
-					targetWeights += /*pose.area*/triangleArea;
+					targetBlended += triangleArea * target;
+					targetWeights += triangleArea;
 				}
 
 				var targetNormalRot = Quaternion.FromToRotation(item.baseNormal, meshNormals[item.baseVertex]);
@@ -627,9 +621,11 @@ namespace Unity.DemoTeam.DigitalHuman
 						resolveJob.Complete();
 
 						Gizmos.color = Color.yellow;
+						Vector3 size = 0.0002f * Vector3.one;
+
 						for (int i = 0; i != attachmentCount; i++)
 						{
-							Gizmos.DrawSphere(resolvedPositions.val[i], 0.0002f);
+							Gizmos.DrawCube(resolvedPositions.val[i], size);
 						}
 					}
 				}
