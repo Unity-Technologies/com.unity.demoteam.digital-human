@@ -11,9 +11,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			var root = target as PrefabTransformHierarchy;
 			if (root != null)
 			{
-				EditorGUI.BeginDisabledGroup(Application.isPlaying);
+				if (GUILayout.Button("Revert transform hierarchy"))
 				{
-					if (GUILayout.Button("Revert transform hierarchy"))
+					if (Application.isPlaying)
+					{
+						root.LoadDefaults();
+					}
+					else
 					{
 						var transforms = root.GetComponentsInChildren<Transform>(includeInactive: true);
 						for (int i = 0; i != transforms.Length; i++)
@@ -26,11 +30,10 @@ namespace Unity.DemoTeam.DigitalHuman
 								PrefabUtility.RevertObjectOverride(transforms[i], InteractionMode.UserAction);
 							}
 						}
-
-						EditorUtility.ClearProgressBar();
 					}
+
+					EditorUtility.ClearProgressBar();
 				}
-				EditorGUI.EndDisabledGroup();
 			}
 		}
 	}

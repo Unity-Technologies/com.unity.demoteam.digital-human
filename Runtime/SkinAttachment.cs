@@ -166,6 +166,11 @@ namespace Unity.DemoTeam.DigitalHuman
 			return new Hash128(checksum0, checksum1);
 		}
 
+		public bool ChecksumCompare(in SkinAttachmentData data)
+		{
+			return (checksum0 == data.checksum0) && (checksum1 == data.checksum1);
+		}
+
 		public void RevertVertexData()
 		{
 			if (meshAsset != null)

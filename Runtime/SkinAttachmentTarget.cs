@@ -171,7 +171,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			for (int i = 0, n = subjects.Count; i != n; i++)
 			{
-				if (subjects[i].Checksum() != attachData.Checksum())
+				if (subjects[i].ChecksumCompare(attachData) == false)
 					return true;
 			}
 
@@ -310,7 +310,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			for (int i = 0, n = subjects.Count; i != n; i++)
 			{
 				var subject = subjects[i];
-				if (subject.Checksum() != attachData.Checksum())
+				if (subject.ChecksumCompare(attachData) == false)
 					continue;
 
 				int attachmentIndex = subject.attachmentIndex;
@@ -378,7 +378,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				for (int i = 0, n = subjects.Count; i != n; i++)
 				{
 					var subject = subjects[i];
-					if (subject.Checksum() != attachData.Checksum())
+					if (subject.ChecksumCompare(attachData) == false)
 						continue;
 
 					var stillRunning = (stagingJobs[i].IsCompleted == false);
