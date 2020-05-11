@@ -1,6 +1,6 @@
 # Package: com.unity.demoteam.digital-human
 
-Library of tech used to realize the digital human from *The Heretic*.
+Library of tech features used to realize the digital human from *The Heretic*.
 
 
 ## Requirements

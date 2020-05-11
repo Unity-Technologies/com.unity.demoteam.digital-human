@@ -3,7 +3,7 @@
   "displayName": "Demo Team Digital Human",
   "version": "0.1.1-preview",
   "unity": "2019.3",
-  "description": "Library of tech used to realize the digital human from 'The Heretic'.",
+  "description": "Library of tech features used to realize the digital human from 'The Heretic'.",
   "dependencies": {
     "com.unity.demoteam.attributes": "0.1.1-preview",
     "com.unity.burst": "1.2.3",
