@@ -20,7 +20,7 @@ uniform float4 _TeethParams;// x = lit potential min, y = lit potential max
 uniform float4 _TeethVertexData[SPHERICALPOLYGON_MAX_VERTS];
 uniform int _TeethVertexCount;
 
-#include "Packages/com.unity.demoteam.digital-human/ShaderLibrary/Nodes_Teeth/SphericalPolygon.hlsl"
+#include "SphericalPolygon.hlsl"
 
 void TeethAttenuation_float(in float3 positionWS, out float attnPure, out float attnBiased)
 {
