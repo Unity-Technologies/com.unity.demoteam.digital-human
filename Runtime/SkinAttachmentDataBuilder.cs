@@ -195,7 +195,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		public static void BuildDataAttachSubject(ref SkinAttachmentData attachData, Transform target, in MeshInfo meshInfo, SkinAttachment subject, bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount)
+		public static unsafe void BuildDataAttachSubject(ref SkinAttachmentData attachData, int* attachmentIndex, int* attachmentCount, Transform target, in MeshInfo meshInfo, SkinAttachment subject, bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount)
 		{
 			Matrix4x4 subjectToTarget;
 			{
@@ -208,24 +208,18 @@ namespace Unity.DemoTeam.DigitalHuman
 			switch (subject.attachmentType)
 			{
 				case SkinAttachment.AttachmentType.Transform:
-					unsafe
 					{
 						var targetPosition = subjectToTarget.MultiplyPoint3x4(Vector3.zero);
 						var targetNormal = subjectToTarget.MultiplyVector(Vector3.up);
 
-						fixed (int* attachmentIndex = &subject.attachmentIndex)
-						fixed (int* attachmentCount = &subject.attachmentCount)
-						{
-							if (dryRun)
-								CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, &targetPosition, &targetNormal, 1);
-							else
-								BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, &targetPosition, &targetNormal, 1);
-						}
+						if (dryRun)
+							CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, &targetPosition, &targetNormal, 1);
+						else
+							BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, &targetPosition, &targetNormal, 1);
 					}
 					break;
 
 				case SkinAttachment.AttachmentType.Mesh:
-					unsafe
 					{
 						if (subject.meshInstance == null)
 							break;
@@ -243,20 +237,15 @@ namespace Unity.DemoTeam.DigitalHuman
 								targetNormals.val[i] = subjectToTarget.MultiplyVector(subjectNormals[i]);
 							}
 
-							fixed (int* attachmentIndex = &subject.attachmentIndex)
-							fixed (int* attachmentCount = &subject.attachmentCount)
-							{
-								if (dryRun)
-									CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
-								else
-									BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
-							}
+							if (dryRun)
+								CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
+							else
+								BuildDataAttachToClosestVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetNormals.val, subjectVertexCount);
 						}
 					}
 					break;
 
 				case SkinAttachment.AttachmentType.MeshRoots:
-					unsafe
 					{
 						if (subject.meshInstance == null)
 							break;
@@ -432,17 +421,37 @@ namespace Unity.DemoTeam.DigitalHuman
 								targetVertices.val[i] = rootIdx.val[i];
 							}
 
-							fixed (int* attachmentIndex = &subject.attachmentIndex)
-							fixed (int* attachmentCount = &subject.attachmentCount)
-							{
-								if (dryRun)
-									CountDataAttachToVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
-								else
-									BuildDataAttachToVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
-							}
+							if (dryRun)
+								CountDataAttachToVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
+							else
+								BuildDataAttachToVertex(attachData, attachmentIndex, attachmentCount, meshInfo, targetPositions.val, targetOffsets.val, targetNormals.val, targetVertices.val, subjectVertexCount);
 						}
 					}
 					break;
+			}
+		}
+
+		public static void BuildDataAttachSubject(ref SkinAttachmentData attachData, Transform target, in MeshInfo meshInfo, SkinAttachment subject, bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount)
+		{
+			unsafe
+			{
+				fixed (int* attachmentIndex = &subject.attachmentIndex)
+				fixed (int* attachmentCount = &subject.attachmentCount)
+				{
+					BuildDataAttachSubject(ref attachData, attachmentIndex, attachmentCount, target, meshInfo, subject, dryRun, ref dryRunPoseCount, ref dryRunItemCount);
+				}
+			}
+		}
+
+		public static void BuildDataAttachSubjectReadOnly(ref SkinAttachmentData attachData, Transform target, in MeshInfo meshInfo, SkinAttachment subject, bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount)
+		{
+			unsafe
+			{
+				int attachmentIndex = 0;
+				int attachmentCount = 0;
+				{
+					BuildDataAttachSubject(ref attachData, &attachmentIndex, &attachmentCount, target, meshInfo, subject, dryRun, ref dryRunPoseCount, ref dryRunItemCount);
+				}
 			}
 		}
 	}

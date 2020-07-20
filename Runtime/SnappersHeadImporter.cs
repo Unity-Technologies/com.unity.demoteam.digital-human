@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -28,6 +29,11 @@ namespace Unity.DemoTeam.DigitalHuman
 		[Header("Output settings")]
 		public string csClassPrefix = "MyCharacter";
 		public string csNamespace = "MyNamespace";
+		public bool csCompacted = true;
+
+		const string compactedControllers = "a";
+		const string compactedBlendShapes = "b";
+		const string compactedShaderParam = "c";
 
 #if UNITY_EDITOR
 		[ContextMenu("Generate")]
@@ -37,16 +43,29 @@ namespace Unity.DemoTeam.DigitalHuman
 			var includedBlendShapes = new HashSet<string>();
 			var includedShaderParam = new HashSet<string>();
 
-			// generate the evaluation functions
+			var indicesControllers = new Dictionary<string, int>();
+			var indicesBlendShapes = new Dictionary<string, int>();
+			var indicesShaderParam = new Dictionary<string, int>();
+
+			// discover data members
 			{
-				GenerateEvaluationFunctions(scriptsResolveControllers, scriptsResolveBlendShapes, scriptsResolveShaderParam, includedControllers, includedBlendShapes, includedShaderParam);
+				DiscoverDataMembers(scriptsResolveControllers, includedControllers, includedBlendShapes, includedShaderParam, skipCaps: true);
+				DiscoverDataMembers(scriptsResolveBlendShapes, includedControllers, includedBlendShapes, includedShaderParam, skipCaps: false);
+				DiscoverDataMembers(scriptsResolveShaderParam, includedControllers, includedBlendShapes, includedShaderParam, skipCaps: false);
 			}
 
-			// generate the data structures
+			// generate data structures
 			{
-				GenerateDataStructure("SnappersControllers", includedControllers.Keys);
-				GenerateDataStructure("SnappersBlendShapes", includedBlendShapes);
+				GenerateDataStructure("SnappersControllers", indicesControllers, includedControllers.Keys);
+				GenerateDataStructure("SnappersBlendShapes", indicesBlendShapes, includedBlendShapes);
 				// ................... SnappersShaderParam.. already defined
+
+				GenerateDataStructureIndices<SnappersShaderParam>(indicesShaderParam);
+			}
+
+			// generate implementation
+			{
+				GenerateImplementation(scriptsResolveControllers, scriptsResolveBlendShapes, scriptsResolveShaderParam, includedControllers, indicesControllers, indicesBlendShapes, indicesShaderParam);
 			}
 
 			AssetDatabase.Refresh();
@@ -63,15 +82,108 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		public void GenerateEvaluationFunctions(List<TextAsset> resolveControllers, List<TextAsset> resolveBlendShapes, List<TextAsset> resolveShaderParam, Dictionary<string, SnappersControllerCaps> includedControllers, HashSet<string> includedBlendShapes, HashSet<string> includedShaderParam)
+		public void DiscoverDataMembers(List<TextAsset> scripts, Dictionary<string, SnappersControllerCaps> includedControllers, HashSet<string> includedBlendShapes, HashSet<string> includedShaderParams, bool skipCaps)
+		{
+			foreach (var script in scripts)
+			{
+				if (script == null)
+					continue;
+
+				DiscoverDataMembers(script, includedControllers, includedBlendShapes, includedShaderParams, skipCaps);
+			}
+		}
+
+		public void DiscoverDataMembers(TextAsset script, Dictionary<string, SnappersControllerCaps> includedControllers, HashSet<string> includedBlendShapes, HashSet<string> includedShaderParams, bool skipCaps)
+		{
+			var regexMember = new Regex("([a-zA-Z_]+[\\w]*)\\.([a-zA-Z_]+[\\w]*)");
+
+			var inputPath = AssetDatabase.GetAssetPath(script);
+			var inputStream = new StreamReader(inputPath);
+
+			while (inputStream.EndOfStream == false)
+			{
+				var line = inputStream.ReadLine();
+				if (line.Length == 0)
+					continue;
+
+				// gather struct.member
+				var matches = regexMember.Matches(line);
+				{
+					// note: this needs to be kept in sync with GenerateEvaluationFunctionSegment
+					foreach (Match match in matches)
+					{
+						var nameStruct = match.Groups[1].Value;
+						var nameMember = match.Groups[2].Value;
+						if (nameStruct == namedBlendShapes)
+						{
+							includedBlendShapes.Add(nameMember);
+						}
+						else if (nameStruct == namedShaderParam)
+						{
+							includedShaderParams.Add(nameMember);
+						}
+						else
+						{
+							SnappersControllerCaps caps;
+							includedControllers.TryGetValue(nameStruct, out caps);
+							includedControllers[nameStruct] = caps | (skipCaps ? SnappersControllerCaps.none : TranslateControllerField(nameMember));
+						}
+					}
+				}
+			}
+
+			inputStream.Close();
+		}
+
+		public void GenerateDataStructure(string name, Dictionary<string, int> indices, IEnumerable<string> fields)
+		{
+			var sb = new StringBuilder(SB_SIZE);
+
+			List<string> sortedFields;
+			sortedFields = new List<string>(fields);
+			sortedFields.Sort();
+
+			sb.AppendLine("using Unity.DemoTeam.DigitalHuman;");
+			sb.AppendLine();
+			sb.AppendFormat("namespace {0}\n", csNamespace);
+			sb.AppendLine("{");
+			sb.AppendFormat("	public struct {0}_{1}<T> where T : struct\n", csClassPrefix, name);
+			sb.AppendLine("	{");
+
+			for (int i = 0; i != sortedFields.Count; i++)
+			{
+				string field = sortedFields[i];
+
+				sb.Append("		public T ");
+				sb.Append(field);
+				sb.AppendLine(";");
+
+				indices.Add(field, i);
+			}
+
+			sb.AppendLine("	}");
+			sb.AppendLine("}");
+
+			WriteScriptAsset(string.Format("{0}_{1}", csClassPrefix, name), sb.ToString());
+		}
+
+		public void GenerateDataStructureIndices<T>(Dictionary<string, int> indices) where T : struct
+		{
+			var names = typeof(T).GetFields();
+
+			for (int i = 0; i != names.Length; i++)
+			{
+				indices.Add(names[i].Name, i);
+			}
+		}
+
+		public void GenerateImplementation(List<TextAsset> resolveControllers, List<TextAsset> resolveBlendShapes, List<TextAsset> resolveShaderParam, Dictionary<string, SnappersControllerCaps> includedControllers, Dictionary<string, int> indicesControllers, Dictionary<string, int> indicesBlendShapes, Dictionary<string, int> indicesShaderParam)
 		{
 			var sb = new StringBuilder(SB_SIZE);
 
 			sb.AppendLine("using UnityEngine;");
 			sb.AppendLine("using Unity.DemoTeam.DigitalHuman;");
 			sb.AppendLine("using Unity.Collections.LowLevel.Unsafe;// for UnsafeUtilityEx.AsRef<T>");
-			sb.AppendLine();
-			sb.AppendLine("using static Unity.DemoTeam.DigitalHuman.SnappersHeadDefinitionMath;");
 			sb.AppendLine();
 			sb.AppendFormat("namespace {0}\n", csNamespace);
 			sb.AppendLine("{");
@@ -85,37 +197,143 @@ namespace Unity.DemoTeam.DigitalHuman
 			sb.AppendLine("			return CreateInstanceData<SnappersControllers, SnappersBlendShapes>(sourceMesh, sourceRig, warnings);");
 			sb.AppendLine("		}");
 			sb.AppendLine();
-
-			sb.AppendLine("#pragma warning disable 0219");
-
-			GenerateEvaluationFunction(sb, "		", "ResolveControllers", resolveControllers, includedControllers, includedBlendShapes, includedShaderParam, skipCaps: true);
+			sb.AppendLine("		bool CheckSizes()");
+			sb.AppendLine("		{");
+			unsafe
+			{
+				sb.AppendFormat("			const int INDEXED_SIZE_CONTROLLERS = {0};\n", indicesControllers.Count * sizeof(SnappersController));
+				sb.AppendFormat("			const int INDEXED_SIZE_BLENDSHAPES = {0};\n", indicesBlendShapes.Count * sizeof(float));
+				sb.AppendFormat("			const int INDEXED_SIZE_SHADERPARAM = {0};\n", indicesShaderParam.Count * sizeof(float));
+			}
 			sb.AppendLine();
-			GenerateEvaluationFunction(sb, "		", "ResolveBlendShapes", resolveBlendShapes, includedControllers, includedBlendShapes, includedShaderParam, skipCaps: false);
+			sb.AppendLine("			return");
+			sb.AppendLine("				INDEXED_SIZE_CONTROLLERS <= UnsafeUtility.SizeOf<SnappersControllers>() &&");
+			sb.AppendLine("				INDEXED_SIZE_BLENDSHAPES <= UnsafeUtility.SizeOf<SnappersBlendShapes>() &&");
+			sb.AppendLine("				INDEXED_SIZE_SHADERPARAM <= UnsafeUtility.SizeOf<SnappersShaderParam>();");
+			sb.AppendLine("		}");
 			sb.AppendLine();
-			GenerateEvaluationFunction(sb, "		", "ResolveShaderParam", resolveShaderParam, includedControllers, includedBlendShapes, includedShaderParam, skipCaps: false);
+			GenerateEvaluationFunctionCallsite(sb, "		", "ResolveControllers");
 			sb.AppendLine();
-			GenerateInitializeControllerCaps(sb, "		", "InitializeControllerCaps", includedControllers);
-
-			sb.AppendLine("#pragma warning restore 0219");
-
+			GenerateEvaluationFunctionCallsite(sb, "		", "ResolveBlendShapes");
+			sb.AppendLine();
+			GenerateEvaluationFunctionCallsite(sb, "		", "ResolveShaderParam");
+			sb.AppendLine();
+			GenerateInitializeControllerCapsCallsite(sb, "		", "InitializeControllerCaps");
 			sb.AppendLine("	}");
 			sb.AppendLine("}");
 
 			WriteScriptAsset(string.Format("{0}_{1}", csClassPrefix, "SnappersHead"), sb.ToString());
+
+			sb.Clear();
+
+			sb.AppendLine("#pragma warning disable 0219");
+			sb.AppendLine();
+			sb.AppendFormat("namespace {0}\n", csNamespace);
+			sb.AppendLine("{");
+
+			if (csCompacted == false)
+			{
+				sb.AppendFormat("	using SnappersControllers = {0}_SnappersControllers<SnappersController>;\n", csClassPrefix);
+				sb.AppendFormat("	using SnappersBlendShapes = {0}_SnappersBlendShapes<float>;\n", csClassPrefix);
+				sb.AppendLine();
+			}
+
+			sb.AppendFormat("	public static class {0}_{1}\n", csClassPrefix, "SnappersHeadImpl");
+			sb.AppendLine("	{");
+			GenerateEvaluationFunction(sb, "		", "ResolveControllers", resolveControllers, includedControllers, indicesControllers, indicesBlendShapes, indicesShaderParam);
+			sb.AppendLine();
+			GenerateEvaluationFunction(sb, "		", "ResolveBlendShapes", resolveBlendShapes, includedControllers, indicesControllers, indicesBlendShapes, indicesShaderParam);
+			sb.AppendLine();
+			GenerateEvaluationFunction(sb, "		", "ResolveShaderParam", resolveShaderParam, includedControllers, indicesControllers, indicesBlendShapes, indicesShaderParam);
+			sb.AppendLine();
+			GenerateInitializeControllerCaps(sb, "		", "InitializeControllerCaps", includedControllers, indicesControllers);
+			sb.AppendLine();
+			sb.AppendLine(@"		static float clamp(float value, float min, float max)
+		{
+			if (value < min)
+				return min;
+			else if (value > max)
+				return max;
+			else
+				return value;
 		}
 
-		public void GenerateEvaluationFunction(StringBuilder sb, string tabs, string name, List<TextAsset> scripts, Dictionary<string, SnappersControllerCaps> includedControllers, HashSet<string> includedBlendShapes, HashSet<string> includedShaderParam, bool skipCaps)
+		static float min(float a, float b)
 		{
-			sb.AppendFormat("		// --- {0}\n", name);
+			if (a < b)
+				return a;
+			else
+				return b;
+		}
+
+		static float max(float a, float b)
+		{
+			if (a > b)
+				return a;
+			else
+				return b;
+		}
+
+		static float hermite(float p0, float p1, float r0, float r1, float t)
+		{
+			float t2 = t * t;
+			float t3 = t2 * t;
+			float _3t2 = 3.0f * t2;
+			float _2t3 = 2.0f * t3;
+			return (p0 * (_2t3 - _3t2 + 1.0f) + p1 * (-_2t3 + _3t2) + r0 * (t3 - 2.0f * t2 + t) + r1 * (t3 - t2));
+		}
+
+		static float linstep(float a, float b, float value)
+		{
+			if (a != b)
+				return clamp((value - a) / (b - a), 0.0f, 1.0f);
+			else
+				return 0.0f;
+		}
+");
+			sb.AppendLine("	}");
+			sb.AppendLine("}");
+
+			WriteScriptAsset(string.Format("{0}_{1}", csClassPrefix, "SnappersHeadImpl"), sb.ToString());
+		}
+
+		public void GenerateEvaluationFunctionCallsite(StringBuilder sb, string tabs, string name)
+		{
 			sb.AppendFormat("		public override unsafe void {0}(void* ptrSnappersControllers, void* ptrSnappersBlendShapes, void* ptrSnappersShaderParam)\n", name);
 			sb.AppendLine("		{");
-			sb.AppendFormat("			{0}(\n", name);
-			sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersControllers>(ptrSnappersControllers),");
-			sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersBlendShapes>(ptrSnappersBlendShapes),");
-			sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersShaderParam>(ptrSnappersShaderParam)");
+			sb.AppendLine("			if (!CheckSizes())");
+			sb.AppendLine("				return;");
+			sb.AppendLine();
+			sb.AppendFormat("			{0}_SnappersHeadImpl.{1}(\n", csClassPrefix, name);
+
+			if (csCompacted)
+			{
+				sb.AppendLine("				(float*)ptrSnappersControllers,");
+				sb.AppendLine("				(float*)ptrSnappersBlendShapes,");
+				sb.AppendLine("				(float*)ptrSnappersShaderParam");
+			}
+			else
+			{
+				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersControllers>(ptrSnappersControllers),");
+				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersBlendShapes>(ptrSnappersBlendShapes),");
+				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersShaderParam>(ptrSnappersShaderParam)");
+			}
+
 			sb.AppendLine("			);");
 			sb.AppendLine("		}");
-			sb.AppendFormat("		public void {0}(ref SnappersControllers {1}, ref SnappersBlendShapes {2}, ref SnappersShaderParam {3})\n", name, namedControllers, namedBlendShapes, namedShaderParam);
+		}
+
+		public void GenerateEvaluationFunction(StringBuilder sb, string tabs, string name, List<TextAsset> scripts, Dictionary<string, SnappersControllerCaps> includedControllers, Dictionary<string, int> indicesControllers, Dictionary<string, int> indicesBlendShapes, Dictionary<string, int> indicesShaderParam)
+		{
+			if (csCompacted)
+			{
+				sb.AppendFormat("		public static unsafe void {0}(float* {1}, float* {2}, float* {3})\n", name, compactedControllers, compactedBlendShapes, compactedShaderParam);
+			}
+			else
+			{
+				sb.AppendFormat("		public static void {0}(ref SnappersControllers {1}, ref SnappersBlendShapes {2}, ref SnappersShaderParam {3})\n", name, namedControllers, namedBlendShapes, namedShaderParam);
+			}
+
 			sb.AppendLine("		{");
 
 			foreach (var script in scripts)
@@ -123,19 +341,27 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (script == null)
 					continue;
 
-				sb.AppendFormat("			// this segment generated from '{0}'\n", script.name);
+				if (csCompacted == false)
+				{
+					sb.AppendFormat("			// this segment generated from '{0}'\n", script.name);
+				}
+
 				sb.AppendLine("			{");
-				GenerateEvaluationFunctionSegment(sb, "				", script, includedControllers, includedBlendShapes, includedShaderParam, skipCaps);
+				GenerateEvaluationFunctionSegment(sb, "				", script, includedControllers, indicesControllers, indicesBlendShapes, indicesShaderParam);
 				sb.AppendLine("			}");
 			}
 
 			sb.AppendLine("		}");
 		}
 
-		public void GenerateEvaluationFunctionSegment(StringBuilder sb, string tabs, TextAsset script, Dictionary<string, SnappersControllerCaps> includedControllers, HashSet<string> includedBlendShapes, HashSet<string> includedShaderParams, bool skipCaps)
+		public void GenerateEvaluationFunctionSegment(StringBuilder sb, string tabs, TextAsset script, Dictionary<string, SnappersControllerCaps> includedControllers, Dictionary<string, int> indicesControllers, Dictionary<string, int> indicesBlendShapes, Dictionary<string, int> indicesShaderParam)
 		{
 			var regexDouble = new Regex("(\\d+\\.\\d+)([^f])");
+			var regexSymbol = new Regex("\\$([_a-zA-Z][_a-zA-Z0-9]*)");
 			var regexMember = new Regex("([a-zA-Z_]+[\\w]*)\\.([a-zA-Z_]+[\\w]*)");
+
+			var symbolCount = 0;
+			var symbolTable = new Dictionary<string, string>();
 
 			var inputPath = AssetDatabase.GetAssetPath(script);
 			var inputStream = new StreamReader(inputPath);
@@ -146,48 +372,105 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (line.Length == 0)
 					continue;
 
-				// add tabs
+				// remove comments
+				if (csCompacted)
+				{
+					var commentIndex = line.IndexOf("//");
+					if (commentIndex != -1)
+						line = line.Substring(0, commentIndex);
+				}
+
+				// remove blanks
+				line = line.Trim();
+				if (line.Length == 0)
+					continue;
+
+				// insert tabs
 				sb.Append(tabs);
 
 				// replace $ with _
-				line = line.Replace('$', '_');
+				if (csCompacted)
+				{
+					Match match;
+					while ((match = regexSymbol.Match(line)).Success)
+					{
+						var symbol = match.Groups[0].Value;
+						var symbolCompact = null as string;
+						if (!symbolTable.TryGetValue(symbol, out symbolCompact))
+						{
+							symbolCompact = "_s" + (++symbolCount);
+							symbolTable.Add(symbol, symbolCompact);
+						}
+						line = line.Replace(symbol, symbolCompact);
+					}
+				}
+				else
+				{
+					line = line.Replace('$', '_');
+				}
 
-				// replace eeg. 0.0 with 0.0f
+				// replace 0.0 with 0.0f
 				line = regexDouble.Replace(line, "$1f$2");
 
-				// replace and gather struct.member
+				// gather and replace struct.member
 				var matches = regexMember.Matches(line);
 				{
 					int lineCursor = 0;
 
+					// note: this needs to be kept in sync with DiscoverDataMembers
 					foreach (Match match in matches)
 					{
+						// add everything until match
 						sb.Append(line, lineCursor, match.Index - lineCursor);
 
 						var nameStruct = match.Groups[1].Value;
 						var nameMember = match.Groups[2].Value;
 						if (nameStruct == namedBlendShapes)
 						{
-							includedBlendShapes.Add(nameMember);
+							// e.g. Head_blendShape.nameMember
+							if (csCompacted)
+							{
+								sb.Append(compactedBlendShapes);
+								sb.Append('[');
+								sb.Append(indicesBlendShapes[nameMember]);
+								sb.Append(']');
+							}
 						}
-						//else if (nameStruct == namedControllers)
-						//{
-						//	includedControllers.Add(nameMember);
-						//}
 						else if (nameStruct == namedShaderParam)
 						{
-							includedShaderParams.Add(nameMember);
+							// e.g. SkinShader.nameMember
+							if (csCompacted)
+							{
+								sb.Append(compactedShaderParam);
+								sb.Append('[');
+								sb.Append(indicesShaderParam[nameMember]);
+								sb.Append(']');
+							}
 						}
-						else// controller
+						else
 						{
-							SnappersControllerCaps caps;
-							includedControllers.TryGetValue(nameStruct, out caps);
-							includedControllers[nameStruct] = caps | (skipCaps ? SnappersControllerCaps.none : TranslateControllerField(nameMember));
-							sb.Append(namedControllers);
-							sb.Append('.');
+							// e.g. nameStruct.nameMember
+							if (csCompacted)
+							{
+								unsafe
+								{
+									sb.Append(compactedControllers);
+									sb.Append('[');
+									sb.Append(indicesControllers[nameStruct] * (sizeof(SnappersController) / sizeof(float)) + IndexControllerField(nameMember));
+									sb.Append(']');
+								}
+							}
+							else
+							{
+								sb.Append(namedControllers);
+								sb.Append('.');
+							}
 						}
 
-						lineCursor = match.Index;
+						if (csCompacted)
+							lineCursor = match.Index + match.Length;
+						else
+							lineCursor = match.Index;
 					}
 
 					sb.Append(line, lineCursor, line.Length - lineCursor);
@@ -200,7 +483,26 @@ namespace Unity.DemoTeam.DigitalHuman
 			inputStream.Close();
 		}
 
-		public void GenerateInitializeControllerCaps(StringBuilder sb, string tabs, string name, Dictionary<string, SnappersControllerCaps> includedControllers)
+		public void GenerateInitializeControllerCapsCallsite(StringBuilder sb, string tabs, string name)
+		{
+			sb.AppendFormat("		public override unsafe void {0}(void* ptrSnappersControllers)\n", name);
+			sb.AppendLine("		{");
+			sb.AppendFormat("			{0}_SnappersHeadImpl.{1}(\n", csClassPrefix, name);
+
+			if (csCompacted)
+			{
+				sb.AppendLine("				(uint*)ptrSnappersControllers");
+			}
+			else
+			{
+				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersControllers>(ptrSnappersControllers)");
+			}
+
+			sb.AppendLine("			);");
+			sb.AppendLine("		}");
+		}
+
+		public void GenerateInitializeControllerCaps(StringBuilder sb, string tabs, string name, Dictionary<string, SnappersControllerCaps> includedControllers, Dictionary<string, int> indicesControllers)
 		{
 			Func<StringBuilder, int, SnappersControllerCaps, SnappersControllerCaps, int> concatCap = (_sb, _capCount, _caps, _cap) =>
 			{
@@ -216,14 +518,15 @@ namespace Unity.DemoTeam.DigitalHuman
 				return _capCount;
 			};
 
-			sb.AppendFormat("		// --- {0}\n", name);
-			sb.AppendFormat("		public override unsafe void {0}(void* ptrSnappersControllers)\n", name);
-			sb.AppendLine("		{");
-			sb.AppendFormat("			{0}(\n", name);
-			sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersControllers>(ptrSnappersControllers)");
-			sb.AppendLine("			);");
-			sb.AppendLine("		}");
-			sb.AppendFormat("		public void {0}(ref SnappersControllers {1})\n", name, namedControllers);
+			if (csCompacted)
+			{
+				sb.AppendFormat("		public static unsafe void {0}(uint* {1})\n", name, compactedControllers);
+			}
+			else
+			{
+				sb.AppendFormat("		public static void {0}(ref SnappersControllers {1})\n", name, namedControllers);
+			}
+
 			sb.AppendLine("		{");
 
 			List<string> sortedFields;
@@ -232,56 +535,39 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			foreach (var field in sortedFields)
 			{
-				sb.AppendFormat("			{0}.{1}.caps = ", namedControllers, field);
+				if (csCompacted)
 
-				var caps = includedControllers[field];
-				var capCount = 0;
-
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.translateX);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.translateY);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.translateZ);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.rotateX);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.rotateY);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.rotateZ);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.scaleX);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.scaleY);
-				capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.scaleZ);
-
-				if (capCount == 0)
-					sb.AppendLine("SnappersControllerCaps.none;");
+				{
+					unsafe
+					{
+						sb.AppendFormat("			{0}[{1}] = {2};\n", compactedControllers, indicesControllers[field] * (sizeof(SnappersController) / sizeof(float)) + 9, (int)includedControllers[field]);
+					}
+				}
 				else
-					sb.AppendLine(";");
+				{
+					sb.AppendFormat("			{0}.{1}.caps = ", namedControllers, field);
+
+					var caps = includedControllers[field];
+					var capCount = 0;
+
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.translateX);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.translateY);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.translateZ);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.rotateX);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.rotateY);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.rotateZ);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.scaleX);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.scaleY);
+					capCount = concatCap(sb, capCount, caps, SnappersControllerCaps.scaleZ);
+
+					if (capCount == 0)
+						sb.AppendLine("SnappersControllerCaps.none;");
+					else
+						sb.AppendLine(";");
+				}
 			}
 
 			sb.AppendLine("		}");
-		}
-
-		public void GenerateDataStructure(string name, IEnumerable<string> fields)
-		{
-			var sb = new StringBuilder(SB_SIZE);
-
-			List<string> sortedFields;
-			sortedFields = new List<string>(fields);
-			sortedFields.Sort();
-
-			sb.AppendLine("using Unity.DemoTeam.DigitalHuman;");
-			sb.AppendLine();
-			sb.AppendFormat("namespace {0}\n", csNamespace);
-			sb.AppendLine("{");
-			sb.AppendFormat("	public struct {0}_{1}<T> where T : struct\n", csClassPrefix, name);
-			sb.AppendLine("	{");
-
-			foreach (var field in sortedFields)
-			{
-				sb.Append("		public T ");
-				sb.Append(field);
-				sb.AppendLine(";");
-			}
-
-			sb.AppendLine("	}");
-			sb.AppendLine("}");
-
-			WriteScriptAsset(string.Format("{0}_{1}", csClassPrefix, name), sb.ToString());
 		}
 
 		public string GetWritePath()
@@ -322,6 +608,26 @@ namespace Unity.DemoTeam.DigitalHuman
 				case "scaleZ": return SnappersControllerCaps.scaleZ;
 
 				default: return SnappersControllerCaps.none;
+			}
+		}
+
+		static int IndexControllerField(string field)
+		{
+			switch (field)
+			{
+				case "translateX": return 0;
+				case "translateY": return 1;
+				case "translateZ": return 2;
+
+				case "rotateX": return 3;
+				case "rotateY": return 4;
+				case "rotateZ": return 5;
+
+				case "scaleX": return 6;
+				case "scaleY": return 7;
+				case "scaleZ": return 8;
+
+				default: return -1;
 			}
 		}
 #endif

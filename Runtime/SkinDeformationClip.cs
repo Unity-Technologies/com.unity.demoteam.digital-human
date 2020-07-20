@@ -143,7 +143,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			public Vector3 applyRotation = Vector3.zero;
 			public float applyScale = 1.0f;
 
-			[Header("Mesh differential processing")]
+			[Header("Mesh processing")]
 			[Tooltip("Regions are specified in text files. Each file should contain an array of vertex indices on the form: [i, j, k, ...]")]
 			public TextAsset[] denoiseRegions;
 			[Range(0.0f, 1.0f)]

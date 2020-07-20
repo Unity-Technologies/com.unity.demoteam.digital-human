@@ -13,7 +13,8 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (eye == null)
 				return;
 
-			DrawEyeHandles(eye);
+			if (eye.coneDebug == false)
+				DrawEyeHandles(eye);
 		}
 
 		void DrawEyeHandles(EyeRenderer eye)

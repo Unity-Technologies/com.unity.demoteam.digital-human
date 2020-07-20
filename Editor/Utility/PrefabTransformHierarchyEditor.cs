@@ -33,6 +33,7 @@ namespace Unity.DemoTeam.DigitalHuman
 					}
 
 					EditorUtility.ClearProgressBar();
+					EditorUtility.SetDirty(root);
 				}
 			}
 		}

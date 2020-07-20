@@ -318,7 +318,7 @@ namespace Unity.DemoTeam.DigitalHuman
 					var d = Vector3.Dot(target.meshBuffers.vertexNormals[closestNode], r);
 					var c = (d >= 0.0f) ? Color.cyan : Color.magenta;
 
-					Gizmos.color = Color.Lerp(Color.clear, c, 0.75f);
+					Gizmos.color = Color.Lerp(Color.clear, c, 0.25f);
 					Gizmos.DrawSphere(targetLocalPos, Mathf.Sqrt(closestDist));
 
 					Gizmos.color = Color.Lerp(Color.clear, c, 0.75f);
@@ -355,7 +355,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				{
 					for (int island = 0; island != meshIslands.islandCount; island++)
 					{
-						Gizmos.color = Color.Lerp(Color.clear, debugColors[island % debugColors.Length], 0.3f);
+						Gizmos.color = Color.Lerp(Color.clear, debugColors[island % debugColors.Length], 0.5f);
 						foreach (var i in meshIslands.islandVertices[island])
 						{
 							foreach (var j in meshAdjacency.vertexVertices[i])
@@ -381,13 +381,13 @@ namespace Unity.DemoTeam.DigitalHuman
 					int dryRunPoseCount = -1;
 					int dryRunItemCount = -1;
 
-					SkinAttachmentDataBuilder.BuildDataAttachSubject(ref debugData, target.transform, target.GetCachedMeshInfo(), this, dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
+					SkinAttachmentDataBuilder.BuildDataAttachSubjectReadOnly(ref debugData, target.transform, target.GetCachedMeshInfo(), this, dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
 					{
 						ArrayUtils.ResizeCheckedIfLessThan(ref debugData.pose, dryRunPoseCount);
 						ArrayUtils.ResizeCheckedIfLessThan(ref debugData.item, dryRunItemCount);
 					}
 
-					SkinAttachmentDataBuilder.BuildDataAttachSubject(ref debugData, target.transform, target.GetCachedMeshInfo(), this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount);
+					SkinAttachmentDataBuilder.BuildDataAttachSubjectReadOnly(ref debugData, target.transform, target.GetCachedMeshInfo(), this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount);
 
 					Matrix4x4 targetToWorld = Matrix4x4.TRS(target.transform.position, target.transform.rotation, Vector3.one);
 					// NOTE: targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
@@ -400,12 +400,14 @@ namespace Unity.DemoTeam.DigitalHuman
 							targetToSubject = this.transform.worldToLocalMatrix * targetToWorld;
 					}
 
-					Gizmos.color = Color.white;
-
-					for (int i = 0; i != meshBuffers.vertexCount; i++)
+					for (int island = 0; island != meshIslands.islandCount; island++)
 					{
-						Vector3 rootOffset = targetToSubject.MultiplyVector(-debugData.item[i].targetOffset);
-						Gizmos.DrawRay(subjectPositions[i], rootOffset);
+						Gizmos.color = Color.Lerp(Color.clear, debugColors[island % debugColors.Length], 0.5f);
+						foreach (var i in meshIslands.islandVertices[island])
+						{
+							Vector3 rootOffset = targetToSubject.MultiplyVector(-debugData.item[i].targetOffset);
+							Gizmos.DrawRay(subjectPositions[i], rootOffset);
+						}
 					}
 				}
 			}

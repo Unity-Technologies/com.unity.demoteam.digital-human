@@ -8,10 +8,11 @@ namespace Unity.DemoTeam.DigitalHuman
 	{
 		const string ASSETS_STRING = @"The following files will be written:
 
+  {0}_SnappersBlendShapes.cs
+  {0}_SnappersControllers.cs
   {0}_SnappersHead.asset
   {0}_SnappersHead.cs
-  {0}_SnappersControllers.cs
-  {0}_SnappersBlendShapes.cs
+  {0}_SnappersHeadImpl.cs
 
 (and overwritten if they already exist)";
 
