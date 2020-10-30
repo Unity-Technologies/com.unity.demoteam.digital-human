@@ -117,46 +117,78 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (shr == null)
 				return;
 
-			if (GUILayout.Button("Create Texture Array Assets"))
+			EditorGUILayout.HelpBox("Remember to build texture arrays after assigning or updating textures in the material setup section.", MessageType.Info);
+
+			if (GUILayout.Button("Build texture arrays"))
 			{
-				CreateTextureArrayAssets(shr);
+				BuildTextureArrays(shr);
 			}
+
+			EditorGUILayout.Space();
 
 			base.OnInspectorGUI();
 		}
 
-		static void CreateTextureArrayAssets(SnappersHeadRenderer shr)
+		static void BuildTextureArrays(SnappersHeadRenderer shr)
 		{
-			var inputMask = new Texture2D[] { shr.mask1, shr.mask2, shr.mask3, shr.mask4, shr.mask5, shr.mask6, shr.mask7, shr.mask8, shr.mask9, shr.mask10, shr.mask11, shr.mask12 };
-			var inputAlbedo = new Texture2D[] { shr.albedo1, shr.albedo2, shr.albedo3, shr.albedo4 };
-			var inputNormal = new Texture2D[] { shr.normal1, shr.normal2, shr.normal3, shr.normal4 };
-			var inputCavity = new Texture2D[] { shr.cavity1, shr.cavity2, shr.cavity3, shr.cavity4 };
+			var textureSets = shr.materials;
+			if (textureSets == null)
+				return;
 
-			var assetPath = shr.arrayAssetPath.Trim('/');
-			var assetPathMask = assetPath + "/_Tex2DArray_Mask.asset";
-			var assetPathAlbedo = assetPath + "/_Tex2DArray_Albedo.asset";
-			var assetPathNormal = assetPath + "/_Tex2DArray_Normal.asset";
-			var assetPathCavity = assetPath + "/_Tex2DArray_Cavity.asset";
+			for (int i = 0; i != textureSets.Length; i++)
+			{
+				ref var ts = ref textureSets[i];
 
-			shr.arrayMask = CreateTextureArrayAsset(inputMask, linear: true, assetPathMask);
-			shr.arrayAlbedo = CreateTextureArrayAsset(inputAlbedo, linear: false, assetPathAlbedo);
-			shr.arrayNormal = CreateTextureArrayAsset(inputNormal, linear: true, assetPathNormal);
-			shr.arrayCavity = CreateTextureArrayAsset(inputCavity, linear: true, assetPathCavity);
+				var inputMask = new Texture2D[] { ts.mask1, ts.mask2, ts.mask3, ts.mask4, ts.mask5, ts.mask6, ts.mask7, ts.mask8, ts.mask9, ts.mask10, ts.mask11, ts.mask12 };
+				var inputAlbedo = new Texture2D[] { ts.albedo1, ts.albedo2, ts.albedo3, ts.albedo4 };
+				var inputNormal = new Texture2D[] { ts.normal1, ts.normal2, ts.normal3, ts.normal4 };
+				var inputCavity = new Texture2D[] { ts.cavity1, ts.cavity2, ts.cavity3, ts.cavity4 };
+
+				ts.maskArray = CreateTextureArrayAsset(inputMask, linear: true);
+				ts.albedoArray = CreateTextureArrayAsset(inputAlbedo, linear: false);
+				ts.normalArray = CreateTextureArrayAsset(inputNormal, linear: true);
+				ts.cavityArray = CreateTextureArrayAsset(inputCavity, linear: true);
+			}
 
 			EditorUtility.SetDirty(shr);
 			AssetDatabase.SaveAssets();
 		}
 
+		static Texture2DArray CreateTextureArrayAsset(Texture2D[] slices, bool linear)
+		{
+			var first = System.Array.Find(slices, e => e != null);
+			if (first == null)
+				return null;
+
+			var path = AssetDatabase.GetAssetPath(first);
+
+			var lastDot = path.LastIndexOf('.');
+			if (lastDot > path.LastIndexOf('/'))
+			{
+				path = path.Substring(0, lastDot) + "_array.asset";
+			}
+			else
+			{
+				path = path + "_array.asset";
+			}
+
+			return CreateTextureArrayAsset(slices, linear, path);
+		}
+
 		static Texture2DArray CreateTextureArrayAsset(Texture2D[] slices, bool linear, string path)
 		{
-			var array = new Texture2DArray(slices[0].width, slices[0].height, slices.Length, slices[0].format, true, linear);
+			var first = System.Array.Find(slices, e => e != null);
+			if (first == null)
+				return null;
+
+			var array = new Texture2DArray(first.width, first.height, slices.Length, first.format, true, linear);
 			var arrayWrapper = CreateInstance<BinaryAsset>();
 
-			if (slices.Length > 0 && slices[0] != null)
+			if (slices.Length > 0)
 			{
-				array.wrapMode = slices[0].wrapMode;
-				array.anisoLevel = slices[0].anisoLevel;
-				array.filterMode = slices[0].filterMode;
+				array.wrapMode = first.wrapMode;
+				array.anisoLevel = first.anisoLevel;
+				array.filterMode = first.filterMode;
 			}
 
 			for (int i = 0; i != slices.Length; i++)

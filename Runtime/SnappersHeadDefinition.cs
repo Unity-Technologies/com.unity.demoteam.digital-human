@@ -35,12 +35,18 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public InstanceData CreateInstanceData<NamedControllers, NamedBlendShapes>(Mesh sourceMesh, Transform sourceRig, Warnings warnings) where NamedControllers : struct where NamedBlendShapes : struct
 		{
-			var meshName = sourceMesh.name;
-			if (meshName.EndsWith(MeshInstanceBehaviour.meshInstanceSuffix))
-				meshName = meshName.Substring(0, meshName.IndexOf(MeshInstanceBehaviour.meshInstanceSuffix));
-
-			var blendShapePrefix = meshName + "_blendShape.";
+			var blendShapePrefix = "";
 			var blendShapeNames = typeof(NamedBlendShapes).GetFields();
+
+			if (sourceMesh.blendShapeCount > 0)
+			{
+				var firstBlendShapeName = sourceMesh.GetBlendShapeName(0);
+				var firstBlendShapeDelim = firstBlendShapeName.IndexOf('.');
+				if (firstBlendShapeDelim != -1)
+				{
+					blendShapePrefix = firstBlendShapeName.Substring(0, firstBlendShapeDelim + 1);
+				}
+			}
 
 			var controllerPrefix = string.Empty;
 			var controllerNames = typeof(NamedControllers).GetFields();
@@ -86,6 +92,8 @@ namespace Unity.DemoTeam.DigitalHuman
 				else if (warnings.HasFlag(Warnings.MissingBlendShapes))
 					Debug.LogWarningFormat("rig definition {0} targets blend shape not present in linked mesh: {1}", this.name, blendShapePrefix + blendShapeNames[i].Name);
 			}
+
+			//Debug.LogFormat("{0} discovered blendShapeIndices: {1}", this.name, string.Join(",", instanceData.blendShapeIndices));
 
 			return instanceData;
 		}

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Unity.DemoTeam.Attributes;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -109,13 +110,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		}
 
 		//--- import settings begin ---
-		public enum TransferMode
-		{
-			PassThrough,
-			PassThroughWithFirstFrameDelta,
-		}
-
-		public enum InputType
+		public enum SourceType
 		{
 			ExternalObj,
 			ProjectAssets,
@@ -124,26 +119,35 @@ namespace Unity.DemoTeam.DigitalHuman
 		[Serializable]
 		public class ImportSettings
 		{
-			[Header("Sequence")]
-			public InputType readFrom = InputType.ExternalObj;
-			[VisibleIf("readFrom", InputType.ExternalObj)] public string externalObjPath;
-			[VisibleIf("readFrom", InputType.ExternalObj)] public string externalObjPattern = "*.obj";
-			[VisibleIf("readFrom", InputType.ProjectAssets)] public string meshAssetPath;
-			[VisibleIf("readFrom", InputType.ProjectAssets)] public string meshAssetPrefix;
-			[VisibleIf("readFrom", InputType.ProjectAssets)] public string albedoAssetPath;
-			[VisibleIf("readFrom", InputType.ProjectAssets)] public string albedoAssetPrefix;
+			[Header("Source sequence")]
+			[FormerlySerializedAs("readFrom")] public SourceType sourceFrom = SourceType.ExternalObj;
+			[FormerlySerializedAs("externalObjPath")]
+			[VisibleIf("sourceFrom", SourceType.ExternalObj)] public string externalObjPath;
+			[FormerlySerializedAs("externalObjPattern")]
+			[VisibleIf("sourceFrom", SourceType.ExternalObj)] public string externalObjPattern = "*.obj";
+			[VisibleIf("sourceFrom", SourceType.ExternalObj)] public bool externalObjPreloadThreaded = true;
+			[VisibleIf("sourceFrom", SourceType.ProjectAssets)] public string meshAssetFolder;
+			[VisibleIf("sourceFrom", SourceType.ProjectAssets)] public string meshAssetPrefix;
+			[VisibleIf("sourceFrom", SourceType.ProjectAssets)] public string albedoAssetFolder;
+			[VisibleIf("sourceFrom", SourceType.ProjectAssets)] public string albedoAssetPrefix;
 
 			[Space]
+			[Tooltip("Enable this to treat the imported frames as keyframes")]
 			public bool keyframes = false;
 			[Tooltip("CSV specifying how the frames are distributed. The first column is ignored. Rows read as follows:\nRow 1: Frame indices\nRow 2: Keyframe indices\nRow 3: Frame progress (0-100) between keys")]
 			[EditableIf("keyframes", true)]
 			public TextAsset keyframesCSV;
 
-			[Header("Mesh transform")]
-			public Vector3 applyRotation = Vector3.zero;
-			public float applyScale = 1.0f;
+			[Header("Source reference")]
+			public bool referenceIsFirstFrame;
+			[VisibleIf("sourceFrom", SourceType.ExternalObj)] public string referenceObjPath;
+			[VisibleIf("sourceFrom", SourceType.ProjectAssets)] public Mesh referenceMeshAsset;
 
-			[Header("Mesh processing")]
+			[Header("Frame transform")]
+			public Vector3 applyRotation = Vector3.zero;
+			public float applyScaling = 0.01f;
+
+			[Header("Frame processing")]
 			[Tooltip("Regions are specified in text files. Each file should contain an array of vertex indices on the form: [i, j, k, ...]")]
 			public TextAsset[] denoiseRegions;
 			[Range(0.0f, 1.0f)]
@@ -156,8 +160,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			public bool solveWelded = true;
 
 			[Header("Frame transfer")]
+			public TransferMode transferMode = TransferMode.ByVertexIndex;
 			public Mesh transferTarget;
-			public TransferMode transferMode;
+			public enum TransferMode
+			{
+				ByVertexIndex,
+				ByVertexPosition,
+			}
 
 			[Header("Frame fitting")]
 			public bool fitToBlendShapes = false;
@@ -171,10 +180,11 @@ namespace Unity.DemoTeam.DigitalHuman
 				var c = this.MemberwiseClone() as ImportSettings;
 				c.externalObjPath = c.externalObjPath.Clone() as string;
 				c.externalObjPattern = c.externalObjPattern.Clone() as string;
-				c.meshAssetPath = c.meshAssetPath.Clone() as string;
+				c.meshAssetFolder = c.meshAssetFolder.Clone() as string;
 				c.meshAssetPrefix = c.meshAssetPrefix.Clone() as string;
-				c.albedoAssetPath = c.albedoAssetPath.Clone() as string;
+				c.albedoAssetFolder = c.albedoAssetFolder.Clone() as string;
 				c.albedoAssetPrefix = c.albedoAssetPrefix.Clone() as string;
+				c.referenceObjPath = c.referenceObjPath.Clone() as string;
 				c.denoiseRegions = c.denoiseRegions.Clone() as TextAsset[];
 				c.transplantRegions = c.transplantRegions.Clone() as TextAsset[];
 				c.fittedIndices = c.fittedIndices.Clone() as string;
@@ -183,8 +193,10 @@ namespace Unity.DemoTeam.DigitalHuman
 		}
 
 		[ReadOnly]
-		public ImportSettings lastImport = new ImportSettings();
-		public ImportSettings importSettings = new ImportSettings();
+		[FormerlySerializedAs("lastImport")]
+		public ImportSettings settingsLastImported = new ImportSettings();
+		[FormerlySerializedAs("importSettings")]
+		public ImportSettings settings = new ImportSettings();
 		//--- import settings end ---
 
 		//--- frame data serialization begin ---

@@ -41,6 +41,8 @@ namespace Unity.DemoTeam.DigitalHuman
 			for (int i = 0; i != driver.subjects.Count; i++)
 			{
 				var attachment = driver.subjects[i];
+				if (attachment == null)
+					continue;
 
 				EditorGUILayout.BeginHorizontal();
 				EditorGUILayout.ObjectField(attachment, typeof(SkinAttachment), false);

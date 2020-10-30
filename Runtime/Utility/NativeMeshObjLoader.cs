@@ -37,7 +37,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			public InputVertex v2;
 		}
 
-		public unsafe static NativeMeshSOA Parse(string path, VertexAttribs vertexAttribs = VertexAttribs.Position, VertexOrder vertexOrder = VertexOrder.ByDefinition)
+		public unsafe static NativeMeshSOA Parse(string path, Allocator outputAllocator = Allocator.Persistent, VertexAttribs vertexAttribs = VertexAttribs.Position, VertexOrder vertexOrder = VertexOrder.ByDefinition)
 		{
 #if VERBOSE
 			Debug.LogFormat("trying {0}", path);
@@ -290,12 +290,12 @@ namespace Unity.DemoTeam.DigitalHuman
 			// copy to container
 			NativeMeshSOA mesh = new NativeMeshSOA()
 			{
-				vertexPositions = new NativeArray<Vector3>(numOutputVertices, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
-				vertexTexCoords = new NativeArray<Vector2>(numOutputVertices, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
-				vertexNormals = new NativeArray<Vector3>(numOutputVertices, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
+				vertexPositions = new NativeArray<Vector3>(numOutputVertices, outputAllocator, NativeArrayOptions.UninitializedMemory),
+				vertexTexCoords = new NativeArray<Vector2>(numOutputVertices, outputAllocator, NativeArrayOptions.UninitializedMemory),
+				vertexNormals = new NativeArray<Vector3>(numOutputVertices, outputAllocator, NativeArrayOptions.UninitializedMemory),
 				vertexCount = numOutputVertices,
 
-				faceIndices = new NativeArray<int>(numOutputIndices, Allocator.Persistent, NativeArrayOptions.UninitializedMemory),
+				faceIndices = new NativeArray<int>(numOutputIndices, outputAllocator, NativeArrayOptions.UninitializedMemory),
 				faceIndicesCount = numOutputIndices,
 			};
 

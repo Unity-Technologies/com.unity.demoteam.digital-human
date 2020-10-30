@@ -55,12 +55,12 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (Event.current.type != EventType.Repaint)
 				return;
 
-			var mesh = clip.importSettings.transferTarget;
+			var mesh = clip.settings.transferTarget;
 			if (mesh == null)
 				return;
 
-			var updateDenoiseIndices = !CompareTextAssetArrays(activeDenoiseIndices, clip.importSettings.denoiseRegions);
-			var updateTransplantIndices = !CompareTextAssetArrays(activeTransplantIndices, clip.importSettings.transplantRegions);
+			var updateDenoiseIndices = !CompareTextAssetArrays(activeDenoiseIndices, clip.settings.denoiseRegions);
+			var updateTransplantIndices = !CompareTextAssetArrays(activeTransplantIndices, clip.settings.transplantRegions);
 
 			foreach (var deformationRenderer in SkinDeformationRenderer.enabledInstances)
 			{
@@ -78,14 +78,14 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (updateDenoiseIndices)
 				{
 					updateDenoiseIndices = false;
-					activeDenoiseIndices = clip.importSettings.denoiseRegions.Clone() as TextAsset[];
+					activeDenoiseIndices = clip.settings.denoiseRegions.Clone() as TextAsset[];
 					pairedDenoiseIndices = BuildPairsFromIndices(targetMeshInfo.meshAdjacency, SkinDeformationClipEditor.ResolveIndexArrayFromVertexSelectionArray(activeDenoiseIndices));
 				}
 
 				if (updateTransplantIndices)
 				{
 					updateTransplantIndices = false;
-					activeTransplantIndices = clip.importSettings.transplantRegions.Clone() as TextAsset[];
+					activeTransplantIndices = clip.settings.transplantRegions.Clone() as TextAsset[];
 					pairedTransplantIndices = BuildPairsFromIndices(targetMeshInfo.meshAdjacency, SkinDeformationClipEditor.ResolveIndexArrayFromVertexSelectionArray(activeTransplantIndices));
 				}
 
