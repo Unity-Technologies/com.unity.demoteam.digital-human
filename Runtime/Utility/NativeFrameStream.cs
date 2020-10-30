@@ -12,7 +12,7 @@ namespace Unity.DemoTeam.DigitalHuman
 	public unsafe struct NativeFrameStream : IDisposable
 	{
 		public string filename;
-		public int frameOffset;
+		public long frameOffset;
 		public int frameCount;
 		public int frameSize;
 
@@ -23,7 +23,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		public NativeArray<ReadHandle> ringDataHnd;
 		public NativeArray<int> ringDataTag;
 
-		public NativeFrameStream(string filename, int frameOffset, int frameCount, int frameSize, int seekRadius, int ringCapacity = -1)
+		public NativeFrameStream(string filename, long frameOffset, int frameCount, int frameSize, int seekRadius, int ringCapacity = -1)
 		{
 			this.filename = filename;
 			this.frameOffset = frameOffset;
@@ -111,7 +111,7 @@ namespace Unity.DemoTeam.DigitalHuman
 					// schedule the read
 					ReadCommand cmd;
 					cmd.Buffer = frameSize * ringIndex + ringDataPtr;
-					cmd.Offset = frameSize * readIndex + frameOffset;
+					cmd.Offset = frameSize * (long)readIndex + frameOffset;
 					cmd.Size = frameSize;
 					ringDataHnd[ringIndex] = AsyncReadManager.Read(filename, &cmd, 1);
 
