@@ -60,10 +60,12 @@ namespace Unity.DemoTeam.DigitalHuman
 		const int DBUFFER_MASK = 2;
 
 		private RTHandle[] dbufferRTs;
-		private RenderTargetIdentifier[] dbufferNormalMaskRTI;
+		private RenderTargetIdentifier[] dbufferRTIDs;
+		private RenderTargetIdentifier[] dbufferNormalMaskRTIDs;
+
 		private void FindDbufferRTs(HDRenderPipeline hdPipeline)
 		{
-			dbufferRTs = null;
+			dbufferRTIDs = null;
 
 			var fieldInfo_m_DbufferManager = typeof(HDRenderPipeline).GetField("m_DbufferManager", BindingFlags.NonPublic | BindingFlags.Instance);
 			if (fieldInfo_m_DbufferManager != null)
@@ -78,19 +80,37 @@ namespace Unity.DemoTeam.DigitalHuman
 						//Debug.Log("FindDbufferRTs : " + fieldInfo_m_RTs);
 						dbufferRTs = fieldInfo_m_RTs.GetValue(m_DbufferManager) as RTHandle[];
 					}
+
+					var fieldInfo_m_RTIDs = m_DbufferManager.GetType().GetField("m_RTIDs", BindingFlags.NonPublic | BindingFlags.Instance);
+					if (fieldInfo_m_RTIDs != null)
+					{
+						//Debug.Log("FindDbufferRTIDs : " + fieldInfo_m_RTIDs);
+						dbufferRTIDs = fieldInfo_m_RTIDs.GetValue(m_DbufferManager) as RenderTargetIdentifier[];
+					}
+				}
+			}
+		}
+
+		private RenderTargetIdentifier[] GetDbufferNormalMaskRTIDs()
+		{
+			if (dbufferRTs != null)
+			{
+				if (dbufferRTs[DBUFFER_NORMALS] == null || dbufferRTs[DBUFFER_MASK] == null)
+				{
+					return null;
 				}
 			}
 
-			if (dbufferRTs != null)
+			if (dbufferRTIDs != null)
 			{
-				dbufferNormalMaskRTI = new RenderTargetIdentifier[2];
-				dbufferNormalMaskRTI[0] = dbufferRTs[DBUFFER_NORMALS].nameID;
-				dbufferNormalMaskRTI[1] = dbufferRTs[DBUFFER_MASK].nameID;
+				if (dbufferNormalMaskRTIDs == null)
+					dbufferNormalMaskRTIDs = new RenderTargetIdentifier[2];
+
+				dbufferNormalMaskRTIDs[0] = dbufferRTIDs[DBUFFER_NORMALS];
+				dbufferNormalMaskRTIDs[1] = dbufferRTIDs[DBUFFER_MASK];
 			}
-			else
-			{
-				dbufferNormalMaskRTI = null;
-			}
+
+			return dbufferNormalMaskRTIDs;
 		}
 
 		static bool EnsureMaterial(ref Material material, string shaderName)
@@ -127,14 +147,43 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		protected override void Execute(ScriptableRenderContext renderContext, CommandBuffer cmd, HDCamera hdCamera, CullingResults cullingResults)
+#if UNITY_2020_2_OR_NEWER
+		protected override void Execute(CustomPassContext ctx)
 		{
 			Profiler.BeginSample("NormalBufferBlurPass");
-			ExecuteNormalBufferBlur(renderContext, cmd, hdCamera, cullingResults);
+			ExecuteNormalBufferBlur(
+				ctx.renderContext,
+				ctx.cmd,
+				ctx.hdCamera,
+				ctx.cameraColorBuffer,
+				ctx.cameraDepthBuffer,
+				ctx.cameraNormalBuffer,
+				ctx.cullingResults
+			);
 			Profiler.EndSample();
 		}
+#else
+		protected override void Execute(ScriptableRenderContext renderContext, CommandBuffer cmd, HDCamera hdCamera, CullingResults cullingResults)
+		{
+			RTHandle cameraColor;
+			RTHandle cameraDepth;
+			GetCameraBuffers(out cameraColor, out cameraDepth);
 
-		void ExecuteNormalBufferBlur(ScriptableRenderContext renderContext, CommandBuffer cmd, HDCamera hdCamera, CullingResults cullingResults)
+			Profiler.BeginSample("NormalBufferBlurPass");
+			ExecuteNormalBufferBlur(
+				renderContext,
+				cmd,
+				hdCamera,
+				cameraColor,
+				cameraDepth,
+				GetNormalBuffer(),
+				cullingResults
+			);
+			Profiler.EndSample();
+		}
+#endif
+
+		void ExecuteNormalBufferBlur(ScriptableRenderContext renderContext, CommandBuffer cmd, HDCamera hdCamera, RTHandle cameraColor, RTHandle cameraDepth, RTHandle cameraNormal, CullingResults cullingResults)
 		{
 			if (!EnsureMaterial(ref passMaterial, NAME_SHADER))
 				return;
@@ -144,10 +193,6 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			if (!hdCamera.frameSettings.IsEnabled(FrameSettingsField.Decals))
 				return;
-
-			RTHandle cameraColor;
-			RTHandle cameraDepth;
-			GetCameraBuffers(out cameraColor, out cameraDepth);
 
 			int bufferW = cameraColor.rt.width;
 			int bufferH = cameraColor.rt.height;
@@ -186,7 +231,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			);
 			CoreUtils.SetViewport(cmd, cameraDepth);
 
-			cmd.SetRandomWriteTarget(2, GetNormalBuffer());
+			cmd.SetRandomWriteTarget(2, cameraNormal);
 			cmd.DrawProcedural(Matrix4x4.identity, passMaterial, PASS_DECODE, MeshTopology.Triangles, 3, 1);
 			cmd.ClearRandomWriteTargets();
 
@@ -194,15 +239,15 @@ namespace Unity.DemoTeam.DigitalHuman
 			cmd.SetGlobalTexture(rtRegions, rtRegions);
 			cmd.SetGlobalTexture(rtDecoded, rtDecoded);
 
-			if (dbufferNormalMaskRTI != null)
+			if (GetDbufferNormalMaskRTIDs() != null)
 			{
 				CoreUtils.SetRenderTarget(cmd,
-					dbufferNormalMaskRTI,
+					GetDbufferNormalMaskRTIDs(),
 					cameraDepth,
 					ClearFlag.None);
 				CoreUtils.SetViewport(cmd, cameraDepth);
 
-				cmd.SetRandomWriteTarget(2, GetNormalBuffer());
+				cmd.SetRandomWriteTarget(2, cameraNormal);
 				cmd.DrawProcedural(Matrix4x4.identity, passMaterial, PASS_BLUR_AND_ENCODE_AND_DECAL, MeshTopology.Triangles, 3, 1);
 				cmd.ClearRandomWriteTargets();
 			}
@@ -214,7 +259,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				);
 				CoreUtils.SetViewport(cmd, cameraDepth);
 
-				cmd.SetRandomWriteTarget(2, GetNormalBuffer());
+				cmd.SetRandomWriteTarget(2, cameraNormal);
 				cmd.DrawProcedural(Matrix4x4.identity, passMaterial, PASS_BLUR_AND_ENCODE, MeshTopology.Triangles, 3, 1);
 				cmd.ClearRandomWriteTargets();
 			}

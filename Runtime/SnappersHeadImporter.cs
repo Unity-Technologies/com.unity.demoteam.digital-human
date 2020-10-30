@@ -183,7 +183,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			sb.AppendLine("using UnityEngine;");
 			sb.AppendLine("using Unity.DemoTeam.DigitalHuman;");
-			sb.AppendLine("using Unity.Collections.LowLevel.Unsafe;// for UnsafeUtilityEx.AsRef<T>");
+			sb.AppendLine("using Unity.Collections.LowLevel.Unsafe;// for UnsafeUtility.AsRef<T>");
 			sb.AppendLine();
 			sb.AppendFormat("namespace {0}\n", csNamespace);
 			sb.AppendLine("{");
@@ -227,6 +227,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			sb.Clear();
 
 			sb.AppendLine("#pragma warning disable 0219");
+
+			if (csCompacted == false)
+			{
+				sb.AppendLine();
+				sb.AppendLine("using Unity.DemoTeam.DigitalHuman;");
+			}
+
 			sb.AppendLine();
 			sb.AppendFormat("namespace {0}\n", csNamespace);
 			sb.AppendLine("{");
@@ -314,9 +321,15 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 			else
 			{
+				sb.AppendLine("#if UNITY_2020_1_OR_NEWER");
+				sb.AppendLine("				ref UnsafeUtility.AsRef<SnappersControllers>(ptrSnappersControllers),");
+				sb.AppendLine("				ref UnsafeUtility.AsRef<SnappersBlendShapes>(ptrSnappersBlendShapes),");
+				sb.AppendLine("				ref UnsafeUtility.AsRef<SnappersShaderParam>(ptrSnappersShaderParam)");
+				sb.AppendLine("#else");
 				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersControllers>(ptrSnappersControllers),");
 				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersBlendShapes>(ptrSnappersBlendShapes),");
 				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersShaderParam>(ptrSnappersShaderParam)");
+				sb.AppendLine("#endif");
 			}
 
 			sb.AppendLine("			);");
@@ -495,7 +508,11 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 			else
 			{
+				sb.AppendLine("#if UNITY_2020_1_OR_NEWER");
+				sb.AppendLine("				ref UnsafeUtility.AsRef<SnappersControllers>(ptrSnappersControllers)");
+				sb.AppendLine("#else");
 				sb.AppendLine("				ref UnsafeUtilityEx.AsRef<SnappersControllers>(ptrSnappersControllers)");
+				sb.AppendLine("#endif");
 			}
 
 			sb.AppendLine("			);");
