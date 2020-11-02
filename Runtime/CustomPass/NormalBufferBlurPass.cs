@@ -3,6 +3,9 @@ using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 using UnityEngine.Experimental.Rendering;
+#if UNITY_2020_2_OR_NEWER
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
+#endif
 using System.Reflection;
 
 namespace Unity.DemoTeam.DigitalHuman
@@ -46,6 +49,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			"ForwardOnly",// HDShaderPassNames.s_ForwardOnlyStr
 			"SRPDefaultUnlit", // HDShaderPassNames.s_SRPDefaultUnlitStr
 			"DBufferMesh_3RT",// HDShaderPassNames.s_MeshDecalsMStr
+			"DBufferMesh",// HDShaderPassNames.s_DBufferMeshStr
 		};
 		static ShaderTagId[] NAME_PASS_REPLACE_TAG = null;
 
@@ -59,58 +63,59 @@ namespace Unity.DemoTeam.DigitalHuman
 		const int DBUFFER_NORMALS = 1;
 		const int DBUFFER_MASK = 2;
 
-		private RTHandle[] dbufferRTs;
-		private RenderTargetIdentifier[] dbufferRTIDs;
-		private RenderTargetIdentifier[] dbufferNormalMaskRTIDs;
+		RenderTargetIdentifier[] dbufferNormalMaskRTIDs;
 
-		private void FindDbufferRTs(HDRenderPipeline hdPipeline)
+		void FindDBufferNormalMaskRTIDs(HDRenderPipeline hdPipeline)
 		{
-			dbufferRTIDs = null;
+			dbufferNormalMaskRTIDs = null;
+
+#if UNITY_2020_2_OR_NEWER
+			// require alternate path if rendergraph is enabled
+			var fieldInfo_m_EnableRenderGraph = typeof(HDRenderPipeline).GetField("m_EnableRenderGraph", BindingFlags.NonPublic | BindingFlags.Instance);
+			if (fieldInfo_m_EnableRenderGraph != null && (bool)fieldInfo_m_EnableRenderGraph.GetValue(hdPipeline) == true)
+			{
+				var fieldInfo_m_DBufferOutput = typeof(HDRenderPipeline).GetField("m_DBufferOutput", BindingFlags.NonPublic | BindingFlags.Instance);
+				if (fieldInfo_m_DBufferOutput != null)
+				{
+					var m_DBufferOutput = fieldInfo_m_DBufferOutput.GetValue(hdPipeline);
+					if (m_DBufferOutput != null)
+					{
+						var fieldInfo_mrt = m_DBufferOutput.GetType().GetField("mrt", BindingFlags.Public | BindingFlags.Instance);
+						if (fieldInfo_mrt != null)
+						{
+							var mrt = fieldInfo_mrt.GetValue(m_DBufferOutput) as TextureHandle[];
+							if (mrt != null)
+							{
+								dbufferNormalMaskRTIDs = new RenderTargetIdentifier[2];
+								dbufferNormalMaskRTIDs[0] = mrt[DBUFFER_NORMALS];
+								dbufferNormalMaskRTIDs[1] = mrt[DBUFFER_MASK];
+							}
+						}
+					}
+				}
+				return;
+			}
+#endif
 
 			var fieldInfo_m_DbufferManager = typeof(HDRenderPipeline).GetField("m_DbufferManager", BindingFlags.NonPublic | BindingFlags.Instance);
 			if (fieldInfo_m_DbufferManager != null)
 			{
-				//Debug.Log("FindDbufferRTs : " + fieldInfo_m_DbufferManager);
 				var m_DbufferManager = fieldInfo_m_DbufferManager.GetValue(hdPipeline);
 				if (m_DbufferManager != null)
 				{
 					var fieldInfo_m_RTs = m_DbufferManager.GetType().GetField("m_RTs", BindingFlags.NonPublic | BindingFlags.Instance);
 					if (fieldInfo_m_RTs != null)
 					{
-						//Debug.Log("FindDbufferRTs : " + fieldInfo_m_RTs);
-						dbufferRTs = fieldInfo_m_RTs.GetValue(m_DbufferManager) as RTHandle[];
-					}
-
-					var fieldInfo_m_RTIDs = m_DbufferManager.GetType().GetField("m_RTIDs", BindingFlags.NonPublic | BindingFlags.Instance);
-					if (fieldInfo_m_RTIDs != null)
-					{
-						//Debug.Log("FindDbufferRTIDs : " + fieldInfo_m_RTIDs);
-						dbufferRTIDs = fieldInfo_m_RTIDs.GetValue(m_DbufferManager) as RenderTargetIdentifier[];
+						var m_RTs = fieldInfo_m_RTs.GetValue(m_DbufferManager) as RTHandle[];
+						if (m_RTs != null)
+						{
+							dbufferNormalMaskRTIDs = new RenderTargetIdentifier[2];
+							dbufferNormalMaskRTIDs[0] = m_RTs[DBUFFER_NORMALS].nameID;
+							dbufferNormalMaskRTIDs[1] = m_RTs[DBUFFER_MASK].nameID;
+						}
 					}
 				}
 			}
-		}
-
-		private RenderTargetIdentifier[] GetDbufferNormalMaskRTIDs()
-		{
-			if (dbufferRTs != null)
-			{
-				if (dbufferRTs[DBUFFER_NORMALS] == null || dbufferRTs[DBUFFER_MASK] == null)
-				{
-					return null;
-				}
-			}
-
-			if (dbufferRTIDs != null)
-			{
-				if (dbufferNormalMaskRTIDs == null)
-					dbufferNormalMaskRTIDs = new RenderTargetIdentifier[2];
-
-				dbufferNormalMaskRTIDs[0] = dbufferRTIDs[DBUFFER_NORMALS];
-				dbufferNormalMaskRTIDs[1] = dbufferRTIDs[DBUFFER_MASK];
-			}
-
-			return dbufferNormalMaskRTIDs;
 		}
 
 		static bool EnsureMaterial(ref Material material, string shaderName)
@@ -129,7 +134,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			base.Setup(renderContext, cmd);
 			base.name = "NormalBufferBlurPass";
 
-			FindDbufferRTs(RenderPipelineManager.currentPipeline as HDRenderPipeline);
+			FindDBufferNormalMaskRTIDs(RenderPipelineManager.currentPipeline as HDRenderPipeline);
 
 			EnsureMaterial(ref passMaterial, NAME_SHADER);
 			if (passMaterial != null)
@@ -221,7 +226,11 @@ namespace Unity.DemoTeam.DigitalHuman
 				excludeObjectMotionVectors = false,
 			};
 
+#if UNITY_2020_2_OR_NEWER
+			CoreUtils.DrawRendererList(renderContext, cmd, RendererList.Create(renderListDesc));
+#else
 			HDUtils.DrawRendererList(renderContext, cmd, RendererList.Create(renderListDesc));
+#endif
 
 			// decode normal buffer in marked regions
 			CoreUtils.SetRenderTarget(cmd,
@@ -239,10 +248,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			cmd.SetGlobalTexture(rtRegions, rtRegions);
 			cmd.SetGlobalTexture(rtDecoded, rtDecoded);
 
-			if (GetDbufferNormalMaskRTIDs() != null)
+			if (dbufferNormalMaskRTIDs != null)
 			{
 				CoreUtils.SetRenderTarget(cmd,
-					GetDbufferNormalMaskRTIDs(),
+					dbufferNormalMaskRTIDs,
 					cameraDepth,
 					ClearFlag.None);
 				CoreUtils.SetViewport(cmd, cameraDepth);
