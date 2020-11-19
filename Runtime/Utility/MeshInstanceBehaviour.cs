@@ -1,6 +1,7 @@
 ﻿using System;
 using UnityEngine;
 #if UNITY_EDITOR
+using UnityEditor;
 using UnityEditor.Experimental.SceneManagement;
 #endif
 
@@ -19,15 +20,24 @@ namespace Unity.DemoTeam.DigitalHuman
 		protected virtual void OnMeshInstanceCreated() { }
 		protected virtual void OnMeshInstanceDeleted() { }
 
+		static bool IsMeshInstance(Mesh mesh)
+		{
+#if UNITY_EDITOR
+			return (EditorUtility.IsPersistent(mesh) == false);
+#else
+			return (mesh.GetInstanceID() < 0);
+#endif
+		}
+
 		public void EnsureMeshInstance()
 		{
 			var smr = GetComponent<SkinnedMeshRenderer>();
 			if (smr != null)
 			{
-				if (smr.sharedMesh == null || (smr.sharedMesh.GetInstanceID() < 0 && smr.sharedMesh != meshInstance))
+				if (smr.sharedMesh == null || (IsMeshInstance(smr.sharedMesh) && smr.sharedMesh != meshInstance))
 					smr.sharedMesh = meshAsset;
 
-				if (smr.sharedMesh != null && smr.sharedMesh.GetInstanceID() >= 0)
+				if (smr.sharedMesh != null && !IsMeshInstance(smr.sharedMesh))
 					smr.sharedMesh = EnsureMeshInstanceAux(smr.sharedMesh);
 
 				return;
@@ -36,10 +46,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			var mf = GetComponent<MeshFilter>();
 			if (mf != null)
 			{
-				if (mf.sharedMesh == null || (mf.sharedMesh.GetInstanceID() < 0 && mf.sharedMesh != meshInstance))
+				if (mf.sharedMesh == null || (IsMeshInstance(mf.sharedMesh) && mf.sharedMesh != meshInstance))
 					mf.sharedMesh = meshAsset;
 
-				if (mf.sharedMesh != null && mf.sharedMesh.GetInstanceID() >= 0)
+				if (mf.sharedMesh != null && !IsMeshInstance(mf.sharedMesh))
 					mf.sharedMesh = EnsureMeshInstanceAux(mf.sharedMesh);
 
 				return;
@@ -72,7 +82,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			var smr = GetComponent<SkinnedMeshRenderer>();
 			if (smr != null)
 			{
-				if (smr.sharedMesh == null || smr.sharedMesh.GetInstanceID() < 0)
+				if (smr.sharedMesh == null || IsMeshInstance(smr.sharedMesh))
 					smr.sharedMesh = meshAsset;
 
 				RemoveMeshInstanceAux();
@@ -82,7 +92,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			var mf = GetComponent<MeshFilter>();
 			if (mf != null)
 			{
-				if (mf.sharedMesh == null || mf.sharedMesh.GetInstanceID() < 0)
+				if (mf.sharedMesh == null || IsMeshInstance(mf.sharedMesh))
 					mf.sharedMesh = meshAsset;
 
 				RemoveMeshInstanceAux();

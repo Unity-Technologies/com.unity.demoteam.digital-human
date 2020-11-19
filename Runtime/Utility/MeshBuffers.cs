@@ -70,6 +70,10 @@ namespace Unity.DemoTeam.DigitalHuman
 				{
 					for (int i = 0; i != submeshCount; i++)
 					{
+						var topology = mesh.GetTopology(i);
+						if (topology != MeshTopology.Triangles)
+							continue;
+
 						mesh.GetTriangles(__tempIndices, i);
 
 						int submeshTriangleCount = __tempIndices.Count;
