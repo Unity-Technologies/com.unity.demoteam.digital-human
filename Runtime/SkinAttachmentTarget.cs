@@ -300,8 +300,14 @@ namespace Unity.DemoTeam.DigitalHuman
 			stagingPins[stagingPinsSourceDataOffset + 1] = GCHandle.Alloc(meshBuffers.vertexTangents, GCHandleType.Pinned);
 			stagingPins[stagingPinsSourceDataOffset + 2] = GCHandle.Alloc(meshBuffers.vertexNormals, GCHandleType.Pinned);
 
-			var targetToWorld = Matrix4x4.TRS(this.transform.position, this.transform.rotation, Vector3.one);
-			// NOTE: targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
+			// NOTE: for skinned targets, targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
+			Matrix4x4 targetToWorld;
+			{
+				if (this.meshBakedSmr != null)
+					targetToWorld = Matrix4x4.TRS(this.transform.position, this.transform.rotation, Vector3.one);
+				else
+					targetToWorld = this.transform.localToWorldMatrix;
+			}
 
 			var targetMeshWorldBounds = meshBakedOrAsset.bounds;
 			var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;

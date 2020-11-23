@@ -389,8 +389,14 @@ namespace Unity.DemoTeam.DigitalHuman
 
 					SkinAttachmentDataBuilder.BuildDataAttachSubjectReadOnly(ref debugData, target.transform, target.GetCachedMeshInfo(), this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount);
 
-					Matrix4x4 targetToWorld = Matrix4x4.TRS(target.transform.position, target.transform.rotation, Vector3.one);
-					// NOTE: targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
+					Matrix4x4 targetToWorld;
+					{
+						// NOTE: for skinned targets, targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
+						if (target.meshBakedSmr != null)
+							targetToWorld = Matrix4x4.TRS(target.transform.position, target.transform.rotation, Vector3.one);
+						else
+							targetToWorld = target.transform.localToWorldMatrix;
+					}
 
 					Matrix4x4 targetToSubject;
 					{
