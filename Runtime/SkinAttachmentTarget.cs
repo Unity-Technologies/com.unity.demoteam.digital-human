@@ -416,6 +416,9 @@ namespace Unity.DemoTeam.DigitalHuman
 						case SkinAttachment.AttachmentType.Mesh:
 						case SkinAttachment.AttachmentType.MeshRoots:
 							{
+								if (subject.meshInstance == null)
+									break;
+
 								if (subject.meshInstance.vertexCount != stagingData[indexPos].Length)
 								{
 									Debug.LogError("mismatching vertex- and attachment count", subject);

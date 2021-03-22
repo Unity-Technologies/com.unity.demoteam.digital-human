@@ -1,7 +1,9 @@
 {
     "name": "Unity.DemoTeam.DigitalHuman.Editor",
+    "rootNamespace": "",
     "references": [
         "GUID:7e9d95a3be8cd654ba8a8d2bb2409223",
+        "GUID:e0cd26848372d4e5c891c569017e11f1",
         "GUID:d8b63aba1907145bea998dd612889d6b",
         "GUID:78bd2ddd6e276394a9615c203e574844",
         "GUID:457756d89b35d2941b3e7b37b4ece6f1",

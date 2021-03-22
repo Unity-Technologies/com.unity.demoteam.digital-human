@@ -37,7 +37,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			public InputVertex v2;
 		}
 
-		public unsafe static NativeMeshSOA Parse(string path, Allocator outputAllocator = Allocator.Persistent, VertexAttribs vertexAttribs = VertexAttribs.Position, VertexOrder vertexOrder = VertexOrder.ByDefinition)
+		public unsafe static NativeMeshSOA Parse(string path, Allocator allocator = Allocator.Persistent, VertexAttribs vertexAttribs = VertexAttribs.Position, VertexOrder vertexOrder = VertexOrder.ByDefinition)
 		{
 #if VERBOSE
 			Debug.LogFormat("trying {0}", path);
@@ -95,17 +95,17 @@ namespace Unity.DemoTeam.DigitalHuman
 #endif
 
 			// allocate buffers
-			var inputPositions = new NativeArray<Vector3>(numPositions, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var inputTexCoords = new NativeArray<Vector2>(numTexCoords, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var inputNormals = new NativeArray<Vector3>(numNormals, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var inputFaces = new NativeArray<InputFace>(numFaces, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var inputPositions = new NativeArray<Vector3>(numPositions, allocator, NativeArrayOptions.UninitializedMemory);
+			var inputTexCoords = new NativeArray<Vector2>(numTexCoords, allocator, NativeArrayOptions.UninitializedMemory);
+			var inputNormals = new NativeArray<Vector3>(numNormals, allocator, NativeArrayOptions.UninitializedMemory);
+			var inputFaces = new NativeArray<InputFace>(numFaces, allocator, NativeArrayOptions.UninitializedMemory);
 
 			var outputIndicesMax = numFaces * 3;
-			var outputIndicesLUT = new NativeHashMap<Hash128, int>(outputIndicesMax, Allocator.Temp);
-			var outputPositions = new NativeArray<Vector3>(outputIndicesMax, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var outputTexCoords = new NativeArray<Vector2>(outputIndicesMax, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var outputNormals = new NativeArray<Vector3>(outputIndicesMax, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var outputIndices = new NativeArray<int>(outputIndicesMax, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var outputIndicesLUT = new NativeHashMap<Hash128, int>(outputIndicesMax, allocator);
+			var outputPositions = new NativeArray<Vector3>(outputIndicesMax, allocator, NativeArrayOptions.UninitializedMemory);
+			var outputTexCoords = new NativeArray<Vector2>(outputIndicesMax, allocator, NativeArrayOptions.UninitializedMemory);
+			var outputNormals = new NativeArray<Vector3>(outputIndicesMax, allocator, NativeArrayOptions.UninitializedMemory);
+			var outputIndices = new NativeArray<int>(outputIndicesMax, allocator, NativeArrayOptions.UninitializedMemory);
 
 			// read the data
 			numPositions = 0;
@@ -290,12 +290,12 @@ namespace Unity.DemoTeam.DigitalHuman
 			// copy to container
 			NativeMeshSOA mesh = new NativeMeshSOA()
 			{
-				vertexPositions = new NativeArray<Vector3>(numOutputVertices, outputAllocator, NativeArrayOptions.UninitializedMemory),
-				vertexTexCoords = new NativeArray<Vector2>(numOutputVertices, outputAllocator, NativeArrayOptions.UninitializedMemory),
-				vertexNormals = new NativeArray<Vector3>(numOutputVertices, outputAllocator, NativeArrayOptions.UninitializedMemory),
+				vertexPositions = new NativeArray<Vector3>(numOutputVertices, allocator, NativeArrayOptions.UninitializedMemory),
+				vertexTexCoords = new NativeArray<Vector2>(numOutputVertices, allocator, NativeArrayOptions.UninitializedMemory),
+				vertexNormals = new NativeArray<Vector3>(numOutputVertices, allocator, NativeArrayOptions.UninitializedMemory),
 				vertexCount = numOutputVertices,
 
-				faceIndices = new NativeArray<int>(numOutputIndices, outputAllocator, NativeArrayOptions.UninitializedMemory),
+				faceIndices = new NativeArray<int>(numOutputIndices, allocator, NativeArrayOptions.UninitializedMemory),
 				faceIndicesCount = numOutputIndices,
 			};
 
