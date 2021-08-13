@@ -2,7 +2,11 @@
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
+#if UNITY_2021_2_OR_NEWER
+using UnityEngine.Rendering.RendererUtils;
+#else
 using UnityEngine.Experimental.Rendering;
+#endif
 #if UNITY_2020_2_OR_NEWER
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 #endif
@@ -66,13 +70,17 @@ namespace Unity.DemoTeam.DigitalHuman
 		RenderTargetIdentifier[] dbufferNormalMaskRTIDs;
 
 #if UNITY_2020_2_OR_NEWER
+	#if !UNITY_2021_2_OR_NEWER
 		FieldInfo cachedField_m_EnableRenderGraph;
+	#endif
 		FieldInfo cachedField_m_DBufferOutput_mrt;
 		object cachedValue_m_DBufferOutput;
 
 		void UpdateDBufferNormalMaskRTIDs(HDRenderPipeline hdPipeline)
 		{
+	#if !UNITY_2021_2_OR_NEWER
 			if (cachedField_m_EnableRenderGraph != null && ((bool)cachedField_m_EnableRenderGraph.GetValue(hdPipeline) == true))
+	#endif
 			{
 				if (cachedField_m_DBufferOutput_mrt != null && cachedValue_m_DBufferOutput != null)
 				{
@@ -89,15 +97,17 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 #endif
-		
+
 		void FindDBufferNormalMaskRTIDs(HDRenderPipeline hdPipeline)
 		{
 			dbufferNormalMaskRTIDs = null;
 
 #if UNITY_2020_2_OR_NEWER
 			// require alternate path if rendergraph is enabled
+	#if !UNITY_2021_2_OR_NEWER
 			var field_m_EnableRenderGraph = typeof(HDRenderPipeline).GetField("m_EnableRenderGraph", BindingFlags.NonPublic | BindingFlags.Instance);
 			if (field_m_EnableRenderGraph != null && (bool)field_m_EnableRenderGraph.GetValue(hdPipeline) == true)
+	#endif
 			{
 				var field_m_DBufferOutput = typeof(HDRenderPipeline).GetField("m_DBufferOutput", BindingFlags.NonPublic | BindingFlags.Instance);
 				if (field_m_DBufferOutput != null)
@@ -113,7 +123,9 @@ namespace Unity.DemoTeam.DigitalHuman
 							{
 								dbufferNormalMaskRTIDs = new RenderTargetIdentifier[2];
 
+	#if !UNITY_2021_2_OR_NEWER
 								cachedField_m_EnableRenderGraph = field_m_EnableRenderGraph;
+	#endif
 								cachedField_m_DBufferOutput_mrt = field_mrt;
 								cachedValue_m_DBufferOutput = value_m_DBufferOutput;
 
@@ -127,6 +139,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 #endif
 
+#if !UNITY_2021_2_OR_NEWER
 			var field_m_DbufferManager = typeof(HDRenderPipeline).GetField("m_DbufferManager", BindingFlags.NonPublic | BindingFlags.Instance);
 			if (field_m_DbufferManager != null)
 			{
@@ -146,6 +159,7 @@ namespace Unity.DemoTeam.DigitalHuman
 					}
 				}
 			}
+#endif
 		}
 
 		static bool EnsureMaterial(ref Material material, string shaderName)
@@ -257,7 +271,9 @@ namespace Unity.DemoTeam.DigitalHuman
 				excludeObjectMotionVectors = false,
 			};
 
-#if UNITY_2020_2_OR_NEWER
+#if UNITY_2021_2_OR_NEWER
+			CoreUtils.DrawRendererList(renderContext, cmd, renderContext.CreateRendererList(renderListDesc));
+#elif UNITY_2020_2_OR_NEWER
 			CoreUtils.DrawRendererList(renderContext, cmd, RendererList.Create(renderListDesc));
 #else
 			HDUtils.DrawRendererList(renderContext, cmd, RendererList.Create(renderListDesc));
