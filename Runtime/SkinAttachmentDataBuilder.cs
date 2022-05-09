@@ -252,7 +252,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
 						var subjectVertexCount = subject.meshBuffers.vertexCount;
 						var subjectPositions = subject.meshBuffers.vertexPositions;
-						var subjectNormals = subject.meshBuffers.vertexPositions;
+						var subjectNormals = subject.meshBuffers.vertexNormals;
+						bool onlyAllowOneRoot = subject.allowOnlyOneRoot;
 
 						using (var targetPositions = new UnsafeArrayVector3(subjectVertexCount))
 						using (var targetNormals = new UnsafeArrayVector3(subjectVertexCount))
@@ -311,7 +312,7 @@ namespace Unity.DemoTeam.DigitalHuman
 											}
 										}
 
-										if (bestNode != -1)
+										if (bestNode != -1 && !(onlyAllowOneRoot && rootCount > 0))
 										{
 											visitor.Ignore(i);
 											rootIdx.val[i] = targetNode;
@@ -347,7 +348,9 @@ namespace Unity.DemoTeam.DigitalHuman
 									}
 								}
 
-								if (rootCount < 2 && bestVert0 != -1)
+								int rootsAllowed = onlyAllowOneRoot ? 1 : 2;
+
+								if (rootCount < rootsAllowed && bestVert0 != -1)
 								{
 									visitor.Ignore(bestVert0);
 									rootIdx.val[bestVert0] = bestNode0;
@@ -355,7 +358,7 @@ namespace Unity.DemoTeam.DigitalHuman
 									rootGen.val[bestVert0] = 0;
 									rootCount++;
 
-									if (rootCount < 2 && bestVert1 != -1)
+									if (rootCount < rootsAllowed && bestVert1 != -1)
 									{
 										visitor.Ignore(bestVert1);
 										rootIdx.val[bestVert1] = bestNode1;
@@ -407,6 +410,7 @@ namespace Unity.DemoTeam.DigitalHuman
 									}
 								}
 
+								
 								rootIdx.val[i] = rootIdx.val[bestNode];
 								rootDir.val[i] = Vector3.Normalize(targetPositions.val[bestNode] - targetPositions.val[i]);
 								rootGen.val[i] = rootGen.val[bestNode] + 1;

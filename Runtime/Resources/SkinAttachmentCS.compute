@@ -1,0 +1,163 @@
+
+#pragma kernel ResolveAttachment KERNEL_NAME=ResolveAttachment
+#pragma kernel ResolveAttachmentWithMovecs KERNEL_NAME=ResolveAttachmentWithMovecs GENERATE_MOVECS
+
+#ifndef PI
+#define PI 3.14159265359f
+#endif 
+
+struct SkinAttachmentPose
+{
+    float3 targetCoord;
+    int v0;
+    int v1;
+    int v2;
+    float area;
+    float targetDist;
+};
+
+
+struct SkinAttachmentItem
+{
+    float3 baseNormal;
+    int poseIndex;
+    float3 targetNormal;
+    int poseCount;
+    float3 targetOffset;//TODO split this into leaf type item that doesn't perform full resolve
+    int baseVertex;
+};
+
+
+StructuredBuffer<SkinAttachmentPose> _AttachmentPoses;
+StructuredBuffer<SkinAttachmentItem> _AttachmentItems;
+
+ByteAddressBuffer _SkinPosNormalBuffer;
+RWByteAddressBuffer _AttachmentPosNormalBuffer;
+int3 _StridePosNormOffsetSkin;
+int3 _StridePosNormOffsetAttachment;
+
+RWByteAddressBuffer _AttachmentMovecsBuffer;
+int2 _StrideOffsetMovecs;
+
+
+float4x4 _ResolveTransform;
+float4x4 _PostSkinningToAttachmentTransform;
+int _NumberOfAttachments;
+int _AttachmentOffset;
+
+// https://twistedpairdevelopment.wordpress.com/2013/02/11/rotating-a-vector-by-a-quaternion-in-glsl/
+float3 rotateVector( float4 quat, float3 vec )
+{
+    return vec + 2.0 * cross( cross( vec, quat.xyz ) + quat.w * vec, quat.xyz );
+}
+
+float4 quatFromAngleAxis(float3 axis, float angle)
+{
+    float s = sin(angle * 0.5f);
+    float c = sqrt(1.f - s*s);
+
+    return float4(s * axis, c);
+}
+
+float4 quatFromTo(float3 from, float3 to)
+{
+    float4 q;
+    float d = dot(from, to);
+    if (d < -0.999999f)
+    {
+        float3 right = float3(1, 0, 0);
+        float3 up = float3(0, 1, 0);
+        float3 tmp = cross(right, from);
+        if (length(tmp) < 0.000001)
+        {
+            tmp = cross(up, from);
+        }
+        tmp = normalize(tmp);
+        q = quatFromAngleAxis(tmp, PI);
+    } else if (d > 0.999999) {
+        q = float4(0.f, 0.f, 0.f, 1.f);
+    } else {
+        q.xyz = cross(to, from);
+        q.w = 1 + d;
+        q = normalize(q);
+    }
+    
+    return q;
+}
+
+
+
+
+[numthreads(64,1,1)]
+void KERNEL_NAME (uint id : SV_DispatchThreadID)
+{
+    if(id < (uint)_NumberOfAttachments)
+    {
+        
+        float3 targetBlended = 0.0f;
+        float targetWeights = 0.0f;
+
+        int itemIndex = _AttachmentOffset + int(id);
+        int resolveVertexIndex = int(id);
+
+        #if GENERATE_MOVECS
+        float3 previousPos = asfloat(_AttachmentPosNormalBuffer.Load3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.y));
+        #endif
+        
+        SkinAttachmentItem item = _AttachmentItems[itemIndex];
+    
+        int poseIndex0 = item.poseIndex;
+        int poseIndexN = item.poseIndex + item.poseCount;
+
+        for (int poseIndex = poseIndex0; poseIndex != poseIndexN; poseIndex++)
+        {
+            SkinAttachmentPose pose = _AttachmentPoses[poseIndex];
+
+            float3 p0 = asfloat(_SkinPosNormalBuffer.Load3(pose.v0 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
+            float3 p1 = asfloat(_SkinPosNormalBuffer.Load3(pose.v1 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
+            float3 p2 = asfloat(_SkinPosNormalBuffer.Load3(pose.v2 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
+
+            float3 v0v1 = p1 - p0;
+            float3 v0v2 = p2 - p0;
+    
+            float3 triangleNormal = cross(v0v1, v0v2);
+            float triangleArea = length(triangleNormal);
+    
+            triangleNormal /= triangleArea;
+            triangleArea *= 0.5f;
+    
+            float3 targetProjected = pose.targetCoord.x * p0 + pose.targetCoord.y * p1 + pose.targetCoord.z * p2;
+            float3 target = targetProjected + triangleNormal * pose.targetDist;
+    
+            targetBlended += triangleArea * target;
+            targetWeights += triangleArea;
+        }
+
+        targetBlended = targetBlended / targetWeights;
+        float3 toNormal = asfloat(_SkinPosNormalBuffer.Load3(item.baseVertex * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.z));
+
+        //convert to the same space as the attachment vertices
+        targetBlended = mul(_PostSkinningToAttachmentTransform, float4(targetBlended, 1.f) ).xyz;
+        toNormal = mul(_PostSkinningToAttachmentTransform, float4(toNormal, 0.f) ).xyz;
+        toNormal = normalize(toNormal);
+        
+        float3 fromNormal = item.baseNormal;
+        float4 rot = quatFromTo(fromNormal, toNormal);
+
+        float3 targetNormal = rotateVector(rot, item.targetNormal);
+        float3 targetOffset = rotateVector(rot, item.targetOffset);
+
+        float3 resolvedPos = mul(_ResolveTransform, float4(targetBlended + targetOffset, 1.f)).xyz;
+        float3 resolvedNormal = mul(_ResolveTransform,float4(targetNormal, 0.f)).xyz;
+
+        _AttachmentPosNormalBuffer.Store3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.y, asuint(resolvedPos));
+        _AttachmentPosNormalBuffer.Store3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.z, asuint(normalize(resolvedNormal)));
+
+        #if GENERATE_MOVECS
+        _AttachmentMovecsBuffer.Store3(resolveVertexIndex * _StrideOffsetMovecs.x + _StrideOffsetMovecs.y, asuint(resolvedPos - previousPos));
+        #endif
+        
+    }
+
+    
+}

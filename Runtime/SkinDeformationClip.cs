@@ -202,6 +202,11 @@ namespace Unity.DemoTeam.DigitalHuman
 		//--- frame data serialization begin ---
 		void OnEnable()
 		{
+#if UNITY_EDITOR
+			if(string.IsNullOrEmpty(frameDataStreamingAssetsPath))
+				frameDataStreamingAssetsPath = "/SkinDeformationClip/" + AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(this)) + "__" + this.name;
+#endif
+
 			if (frameDataPending)
 			{
 				LoadFrameData();
@@ -315,9 +320,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			string filenameAsset = AssetDatabase.GetAssetPath(this);
 			string filenameFrameData = filenameAsset + "_frames.bin";
-
-			frameDataStreamingAssetsPath = "/SkinDeformationClip/" + AssetDatabase.AssetPathToGUID(filenameAsset) + "__" + this.name;
-
+			
 			var copySrc = filenameFrameData;
 			var copyDst = Application.streamingAssetsPath + frameDataStreamingAssetsPath;
 
@@ -329,7 +332,15 @@ namespace Unity.DemoTeam.DigitalHuman
 			try
 			{
 				if (File.Exists(copyDst))
+				{
+					var attrDst = File.GetAttributes(copyDst);
+					if (attrDst.HasFlag(FileAttributes.ReadOnly))
+					{
+						File.SetAttributes(copyDst, attrDst & (~FileAttributes.ReadOnly));
+					}
+
 					File.Delete(copyDst);
+				}
 
 				Directory.CreateDirectory(copyDstDir);
 				File.Copy(copySrc, copyDst);

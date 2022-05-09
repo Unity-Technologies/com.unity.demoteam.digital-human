@@ -1,7 +1,9 @@
 ﻿using System;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Serialization;
 using Unity.DemoTeam.Attributes;
+using Unity.Mathematics;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
@@ -27,6 +29,8 @@ namespace Unity.DemoTeam.DigitalHuman
 		[Header("Sclera")]
 		[FormerlySerializedAs("eyeLitIORSclera"), Range(1.0f, 2.0f)]
 		public float scleraIOR = IOR_HUMAN_TEARS;
+		[Range(0.0f, 360.0f)]
+		public float scleraTextureRoll = 0.0f;
 
 		[Header("Cornea")]
 		public bool corneaCrossSectionEditMode = false;
@@ -44,6 +48,9 @@ namespace Unity.DemoTeam.DigitalHuman
 		public float corneaSmoothness = 0.917f;
 		[FormerlySerializedAs("eyeCorneaSSSScale"), Range(0.0f, 1.0f)]
 		public float corneaSSS = 0.0f;
+		
+		[Range(0.000001f, 2)]
+		public float limbalRingPower = 1.0f;
 
 		[Header("Iris")]
 		[FormerlySerializedAs("eyeIrisBentLighting")]
@@ -58,8 +65,14 @@ namespace Unity.DemoTeam.DigitalHuman
 		public float pupilUVDiameter = 0.095f;
 		[FormerlySerializedAs("eyePupilFalloff")]
 		public float pupilUVFalloff = 0.015f;
-		[FormerlySerializedAs("eyePupilScale"), Range(0.5f, 2.2f)]
+		[FormerlySerializedAs("eyePupilScale"), Range(0.001f, 2.2f)]
 		public float pupilScale = 1.0f;
+
+		public float pupilScaleUVMin = 0.5f;
+		public float pupilScaleUVMax = 2.2f;
+		
+		
+
 
 		[Header("Occlusion")]
 		[FormerlySerializedAs("eyeAsgPower"), Range(1e-1f, 128.0f)]
@@ -68,8 +81,22 @@ namespace Unity.DemoTeam.DigitalHuman
 		public float asgThreshold = 1e-7f;
 		[FormerlySerializedAs("eyeAsgModulateAlbedo"), Range(0.0f, 1.0f)]
 		public float asgModulateAlbedo = 0.65f;
+		
+		public bool useExtraASGLayerOnIris = false;
+		[VisibleIf("useExtraASGLayerOnIris", true), Range(1e-1f, 128.0f)]
+		public float asgPowerIris = 10.0f;
+		[VisibleIf("useExtraASGLayerOnIris", true), Range(0.0f, 1.0f)]
+		public float asgModulateAlbedoIris = 0.0f;
+		
+		
 		[FormerlySerializedAs("eyePolygonContainer")]
 		public Transform asgMarkerPolygon;
+		
+		
+
+		public bool useSeparateIrisTextures = false;
+		[VisibleIf("useSeparateIrisTextures", true)]
+		public float irisUVExtraScale = 1.0f;
 
 		public enum ConeMapping
 		{
@@ -113,6 +140,10 @@ namespace Unity.DemoTeam.DigitalHuman
 		public Vector2 asgSharpness = new Vector2(1.25f, 9.0f);
 		[NonSerialized]
 		public Vector2 asgThresholdScaleBias = new Vector2(1.0f, 0.0f);
+
+		public delegate void EyeRendererAboutToSetMaterialCallback(MaterialPropertyBlock block);
+
+		public event EyeRendererAboutToSetMaterialCallback EyeMaterialUpdateEvent;
 
 		void Awake()
 		{
@@ -269,12 +300,14 @@ namespace Unity.DemoTeam.DigitalHuman
 					rndProps.SetFloat("_EyeCorneaCrossSection", 1e+7f);
 					rndProps.SetFloat("_EyeCorneaCrossSectionIrisOffset", 0.0f);
 					rndProps.SetFloat("_EyeCorneaCrossSectionFadeOffset", 0.0f);
+					rndProps.SetFloat("_EyeLimbalRingPower" , limbalRingPower);
 				}
 				else
 				{
 					rndProps.SetFloat("_EyeCorneaCrossSection", corneaCrossSection);
-					rndProps.SetFloat("_EyeCorneaCrossSectionIrisOffset", Mathf.Max(0.0f, corneaCrossSectionIrisOffset));
+					rndProps.SetFloat("_EyeCorneaCrossSectionIrisOffset", corneaCrossSectionIrisOffset);
 					rndProps.SetFloat("_EyeCorneaCrossSectionFadeOffset", Mathf.Max(0.0f, corneaCrossSectionFadeOffset));
+					rndProps.SetFloat("_EyeLimbalRingPower", limbalRingPower);
 				}
 
 				rndProps.SetFloat("_EyeCorneaIOR", corneaIOR);
@@ -289,6 +322,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				rndProps.SetFloat("_EyePupilUVDiameter", pupilUVDiameter);
 				rndProps.SetFloat("_EyePupilUVFalloff", pupilUVFalloff);
 				rndProps.SetFloat("_EyePupilScale", pupilScale);
+				rndProps.SetVector("_EyePupilScaleUVMinMax", new Vector4(pupilScaleUVMin, pupilScaleUVMax, 0.0f, 0.0f));
 
 				rndProps.SetFloat("_EyeScleraIOR", scleraIOR);
 
@@ -300,10 +334,41 @@ namespace Unity.DemoTeam.DigitalHuman
 				rndProps.SetVector("_EyeAsgTangentOS", asgTangentOS);
 				rndProps.SetVector("_EyeAsgBitangentOS", asgBitangentOS);
 				rndProps.SetFloat("_EyeAsgModulateAlbedo", asgModulateAlbedo);
+
+
+				float irisASGBlend = useExtraASGLayerOnIris ? 1 : 0;
+				Vector4 asgIrisParams = new Vector4(irisASGBlend, asgPowerIris, 0,
+					asgModulateAlbedoIris * irisASGBlend);
+				rndProps.SetVector("_EyeAsgIrisParams", asgIrisParams);
+				
+				rndProps.SetVector("_ScleraTextureRollSinCos", new Vector4(Mathf.Sin(Mathf.Deg2Rad * scleraTextureRoll), Mathf.Cos(Mathf.Deg2Rad * scleraTextureRoll), 0.0f, 0.0f));
+				
+				if (useSeparateIrisTextures)
+				{
+					float angle = Mathf.Acos(corneaCrossSection / geometryRadius);
+
+					float sphericalEyeIrisRadius = Mathf.Sin(angle) * geometryRadius;
+
+					float s = irisUVExtraScale * geometryRadius / sphericalEyeIrisRadius;
+					
+					rndProps.SetVector("_EyeIrisUVScaleBias", new Vector4(s, s, -0.5f * s + 0.5f, -0.5f * s + 0.5f));
+				}
+				else
+				{
+					rndProps.SetVector("_EyeIrisUVScaleBias", new Vector4(1.0f, 1.0f, 0.0f, 0.0f));
+				}
+				
 			}
+
+			EyeMaterialUpdateEvent?.Invoke(rndProps);
+
+
+
 			rnd.SetPropertyBlock(rndProps);
 		}
 
+		
+		
 		void OnDrawGizmos()
 		{
 			if (!coneDebug)

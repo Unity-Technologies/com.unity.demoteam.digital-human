@@ -16,6 +16,9 @@ float _EyeCorneaIOR;
 float _EyeCorneaIORIrisRay;
 float _EyeCorneaSmoothness;
 float _EyeCorneaSSS;
+float _EyeLimbalRingPower;
+float4 _EyeIrisUVScaleBias;
+float4 _ScleraTextureRollSinCos;
 
 float _EyeIrisRefractedLighting;
 float _EyeIrisRefractedOffset;
@@ -24,6 +27,8 @@ float2 _EyePupilUVOffset;
 float _EyePupilUVDiameter;
 float _EyePupilUVFalloff;
 float _EyePupilScale;
+float2 _EyePupilScaleUVMinMax;
+
 
 float _EyeAsgPower;
 float _EyeAsgModulateAlbedo;
@@ -34,6 +39,11 @@ float3 _EyeAsgTangentOS;
 float3 _EyeAsgBitangentOS;
 float2 _EyeAsgSharpness;
 float2 _EyeAsgThresholdScaleBias;
+float4 _EyeAsgIrisParams;
+
+#define _EyeAsgIrisBlend _EyeAsgIrisParams.x
+#define _EyeAsgIrisPower _EyeAsgIrisParams.y
+#define _EyeAsgIrisModulateAlbedo _EyeAsgIrisParams.w
 
 struct AnisotropicSphericalSuperGaussian
 {
@@ -63,7 +73,8 @@ float EvaluateAnisotropicSphericalSuperGaussian(const in AnisotropicSphericalSup
 
 struct EyeProperties
 {
-	float2 refractedUV;
+	float2 uvIris;
+	float2 uvSclera;
 	float maskCornea;
 	float maskSclera;
 	float maskPupil;
@@ -73,6 +84,8 @@ struct EyeProperties
 	float irisBentLighting;
 	float corneaSmoothness;
 	float corneaSSS;
+	float maskLimbalRing;
+	float irisHeight;
 };
 
 float2 ResolvePlanarUV(in float3 positionOS)
@@ -98,11 +111,11 @@ EyeProperties ResolveEyeProperties(in float3 surfacePositionOS, in float3 surfac
 	// this new ray with the iris, in order to obtain the texture coordinates for the bottom layer
 	float3 crossSectionOrigin = _EyeGeometryOrigin + _EyeGeometryForward * _EyeCorneaCrossSection;
 	float crossSectionDistance = dot(_EyeGeometryForward, surfacePositionOS - crossSectionOrigin);
-
 	if (crossSectionDistance > 0.0)
 	{
 		float3 refractedRayOS = refract(viewDirectionOS, surfaceNormalOS, 1.0 / _EyeCorneaIORIrisRay);
 		float refractedRayCosA = -dot(_EyeGeometryForward, refractedRayOS);
+
 		float refractedRayT;
 		{
 			if (_EyeIrisRefractedOffset)
@@ -110,8 +123,7 @@ EyeProperties ResolveEyeProperties(in float3 surfacePositionOS, in float3 surfac
 			else
 				refractedRayT = (crossSectionDistance + _EyeCorneaCrossSectionIrisOffset) / refractedRayCosA;
 		}
-
-		uv1 = ResolvePlanarUV(surfacePositionOS + refractedRayOS * refractedRayT);
+		uv1 = ResolvePlanarUV(surfacePositionOS + refractedRayOS * refractedRayT) * _EyeIrisUVScaleBias.xy + _EyeIrisUVScaleBias.zw;
 	}
 
 	// perform linear uv remapping of the bottom layer to allow dilation of the pupil
@@ -122,8 +134,8 @@ EyeProperties ResolveEyeProperties(in float3 surfacePositionOS, in float3 surfac
 		float centerDist = length(centerVec);
 		float2 centerDir = centerVec / centerDist;
 
-		float sampleIrisMax = 2.2 * _EyePupilUVDiameter;//TODO replace with user param
-		float sampleIrisMin = 0.5 * _EyePupilUVDiameter;
+		float sampleIrisMax = _EyePupilScaleUVMinMax.y * _EyePupilUVDiameter;
+		float sampleIrisMin = _EyePupilScaleUVMinMax.x * _EyePupilUVDiameter;
 
 		float outputIrisMax = sampleIrisMax;
 		float outputIrisMin = clamp(sampleIrisMin * _EyePupilScale, FLT_EPS, sampleIrisMax - FLT_EPS);
@@ -133,8 +145,10 @@ EyeProperties ResolveEyeProperties(in float3 surfacePositionOS, in float3 surfac
 	}
 
 	// resolve blend masks for sclera and cornea
-	float maskSclera = smoothstep(0.0, _EyeCorneaCrossSectionFadeOffset, -crossSectionDistance);
-	float maskCornea = smoothstep(0.0, _EyeCorneaCrossSectionFadeOffset, crossSectionDistance);
+	float maskSclera = pow(smoothstep(0.0, _EyeCorneaCrossSectionFadeOffset, -crossSectionDistance), _EyeLimbalRingPower);
+	float maskCornea = pow(smoothstep(0.0, _EyeCorneaCrossSectionFadeOffset, crossSectionDistance), _EyeLimbalRingPower);
+	//limbal ring
+	float limbalRingMask = 1.f - maskSclera - maskCornea;
 
 	// resolve blend mask for the pupil
 	float distPupil = length(uv1 - float2(0.5, 0.5) + _EyePupilUVOffset) - (0.5 * _EyePupilUVDiameter);
@@ -152,27 +166,49 @@ EyeProperties ResolveEyeProperties(in float3 surfacePositionOS, in float3 surfac
 
 	float3 asgEvaluationDirectionOS = normalize(surfacePositionOS - _EyeAsgOriginOS);
 	float asgAO = EvaluateAnisotropicSphericalSuperGaussian(asg, asgEvaluationDirectionOS);
+	asgAO = saturate(asgAO * _EyeAsgThresholdScaleBias.x + _EyeAsgThresholdScaleBias.y);
 
+	float asgIris = 1.f;
+	{
+		asg.power = _EyeAsgIrisPower;
+		asgIris = EvaluateAnisotropicSphericalSuperGaussian(asg, asgEvaluationDirectionOS);
+		asgIris = saturate(asgIris * _EyeAsgThresholdScaleBias.x + _EyeAsgThresholdScaleBias.y);
+		asgIris = lerp(1.f, asgIris, _EyeAsgIrisBlend * maskCornea);
+	}
+
+	asgAO *= asgIris;
+	float albedoModulation = 1.f - (1.f - _EyeAsgModulateAlbedo) * (1.f - _EyeAsgIrisModulateAlbedo * maskCornea);
+
+	float2x2 scleraRotMat = float2x2(_ScleraTextureRollSinCos.y, -_ScleraTextureRollSinCos.x, _ScleraTextureRollSinCos.x, _ScleraTextureRollSinCos.y);
+	
+	float2 scleraUV = lerp(uv0, uv1, maskCornea); //lerp the uvs for sclera using cornea mask, this allows using the "single texture" behavior if needed
+	scleraUV = mul(scleraRotMat, scleraUV - 0.5f) + 0.5f;
+	
 	// copy to output struct
 	EyeProperties props;
-	props.refractedUV = lerp(uv0, uv1, maskCornea);
+	props.uvIris = uv1;
+	props.uvSclera = scleraUV;
 	props.maskCornea = maskCornea;
 	props.maskSclera = maskSclera;
 	props.maskPupil = maskPupil;
-	props.asgAO = saturate(asgAO * _EyeAsgThresholdScaleBias.x + _EyeAsgThresholdScaleBias.y);
-	props.asgModulateAlbedo = _EyeAsgModulateAlbedo;
+	props.asgAO = asgAO;
+	props.asgModulateAlbedo = albedoModulation;
 	props.ior = lerp(_EyeScleraIOR, _EyeCorneaIOR, maskCornea);
 	props.irisBentLighting = _EyeIrisRefractedLighting;
 	props.corneaSmoothness = _EyeCorneaSmoothness;
 	props.corneaSSS = _EyeCorneaSSS;
+	props.maskLimbalRing = limbalRingMask;
+	props.irisHeight = _EyeCorneaCrossSection;
 	return props;
 }
 
-void EyeProperties_float(in float3 positionOS, in float3 normalOS, out float2 refractedUV, out float maskCornea, out float maskSclera, out float maskPupil, out float asgAO, out float asgModulateAlbedo, out float ior, out float irisBentLighting, out float corneaSmoothness, out float corneaSSS)
+void EyeProperties_float(in float3 positionOS, in float3 normalOS, out float2 uvIris, out float2 uvSclera, out float maskCornea, out float maskSclera, out float maskPupil,out float limbalRingMask, out float asgAO, out float asgModulateAlbedo, out float ior, out float irisBentLighting, out float corneaSmoothness, out float corneaSSS,
+	out float irisHeight)
 {
 	EyeProperties props = ResolveEyeProperties(positionOS, normalOS);
 	{
-		refractedUV = props.refractedUV;
+		uvIris = props.uvIris;
+		uvSclera = props.uvSclera;
 		maskCornea = props.maskCornea;
 		maskSclera = props.maskSclera;
 		maskPupil = props.maskPupil;
@@ -182,6 +218,8 @@ void EyeProperties_float(in float3 positionOS, in float3 normalOS, out float2 re
 		irisBentLighting = props.irisBentLighting;
 		corneaSmoothness = props.corneaSmoothness;
 		corneaSSS = props.corneaSSS;
+		limbalRingMask = props.maskLimbalRing;
+		irisHeight = props.irisHeight;
 	}
 }
 

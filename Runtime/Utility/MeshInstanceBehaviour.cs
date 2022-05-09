@@ -35,8 +35,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public void EnsureMeshInstance()
 		{
-			var smr = GetComponent<SkinnedMeshRenderer>();
-			if (smr != null)
+			if(TryGetComponent<SkinnedMeshRenderer>(out var smr))
 			{
 				if (smr.sharedMesh == null || (IsMeshInstance(smr.sharedMesh) && smr.sharedMesh != meshInstance))
 					smr.sharedMesh = meshAsset;
@@ -47,8 +46,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				return;
 			}
 
-			var mf = GetComponent<MeshFilter>();
-			if (mf != null)
+			if(TryGetComponent<MeshFilter>(out var mf))
 			{
 				if (mf.sharedMesh == null || (IsMeshInstance(mf.sharedMesh) && mf.sharedMesh != meshInstance))
 					mf.sharedMesh = meshAsset;
@@ -72,7 +70,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			meshInstance = Mesh.Instantiate(meshAsset);
 			meshInstance.name = meshAsset.name + meshInstanceSuffix;
 			meshInstance.hideFlags = HideFlags.HideAndDontSave & ~HideFlags.DontUnloadUnusedAsset;
-			meshInstance.MarkDynamic();
+			//meshInstance.MarkDynamic(); //enabling this makes it impossible to write to the vertex buffers from gpu
 
 			//Debug.Log("ensureMeshInstance " + meshAsset.name + " -> " + meshInstance.name);
 
@@ -83,8 +81,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public void RemoveMeshInstance()
 		{
-			var smr = GetComponent<SkinnedMeshRenderer>();
-			if (smr != null)
+			if(TryGetComponent<SkinnedMeshRenderer>(out var smr))
 			{
 				if (smr.sharedMesh == null || IsMeshInstance(smr.sharedMesh))
 					smr.sharedMesh = meshAsset;
@@ -93,8 +90,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				return;
 			}
 
-			var mf = GetComponent<MeshFilter>();
-			if (mf != null)
+			if(TryGetComponent<MeshFilter>(out var mf))
 			{
 				if (mf.sharedMesh == null || IsMeshInstance(mf.sharedMesh))
 					mf.sharedMesh = meshAsset;
