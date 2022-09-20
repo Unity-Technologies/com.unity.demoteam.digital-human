@@ -5,9 +5,10 @@ Library of tech features used to realize the digital human from *The Heretic*.
 
 ## Requirements
 
-- Unity 2019.3.12f1 +
-- HDRP 7.3.1 +
+- Unity 2020.3 +
+- HDRP 10.10 +
 
+(A 2019.3-compatible package version available on the 2019.3 branch)
 
 ## Features
 
