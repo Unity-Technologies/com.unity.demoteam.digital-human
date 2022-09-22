@@ -1,6 +1,7 @@
 
 #pragma kernel ResolveAttachment KERNEL_NAME=ResolveAttachment
 #pragma kernel ResolveAttachmentWithMovecs KERNEL_NAME=ResolveAttachmentWithMovecs GENERATE_MOVECS
+#pragma kernel ResolveTransformAttachments KERNEL_NAME=ResolveTransformAttachments TRANSFORM_RESOLVE
 
 #ifndef PI
 #define PI 3.14159265359f
@@ -28,8 +29,9 @@ struct SkinAttachmentItem
 };
 
 
-StructuredBuffer<SkinAttachmentPose> _AttachmentPoses;
-StructuredBuffer<SkinAttachmentItem> _AttachmentItems;
+StructuredBuffer<SkinAttachmentPose> _AttachmentPosesBuffer;
+StructuredBuffer<SkinAttachmentItem> _AttachmentItemsBuffer;
+StructuredBuffer<uint> _TransformAttachmentOffsetBuffer;
 
 ByteAddressBuffer _SkinPosNormalBuffer;
 RWByteAddressBuffer _AttachmentPosNormalBuffer;
@@ -100,18 +102,22 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         int itemIndex = _AttachmentOffset + int(id);
         int resolveVertexIndex = int(id);
 
+        #if TRANSFORM_RESOLVE
+        itemIndex = _TransformAttachmentOffsetBuffer[id];
+        #endif
+
         #if GENERATE_MOVECS
         float3 previousPos = asfloat(_AttachmentPosNormalBuffer.Load3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.y));
         #endif
         
-        SkinAttachmentItem item = _AttachmentItems[itemIndex];
+        SkinAttachmentItem item = _AttachmentItemsBuffer[itemIndex];
     
         int poseIndex0 = item.poseIndex;
         int poseIndexN = item.poseIndex + item.poseCount;
 
         for (int poseIndex = poseIndex0; poseIndex != poseIndexN; poseIndex++)
         {
-            SkinAttachmentPose pose = _AttachmentPoses[poseIndex];
+            SkinAttachmentPose pose = _AttachmentPosesBuffer[poseIndex];
 
             float3 p0 = asfloat(_SkinPosNormalBuffer.Load3(pose.v0 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
             float3 p1 = asfloat(_SkinPosNormalBuffer.Load3(pose.v1 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
@@ -151,8 +157,9 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         float3 resolvedNormal = mul(_ResolveTransform,float4(targetNormal, 0.f)).xyz;
 
         _AttachmentPosNormalBuffer.Store3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.y, asuint(resolvedPos));
+#if !TRANSFORM_RESOLVE
         _AttachmentPosNormalBuffer.Store3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.z, asuint(normalize(resolvedNormal)));
-
+#endif
         #if GENERATE_MOVECS
         _AttachmentMovecsBuffer.Store3(resolveVertexIndex * _StrideOffsetMovecs.x + _StrideOffsetMovecs.y, asuint(resolvedPos - previousPos));
         #endif

@@ -1,6 +1,8 @@
 #ifndef __EYEPROPERTIES_H__
 #define __EYEPROPERTIES_H__
 
+#include <Packages/com.unity.demoteam.digital-human/Runtime/Resources/EyeOcclusionParameters.cs.hlsl>
+
 float _EyeGeometryRadius;
 float3 _EyeGeometryOrigin;
 float3 _EyeGeometryForward;
@@ -33,13 +35,9 @@ float2 _EyePupilScaleUVMinMax;
 float _EyeAsgPower;
 float _EyeAsgModulateAlbedo;
 
-float3 _EyeAsgOriginOS;
-float3 _EyeAsgMeanOS;
-float3 _EyeAsgTangentOS;
-float3 _EyeAsgBitangentOS;
-float2 _EyeAsgSharpness;
-float2 _EyeAsgThresholdScaleBias;
 float4 _EyeAsgIrisParams;
+
+StructuredBuffer<EyeOcclusionParameters> _EyeOcclusionParameters;
 
 #define _EyeAsgIrisBlend _EyeAsgIrisParams.x
 #define _EyeAsgIrisPower _EyeAsgIrisParams.y
@@ -156,23 +154,24 @@ EyeProperties ResolveEyeProperties(in float3 surfacePositionOS, in float3 surfac
 
 	// construct a function across the surface of the eye that roughly approximates visiblity function (eye lids occlude eye),
 	// but are too thin / small to rely on typical shadow mapping techniques to capture high enough quality visiblity
+	EyeOcclusionParameters eyeOcclusionParams = _EyeOcclusionParameters[0];
 	AnisotropicSphericalSuperGaussian asg;
 	asg.amplitude = 1.0;
 	asg.power = _EyeAsgPower;
-	asg.sharpness = _EyeAsgSharpness;
-	asg.mean = _EyeAsgMeanOS;
-	asg.tangent = _EyeAsgTangentOS;
-	asg.bitangent = _EyeAsgBitangentOS;
+	asg.sharpness = eyeOcclusionParams.asgSharpness;
+	asg.mean = eyeOcclusionParams.asgMeanOS.xyz;
+	asg.tangent = eyeOcclusionParams.asgTangentOS.xyz;
+	asg.bitangent = eyeOcclusionParams.asgBitangentOS.xyz;
 
-	float3 asgEvaluationDirectionOS = normalize(surfacePositionOS - _EyeAsgOriginOS);
+	float3 asgEvaluationDirectionOS = normalize(surfacePositionOS - eyeOcclusionParams.asgOriginOS.xyz);
 	float asgAO = EvaluateAnisotropicSphericalSuperGaussian(asg, asgEvaluationDirectionOS);
-	asgAO = saturate(asgAO * _EyeAsgThresholdScaleBias.x + _EyeAsgThresholdScaleBias.y);
+	asgAO = saturate(asgAO * eyeOcclusionParams.asgThresholdScaleBias.x + eyeOcclusionParams.asgThresholdScaleBias.y);
 
 	float asgIris = 1.f;
 	{
 		asg.power = _EyeAsgIrisPower;
 		asgIris = EvaluateAnisotropicSphericalSuperGaussian(asg, asgEvaluationDirectionOS);
-		asgIris = saturate(asgIris * _EyeAsgThresholdScaleBias.x + _EyeAsgThresholdScaleBias.y);
+		asgIris = saturate(asgIris * eyeOcclusionParams.asgThresholdScaleBias.x + eyeOcclusionParams.asgThresholdScaleBias.y);
 		asgIris = lerp(1.f, asgIris, _EyeAsgIrisBlend * maskCornea);
 	}
 

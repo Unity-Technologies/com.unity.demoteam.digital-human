@@ -2,7 +2,6 @@
 using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.DemoTeam.Attributes;
 using UnityEngine.Rendering;
 
 namespace Unity.DemoTeam.DigitalHuman
@@ -54,7 +53,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public bool GeneratePrecalculatedMotionVectors = false;
 
-        [Header("Debug options")] public bool showBounds = false;
+        [Header("Debug options")] 
+        public bool showBounds = false;
         public bool showIslands = false;
         public bool showRootLines = false;
         private const int debugColorsSize = 7;
@@ -64,7 +64,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
         private static SkinAttachmentData debugData;
 
-        [Header("Runtime options")] public bool forceRecalculateBounds;
+        [Header("Runtime options")]
+        public bool forceRecalculateBounds;
         public bool forceRecalculateNormals;
         public bool forceRecalculateTangents;
 
@@ -77,6 +78,8 @@ namespace Unity.DemoTeam.DigitalHuman
         [NonSerialized] public Matrix4x4 skinningBoneBindPose;
         [NonSerialized] public Matrix4x4 skinningBoneBindPoseInverse;
 
+        public int TransformAttachmentGPUBufferIndex { get; set; } = -1;
+        
         public Matrix4x4 GetWorldToLocalSkinning()
         {
             if (skinningBone != null)
@@ -134,11 +137,6 @@ namespace Unity.DemoTeam.DigitalHuman
                     //Debug.Log("discovered skinning bone for " + this.name + " : " + skinningBone.name);
                 }
             }
-        }
-        
-        public bool UseComputeResolve()
-        {
-            return attachmentType != AttachmentType.Transform;
         }
 
         protected override void OnMeshInstanceCreated()

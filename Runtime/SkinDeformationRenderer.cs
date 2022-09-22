@@ -17,9 +17,9 @@ namespace Unity.DemoTeam.DigitalHuman
         public static List<SkinDeformationRenderer> enabledInstances = new List<SkinDeformationRenderer>();
 #endif
 #if UNITY_2021_2_OR_NEWER
-        public bool forceCPUDeformation = false;
+        public bool executeOnGPU = false;
 #else
-        private const bool forceCPUDeformation = true;
+        private const bool executeOnGPU = false;
 #endif
         [NonSerialized] public MeshBuffers meshAssetBuffers;
 
@@ -71,11 +71,11 @@ namespace Unity.DemoTeam.DigitalHuman
         private BlendInput[] blendInputsPrev = new BlendInput[2];
         private bool blendInputsRendered = false;
 
-        public bool UseCPUDeformation => forceCPUDeformation;
+        public bool UseCPUDeformation => !executeOnGPU;
 
-        public Vector3[] CurrentDeformedPositionOffsets => blendedPositions;
+        public Vector3[] CurrentDeformedPositions => blendedPositions;
 
-        public Vector3[] CurrentDeformedNormalOffsets => blendedNormals;
+        public Vector3[] CurrentDeformedNormals => blendedNormals;
 
         private Vector3[] blendedPositions;
         private Vector3[] blendedNormals;
@@ -92,40 +92,16 @@ namespace Unity.DemoTeam.DigitalHuman
         private string muteFacialRigExcludePrev = null;
         private bool[] muteFacialRigExcludeMark = new bool[0];
 
-        [Header("Tension Sampler")] 
-        public bool tensionSampleEnable = true;
-        public float tensionGain = 1.0f;
-        public Mesh tensionBasePose;
-
-        // Tension Burst Jobs
-        [NonSerialized] private MeshAdjacency tensionMeshAdjacency;
-
-        private JobHandle tensionStagingJob;
-        private JobHandle tensionsRestStageJob;
-        private NativeArray<float> tensionEdgeRestLengths;
-        private NativeArray<int> tensionAdjacentVertices;
-        private NativeArray<int> tensionAdjacentCount;
-        private NativeArray<int> tensionAdjacentOffset;
-        private NativeArray<Color> tensionColors;
-        // END Tension
-        private bool resourcesCreatedForTensions;
+       
         private bool resourcesCreatedForGPU;
-
-        private Mesh lastTensionBasePose = null;
 
 #if UNITY_2021_2_OR_NEWER
         // GPU Deform resource
         private ComputeShader skinDeformCS;
         private int applyDeformKernel;
-        private int calculateSkinTensionKernel;
         private ComputeBuffer positionAndNormalDeltasBuffer;
         private ComputeBuffer neutralPositionsBuffer;
         private ComputeBuffer neutralNormalsBuffer;
-
-        private ComputeBuffer edgeRestLengthsBuffer;
-        private ComputeBuffer adjacentVerticesBuffer;
-        private ComputeBuffer adjacentVerticesCountBuffer;
-        private ComputeBuffer adjacentOffsetsBuffer;
 
         private NativeArray<half> positionAndNormalDeltaCPUBuffer;
 
@@ -135,22 +111,13 @@ namespace Unity.DemoTeam.DigitalHuman
             internal static int _NeutralNormals = Shader.PropertyToID("_NeutralNormals");
 
             internal static int _TargetMeshPosNormalBuffer = Shader.PropertyToID("_TargetMeshPosNormalBuffer");
-            internal static int _TargetMeshColorBuffer = Shader.PropertyToID("_TargetMeshColorBuffer");
 
             internal static int _NumberOfVertices = Shader.PropertyToID("_NumberOfVertices");
             internal static int _PositionStrideOffset = Shader.PropertyToID("_PositionStrideOffset");
             internal static int _NormalStrideOffset = Shader.PropertyToID("_NormalStrideOffset");
-            internal static int _ColorStrideOffset = Shader.PropertyToID("_ColorStrideOffset");
 
             //apply
             internal static int _PositionAndNormalDeltas = Shader.PropertyToID("_PositionAndNormalDeltas");
-
-            //tension
-            internal static int _EdgeRestLengthsBuffer = Shader.PropertyToID("_EdgeRestLengthsBuffer");
-            internal static int _AdjacentVerticesBuffer = Shader.PropertyToID("_AdjacentVerticesBuffer");
-            internal static int _AdjacentVerticesCountBuffer = Shader.PropertyToID("_AdjacentVerticesCountBuffer");
-            internal static int _AdjacentOffsetsBuffer = Shader.PropertyToID("_AdjacentOffsetsBuffer");
-            internal static int _SkinTensionGain = Shader.PropertyToID("_SkinTensionGain");
         }
 #endif
         
@@ -164,29 +131,6 @@ namespace Unity.DemoTeam.DigitalHuman
             else
                 meshAssetBuffers.LoadFrom(meshAsset);
 
-            // TENSION SAMPLER
-            if (tensionSampleEnable)
-            {
-                if (tensionMeshAdjacency == null)
-                    tensionMeshAdjacency = new MeshAdjacency(meshAssetBuffers, true);
-                else
-                    tensionMeshAdjacency.LoadFrom(meshAssetBuffers);
-                
-                //force color attribute for the mesh
-                if (meshInstance.colors.Length == 0) 
-                {
-                    Color32[] colorsTemp = new Color32[meshInstance.vertexCount];
-                    meshInstance.SetColors(colorsTemp);
-
-                }
-            }
-
-            // TENSION
-            if (tensionSampleEnable)
-            {
-                BuildAdjVertexArrays();
-                lastTensionBasePose = tensionBasePose;
-            }
 #if UNITY_2021_2_OR_NEWER
             if (!UseCPUDeformation)
             {
@@ -234,7 +178,6 @@ namespace Unity.DemoTeam.DigitalHuman
         void InitResources()
         {
             EnsureMeshInstance();
-            resourcesCreatedForTensions = tensionSampleEnable;
             resourcesCreatedForGPU = !UseCPUDeformation;
         }
         
@@ -246,11 +189,6 @@ namespace Unity.DemoTeam.DigitalHuman
                 DestroyGPUDeformationResources();
             }
 #endif
-            if (resourcesCreatedForTensions)
-            {
-                DestroyAdjVertexArrays();
-            }
-            
             RemoveMeshInstance();
         }
 
@@ -278,7 +216,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void LateUpdate()
         {
-            if ( (resourcesCreatedForTensions != tensionSampleEnable) ||  (resourcesCreatedForGPU != !UseCPUDeformation) || lastTensionBasePose != tensionBasePose)
+            if ( (resourcesCreatedForGPU != !UseCPUDeformation))
             {
                 FreeResources();
                 InitResources();
@@ -371,16 +309,6 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 meshInstance.SilentlySetVertices(blendedPositions);
                 meshInstance.SilentlySetNormals(blendedNormals);
-                
-                if (tensionSampleEnable)
-                {
-
-                    UnityEngine.Profiling.Profiler.BeginSample("Tension: LateUpdate");
-                    tensionStagingJob = CalculateEdgeLengthsJob(tensionsRestStageJob, blendedPositions);
-                    tensionStagingJob.Complete();
-                    meshInstance.SetColors(tensionColors);
-                    UnityEngine.Profiling.Profiler.EndSample();
-                }
             }
 
             if (renderFittedWeights)
@@ -540,8 +468,6 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
         
-        
-
         [BurstCompile(FloatMode = FloatMode.Fast)]
         unsafe struct AddBlendedDeltaJob : IJobParallelFor
         {
@@ -558,194 +484,6 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-
-        // TENSION SAMPLER - Burst jobs and methods --------------------------------------------------------------------
-
-        void BuildAdjVertexArrays()
-        {
-            DestroyAdjVertexArrays();
-            // Initialize
-            tensionEdgeRestLengths = new NativeArray<float>(tensionMeshAdjacency.vertexCount, Allocator.Persistent);
-            if (UseCPUDeformation)
-            {
-                tensionColors = new NativeArray<Color>(tensionMeshAdjacency.vertexCount, Allocator.Persistent);
-                for (int i = 0; i < tensionMeshAdjacency.vertexCount; i++)
-                {
-                    tensionColors[i] = Color.black;
-                }
-            }
-            
-            // Temp vars
-            List<int> fullVtxList = new List<int>();
-            List<int> vtxOffset = new List<int>();
-            List<int> edgesCount = new List<int>();
-
-            // Build arrays
-            int vtxOffsetCnt = 0;
-            for (int i = 0; i < tensionMeshAdjacency.vertexCount; i++)
-            {
-                List<int> dataCheckVtx = new List<int>();
-                int idx = tensionMeshAdjacency.vertexResolve[i];
-                foreach (var j in tensionMeshAdjacency.vertexVertices[idx])
-                {
-                    dataCheckVtx.Add(j);
-                    fullVtxList.Add(j);
-                }
-
-                edgesCount.Add(dataCheckVtx.Count);
-                vtxOffsetCnt += dataCheckVtx.Count;
-                vtxOffset.Add(vtxOffsetCnt - dataCheckVtx.Count);
-            }
-
-            // Convert to native arrays
-            GetNativeIntArray(fullVtxList.ToArray(), ref tensionAdjacentVertices);
-            GetNativeIntArray(vtxOffset.ToArray(), ref tensionAdjacentOffset);
-            GetNativeIntArray(edgesCount.ToArray(), ref tensionAdjacentCount);
-
-            // Calculate the rest edge lengths
-            unsafe
-            {
-                tensionsRestStageJob = CalculateEdgeRestLengthsJob();
-            }
-
-            JobHandle.ScheduleBatchedJobs();
-            tensionsRestStageJob.Complete();
-        }
-
-        void DestroyAdjVertexArrays()
-        {
-            if (!tensionEdgeRestLengths.IsCreated) 
-                return;
-            tensionEdgeRestLengths.Dispose();
-            tensionAdjacentVertices.Dispose();
-            tensionAdjacentCount.Dispose();
-            tensionAdjacentOffset.Dispose();
-            if (tensionColors.IsCreated)
-            {
-                tensionColors.Dispose();
-            }
-            
-        }
- 
-        unsafe void GetNativeIntArray(int[] vertexArray, ref NativeArray<int> verts)
-        {
-            verts = new NativeArray<int>(vertexArray.Length, Allocator.Persistent,
-                NativeArrayOptions.UninitializedMemory);
-
-            fixed (void* vertexBufferPointer = vertexArray)
-            {
-                UnsafeUtility.MemCpy(NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(verts),
-                    vertexBufferPointer, vertexArray.Length * (long) UnsafeUtility.SizeOf<int>());
-            }
-        }
-
-        private unsafe JobHandle CalculateEdgeRestLengthsJob()
-        {
-            Vector3[] positions = tensionBasePose ? tensionBasePose.vertices : meshAssetBuffers.vertexPositions;
-
-            fixed (Vector3* meshPositions = positions)
-            {
-                var job = new ResolveRestLengthJob()
-                {
-                    meshPositions = meshPositions,
-                    restLengths = tensionEdgeRestLengths,
-                    adjacentVertices = tensionAdjacentVertices,
-                    adjacentCount = tensionAdjacentCount,
-                    adjacentOffset = tensionAdjacentOffset,
-                };
-                return job.Schedule(tensionMeshAdjacency.vertexCount, 128);
-            }
-        }
-
-        [BurstCompile(FloatMode = FloatMode.Fast, CompileSynchronously = true)]
-        unsafe struct ResolveRestLengthJob : IJobParallelFor
-        {
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector3* meshPositions;
-
-            [ReadOnly] public NativeArray<int> adjacentVertices;
-            [ReadOnly] public NativeArray<int> adjacentCount;
-            [ReadOnly] public NativeArray<int> adjacentOffset;
-            
-            [WriteOnly] public NativeArray<float> restLengths;
-
-            public void Execute(int i)
-            {
-                var edgeLenght = 0.0f;
-                for (int j = 0; j < adjacentCount[i]; j++)
-                {
-                    int idx = adjacentOffset[i] + j;
-                    edgeLenght += Vector3.Magnitude(meshPositions[adjacentVertices[idx]] - meshPositions[i]);
-                }
-
-                restLengths[i] = edgeLenght / adjacentCount[i];
-            }
-        }
-        
-        public unsafe JobHandle CalculateEdgeLengthsJob(JobHandle inputDependencies, Vector3[] positions)
-        {
-            fixed (Vector3* meshPositions = positions)
-            {
-                var job = new ResolveEdgeLengthJob()
-                {
-                    MeshPositions = meshPositions,
-                    EdgeRestLengths = tensionEdgeRestLengths,
-                    AdjacentVertices = tensionAdjacentVertices,
-                    AdjacentOffset = tensionAdjacentOffset,
-                    AdjacentCount = tensionAdjacentCount,
-                    K = tensionGain,
-                    Colors = tensionColors
-                };
-                return job.Schedule(tensionMeshAdjacency.vertexCount, 128, inputDependencies);
-            }
-        }
-
-        [BurstCompile(FloatMode = FloatMode.Fast, CompileSynchronously = true)]
-        unsafe struct ResolveEdgeLengthJob : IJobParallelFor
-        {
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector3* MeshPositions;
-
-            //[ReadOnly] public float intensity;
-            [ReadOnly] public float K;
-            [ReadOnly] public NativeArray<float> EdgeRestLengths;
-            [ReadOnly] public NativeArray<int> AdjacentVertices;
-            [ReadOnly] public NativeArray<int> AdjacentOffset;
-            [ReadOnly] public NativeArray<int> AdjacentCount;
-
-            [WriteOnly] public NativeArray<Color> Colors;
-
-            float gain(float x, float k)
-            {
-                float a = 0.5f * Mathf.Pow(Mathf.Abs(2.0f * ((x < 0.5f) ? x : 1.0f - x)), k);
-                return (x < 0.5f) ? a : 1.0f - a;
-            }
-            
-            public void Execute(int i)
-            {
-                Colors[i] = Color.black;
-                var edgeLenght = 0.0f;
-                for (int j = 0; j < AdjacentCount[i]; j++)
-                {
-                    int idx = AdjacentOffset[i] + j;
-                    edgeLenght += Vector3.Magnitude(MeshPositions[AdjacentVertices[idx]] - MeshPositions[i]);
-                }
-
-                var edgeDeltaValue = (((edgeLenght / AdjacentCount[i]) - EdgeRestLengths[i])) / EdgeRestLengths[i];
-                var edgeDelta = (float) gain(Math.Abs(edgeDeltaValue), K) * Mathf.Sign(edgeDeltaValue);
-
-                if (edgeDelta > 0.0f)
-                {
-                    Colors[i] = Color.Lerp(Color.black, Color.green, edgeDelta);
-                }
-
-                else
-                {
-                    Colors[i] = Color.Lerp(Color.black, Color.red, Math.Abs(edgeDelta));
-                }
-            }
-        }
-        
 #region GPUDeformation
 #if UNITY_2021_2_OR_NEWER
     
@@ -843,51 +581,13 @@ namespace Unity.DemoTeam.DigitalHuman
                 cmd.EndSample("Skin Deformation Apply");
             }
 
-
-            if (tensionSampleEnable)
-            {
-                cmd.BeginSample("Skin Deformation Tension");
-
-                int colorStream = meshInstance.GetVertexAttributeStream(VertexAttribute.Color);
-                int[] colorStrideOffset =
-                {
-                    meshInstance.GetVertexBufferStride(colorStream),
-                    meshInstance.GetVertexAttributeOffset(VertexAttribute.Color)
-                };
-
-                using GraphicsBuffer meshColorBuffer = meshInstance.GetVertexBuffer(colorStream);
-
-                cmd.SetComputeIntParams(skinDeformCS, Uniforms._ColorStrideOffset, colorStrideOffset);
-
-                cmd.SetComputeBufferParam(skinDeformCS, calculateSkinTensionKernel, Uniforms._EdgeRestLengthsBuffer,
-                    edgeRestLengthsBuffer);
-                cmd.SetComputeBufferParam(skinDeformCS, calculateSkinTensionKernel, Uniforms._AdjacentVerticesBuffer,
-                    adjacentVerticesBuffer);
-                cmd.SetComputeBufferParam(skinDeformCS, calculateSkinTensionKernel,
-                    Uniforms._AdjacentVerticesCountBuffer, adjacentVerticesCountBuffer);
-                cmd.SetComputeBufferParam(skinDeformCS, calculateSkinTensionKernel, Uniforms._AdjacentOffsetsBuffer,
-                    adjacentOffsetsBuffer);
-                cmd.SetComputeFloatParam(skinDeformCS, Uniforms._SkinTensionGain, tensionGain);
-
-                cmd.SetComputeBufferParam(skinDeformCS, calculateSkinTensionKernel, Uniforms._TargetMeshPosNormalBuffer,
-                    meshPosBuffer);
-                cmd.SetComputeBufferParam(skinDeformCS, calculateSkinTensionKernel, Uniforms._TargetMeshColorBuffer,
-                    meshColorBuffer);
-
-                int dispatchCount = (meshAssetBuffers.vertexCount + groupSize - 1) / groupSize;
-                cmd.DispatchCompute(skinDeformCS, calculateSkinTensionKernel, dispatchCount, 1, 1);
-
-                cmd.EndSample("Skin Deformation Tension");
-            }
-
             Graphics.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
         
         void EnsureGPUDeformationResources()
         {
-            if (skinDeformCS == null || positionAndNormalDeltasBuffer == null ||
-                (tensionSampleEnable && edgeRestLengthsBuffer == null))
+            if (skinDeformCS == null || positionAndNormalDeltasBuffer == null)
             {
                 CreateGPUDeformationResources();
             }
@@ -908,7 +608,6 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
             applyDeformKernel = skinDeformCS.FindKernel("ApplySkinDeform");
-            calculateSkinTensionKernel = skinDeformCS.FindKernel("CalculateSkinTension");
 
             const int packedPosNormEntrySizeBytes = 2 * 3 + 2 * 3;
             
@@ -919,32 +618,9 @@ namespace Unity.DemoTeam.DigitalHuman
             neutralPositionsBuffer = new ComputeBuffer(meshAssetBuffers.vertexCount, 4 * 3);
             neutralNormalsBuffer = new ComputeBuffer(meshAssetBuffers.vertexCount, 4 * 3);
 
-            if (tensionSampleEnable)
-            {
-                edgeRestLengthsBuffer = new ComputeBuffer(tensionEdgeRestLengths.Length, sizeof(float),
-                    ComputeBufferType.Structured);
-
-                adjacentVerticesBuffer = new ComputeBuffer(tensionAdjacentVertices.Length, sizeof(int),
-                    ComputeBufferType.Structured);
-                ;
-                adjacentVerticesCountBuffer = new ComputeBuffer(tensionAdjacentCount.Length, sizeof(int),
-                    ComputeBufferType.Structured);
-                ;
-                adjacentOffsetsBuffer = new ComputeBuffer(tensionAdjacentOffset.Length, sizeof(int),
-                    ComputeBufferType.Structured);
-            }
-
             //upload static data
             neutralPositionsBuffer.SetData(meshAssetBuffers.vertexPositions);
             neutralNormalsBuffer.SetData(meshAssetBuffers.vertexNormals);
-
-            if (tensionSampleEnable)
-            {
-                edgeRestLengthsBuffer.SetData(tensionEdgeRestLengths);
-                adjacentVerticesBuffer.SetData(tensionAdjacentVertices);
-                adjacentVerticesCountBuffer.SetData(tensionAdjacentCount);
-                adjacentOffsetsBuffer.SetData(tensionAdjacentOffset);
-            }
 
             return true;
         }
@@ -961,19 +637,6 @@ namespace Unity.DemoTeam.DigitalHuman
                 positionAndNormalDeltasBuffer = null;
                 neutralPositionsBuffer = null;
                 neutralNormalsBuffer = null;
-            }
-
-            if (tensionSampleEnable && edgeRestLengthsBuffer != null)
-            {
-                edgeRestLengthsBuffer.Dispose();
-                adjacentVerticesBuffer.Dispose();
-                adjacentVerticesCountBuffer.Dispose();
-                adjacentOffsetsBuffer.Dispose();
-
-                edgeRestLengthsBuffer = null;
-                adjacentVerticesBuffer = null;
-                adjacentVerticesCountBuffer = null;
-                adjacentOffsetsBuffer = null;
             }
         }
 

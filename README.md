@@ -1,13 +1,19 @@
 # Package: com.unity.demoteam.digital-human
 
-Library of tech features used to realize the digital human from *The Heretic*.
+Library of tech features used to realize the digital human from *The Heretic* and *Enemies*.
 
 
 ## Requirements
+-*Minimum Requirements*
+	- Unity 2020.3 +
+	- HDRP 10.9.0 +
 
-- Unity 2019.3.12f1 +
-- HDRP 7.3.1 +
-
+- *Requirements for Skin Deformation and Skin Attachment GPU Path*
+	- Unity 2021.2 +
+	
+- *Requirements for new Eye and Skin Shaders*
+	- Unity 2022.2.0a16 +
+	- HDRP 14.0.3 +
 
 ## Features
 
@@ -16,8 +22,8 @@ Library of tech features used to realize the digital human from *The Heretic*.
   - 4D clip rendering with timeline integration.
   - 4D frame fitting allowing detail injection from facial rig.
   - Integration of facial rig from Snappers.
-  - Pose facial rig directly in Unity
-
+  - Pose facial rig directly in Unity.
+  
 - *Skin attachment system*
   - Drive meshes and transforms in relation to dynamically deforming skin.
   - Used to drive eyebrows, eyelashes, stubble and logical markers.
@@ -27,16 +33,22 @@ Library of tech features used to realize the digital human from *The Heretic*.
   - Full shader graphs for skin/eyes/teeth/hair as seen in *The Heretic*.
   - Custom pass for cross-material normal buffer blur (tearline).
   - Custom marker-driven occlusion for eyes and teeth.
+  
+## New improvements
 
+  - Added GPU path for skin deformation and skin attachment calculations.
+	- When using GPU path for skin attachment target, EyeRenderer and TeethRenderer need a reference to the SkinAttachmentTarget driving the markers as the transforms aren't updated on CPU anymore
+  - Added skin tension to apply wrinkle maps.
+  - Custom pass for slight blurring around the eye lids.
+  - New shader graphs for eyes and skin.
 
 ## Usage
 
-Declare the package and its dependencies as git dependencies in `Packages/manifest.json`:
+Declare the package as a git dependency in `Packages/manifest.json`:
 
 ```
 "dependencies": {
     "com.unity.demoteam.digital-human": "https://github.com/Unity-Technologies/com.unity.demoteam.digital-human.git",
-    "com.unity.demoteam.attributes": "https://github.com/Unity-Technologies/com.unity.demoteam.attributes.git",
     ...
 }
 ```

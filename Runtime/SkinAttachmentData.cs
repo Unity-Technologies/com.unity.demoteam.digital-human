@@ -17,9 +17,6 @@ namespace Unity.DemoTeam.DigitalHuman
 		public ulong checksum0 = 0;
 		[HideInInspector]
 		public ulong checksum1 = 0;
-		
-		[HideInInspector]
-		public bool builtForGPUResolve = false;
 
 		[HideInInspector]
 		public SkinAttachmentPose[] pose = new SkinAttachmentPose[131072];
@@ -32,12 +29,6 @@ namespace Unity.DemoTeam.DigitalHuman
 		[HideInInspector]
 		public int subjectCount = 0;
 
-		[HideInInspector] 
-		public int[] verticesRequiredByCPUAttachments; //keep a list of vertices that the cpu attachments need for their poses. 
-
-		public int gpuPosesCount = 0;
-
-		public int gpuItemsCount = 0;
 		
 		public Hash128 Checksum()
 		{
@@ -52,8 +43,6 @@ namespace Unity.DemoTeam.DigitalHuman
 			poseCount = 0;
 			itemCount = 0;
 			subjectCount = 0;
-			gpuPosesCount = 0;
-			gpuItemsCount = 0;
 		}
 
 		public void Persist()

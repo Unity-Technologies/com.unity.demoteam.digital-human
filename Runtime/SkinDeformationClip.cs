@@ -2,7 +2,6 @@
 using System.IO;
 using UnityEngine;
 using UnityEngine.Serialization;
-using Unity.DemoTeam.Attributes;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -192,7 +191,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		[ReadOnly]
+		[ReadOnlyProperty]
 		[FormerlySerializedAs("lastImport")]
 		public ImportSettings settingsLastImported = new ImportSettings();
 		[FormerlySerializedAs("importSettings")]

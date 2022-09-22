@@ -17,10 +17,25 @@
 #endif
 
 uniform float4 _TeethParams;// x = lit potential min, y = lit potential max
-uniform float4 _TeethVertexData[SPHERICALPOLYGON_MAX_VERTS];
+uniform ByteAddressBuffer _TeethVertexData;
+uniform Buffer<int> _TeethVertexDataIndices;
+uniform int _TeethVertexDataStride;
 uniform int _TeethVertexCount;
+uniform int _UseTeethVertexDataIndirection;
 
 #include "SphericalPolygon.hlsl"
+
+float3 GetTeethVertex(int index)
+{
+	if(_UseTeethVertexDataIndirection != 0)
+	{
+		index = _TeethVertexDataIndices[index];
+
+	} 
+	return asfloat(_TeethVertexData.Load3(_TeethVertexDataStride * index));
+	
+	
+}
 
 void TeethAttenuation_float(in float3 positionWS, out float attnPure, out float attnBiased)
 {
@@ -33,8 +48,8 @@ void TeethAttenuation_float(in float3 positionWS, out float attnPure, out float 
 
 #elif defined(TEETH_ATTN_LINEAR)
 
-		float3 posFront = _TeethVertexData[0].xyz;
-		float3 posBack = _TeethVertexData[1].xyz;
+		float3 posFront = GetTeethVertex(0).xyz;
+		float3 posBack = GetTeethVertex(1).xyz;
 
 		float3 v = posFront - posBack;
 		float dd = dot(v, v);
@@ -47,7 +62,7 @@ void TeethAttenuation_float(in float3 positionWS, out float attnPure, out float 
 		float3 P[SPHERICALPOLYGON_MAX_VERTS];
 		for (int i = 0; i != SPHERICALPOLYGON_NUM_VERTS; i++)
 		{
-			P[i] = normalize(_TeethVertexData[i].xyz - positionWS);
+			P[i] = normalize(GetTeethVertex(i).xyz - positionWS);
 		}
 
 		float incidentMax = 2.0 * PI;// hemisphere
