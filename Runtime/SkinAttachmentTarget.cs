@@ -77,6 +77,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private bool afterGPUResolveFenceValid;
         private GraphicsFence afterGPUResolveFence;
         private bool afterResolveFenceRequested = false;
+        private bool transformGPUPositionsReadBack = false;
 
 
 #if UNITY_2021_2_OR_NEWER
@@ -161,13 +162,13 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        void ResolveSubjects()
+        bool PrepareSubjectsResolve()
         {
             if (attachData == null || meshBuffers == null)
-                return;
+                return false;
 
             if (attachData.driverVertexCount > meshBuffers.vertexCount)
-                return; // prevent out of bounds if mesh shrunk since data was built
+                return false; // prevent out of bounds if mesh shrunk since data was built
 
 #if UNITY_2021_2_OR_NEWER
             if (gpuResourcesAllocated != executeOnGPU)
@@ -192,6 +193,12 @@ namespace Unity.DemoTeam.DigitalHuman
                 }
             }
 #endif
+            return true;
+        }
+
+        void ResolveSubjects()
+        {
+            if (!PrepareSubjectsResolve()) return;
             if (UseCPUExecution)
             {
                 if (UpdateMeshBuffers(true))
@@ -203,29 +210,6 @@ namespace Unity.DemoTeam.DigitalHuman
             else
             {
                 ResolveSubjectsGPU();
-
-                //readback transform positions to CPU for debugging
-                if (readbackTransformPositions && transformAttachmentPosBuffer != null)
-                {
-                    NativeArray<Vector3> readBackBuffer = new NativeArray<Vector3>(
-                        transformAttachmentPosBuffer.count,
-                        Allocator.Persistent);
-
-                    var readbackRequest =
-                        AsyncGPUReadback.RequestIntoNativeArray(ref readBackBuffer, transformAttachmentPosBuffer);
-                    readbackRequest.WaitForCompletion();
-
-                    for (int i = 0; i < subjects.Count; ++i)
-                    {
-                        if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
-                        int index = subjects[i].TransformAttachmentGPUBufferIndex;
-                        Vector3 pos = readBackBuffer[index];
-                        subjects[i].transform.position = pos;
-                    }
-
-                    readBackBuffer.Dispose();
-                }
-
                 afterGPUAttachmentWorkCommitted?.Invoke();
             }
 #endif
@@ -1204,6 +1188,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
 
             CommandBufferPool.Release(cmd);
+
+            transformGPUPositionsReadBack = false;
         }
 
 #endif
@@ -1220,7 +1206,33 @@ namespace Unity.DemoTeam.DigitalHuman
                 return;
 
             Gizmos.matrix = this.transform.localToWorldMatrix;
+#if UNITY_2021_2_OR_NEWER
+            if (executeOnGPU && !transformGPUPositionsReadBack)
+            {
+                //readback transform positions to CPU for debugging
+                if (readbackTransformPositions && transformAttachmentPosBuffer != null)
+                {
+                    NativeArray<Vector3> readBackBuffer = new NativeArray<Vector3>(
+                        transformAttachmentPosBuffer.count,
+                        Allocator.Persistent);
 
+                    var readbackRequest =
+                        AsyncGPUReadback.RequestIntoNativeArray(ref readBackBuffer, transformAttachmentPosBuffer);
+                    readbackRequest.WaitForCompletion();
+
+                    for (int i = 0; i < subjects.Count; ++i)
+                    {
+                        if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
+                        int index = subjects[i].TransformAttachmentGPUBufferIndex;
+                        Vector3 pos = readBackBuffer[index];
+                        subjects[i].transform.position = pos;
+                    }
+
+                    readBackBuffer.Dispose();
+                    transformGPUPositionsReadBack = true;
+                }
+            }
+#endif
             if (showWireframe)
             {
                 Profiler.BeginSample("show-wire");

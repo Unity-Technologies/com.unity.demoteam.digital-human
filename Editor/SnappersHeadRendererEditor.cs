@@ -1,4 +1,4 @@
-﻿//#define _SNAPPERS_TEXTURE_ARRAYS
+﻿#define _SNAPPERS_TEXTURE_ARRAYS
 
 using UnityEditor;
 using UnityEngine;

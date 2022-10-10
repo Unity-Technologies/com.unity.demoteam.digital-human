@@ -21,16 +21,16 @@ void SkinDeformationBlend_float(in float2 uv, in float3 inAlbedo, out float3 out
 
 	if (_BlendInput0_ClipWeight > 0.0)
 	{
-		float3 frameAlbedoLo = _BlendInput0_FrameAlbedoLo.Sample(SKINDEFORMATION_SAMPLER, uv).xyz;
-		float3 frameAlbedoHi = _BlendInput0_FrameAlbedoHi.Sample(SKINDEFORMATION_SAMPLER, uv).xyz;
+		float3 frameAlbedoLo = SAMPLE_TEXTURE2D(_BlendInput0_FrameAlbedoLo, SKINDEFORMATION_SAMPLER, uv).xyz;
+		float3 frameAlbedoHi = SAMPLE_TEXTURE2D(_BlendInput0_FrameAlbedoHi, SKINDEFORMATION_SAMPLER, uv).xyz;
 		blendInputsAlbedo += _BlendInput0_ClipWeight * lerp(frameAlbedoLo, frameAlbedoHi, _BlendInput0_FrameFraction);
 		blendInputsWeight += _BlendInput0_ClipWeight;
 	}
 
 	if (_BlendInput1_ClipWeight > 0.0)
 	{
-		float3 frameAlbedoLo = _BlendInput1_FrameAlbedoLo.Sample(SKINDEFORMATION_SAMPLER, uv).xyz;
-		float3 frameAlbedoHi = _BlendInput1_FrameAlbedoHi.Sample(SKINDEFORMATION_SAMPLER, uv).xyz;
+		float3 frameAlbedoLo = SAMPLE_TEXTURE2D(_BlendInput1_FrameAlbedoLo, SKINDEFORMATION_SAMPLER, uv).xyz;
+		float3 frameAlbedoHi = SAMPLE_TEXTURE2D(_BlendInput1_FrameAlbedoHi, SKINDEFORMATION_SAMPLER, uv).xyz;
 		blendInputsAlbedo += _BlendInput1_ClipWeight * lerp(frameAlbedoLo, frameAlbedoHi, _BlendInput1_FrameFraction);
 		blendInputsWeight += _BlendInput1_ClipWeight;
 	}
