@@ -6,641 +6,1321 @@ using UnityEngine.Profiling;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Burst;
+using Unity.Collections;
+using Unity.Mathematics;
+using UnityEditor;
+using UnityEngine.Assertions;
+using UnityEngine.Rendering;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	using static SkinAttachmentDataBuilder;
+    using static SkinAttachmentDataBuilder;
 
-	[ExecuteAlways]
-	public class SkinAttachmentTarget : MonoBehaviour
-	{
-		public struct MeshInfo
-		{
-			public MeshBuffers meshBuffers;
-			public MeshAdjacency meshAdjacency;
-			public KdTree3 meshVertexBSP;
-			public bool valid;
-		}
+    [ExecuteAlways]
+    public class SkinAttachmentTarget : MonoBehaviour
+    {
+        public struct MeshInfo
+        {
+            public MeshBuffers meshBuffers;
+            public MeshAdjacency meshAdjacency;
+            public KdTree3 meshVertexBSP;
+            public bool valid;
+        }
 
-		[HideInInspector] public List<SkinAttachment> subjects = new List<SkinAttachment>();
+        [HideInInspector] public List<SkinAttachment> subjects = new List<SkinAttachment>();
 
-		[NonSerialized] public Mesh meshBakedSmr;
-		[NonSerialized] public Mesh meshBakedOrAsset;
-		[NonSerialized] public MeshBuffers meshBuffers;
-		[NonSerialized] public Mesh meshBuffersLastAsset;
+        [NonSerialized] public Mesh meshBakedSmr;
+        [NonSerialized] public Mesh meshBakedOrAsset;
+        [NonSerialized] public MeshBuffers meshBuffers;
+        [NonSerialized] public Mesh meshBuffersLastAsset;
 
-		public SkinAttachmentData attachData;
+        public SkinAttachmentData attachData;
 
-		[Header("Debug options")]
-		public bool showWireframe = false;
-		public bool showUVSeams = false;
-		public bool showResolved = false;
-		public bool showMouseOver = false;
+        [Header("Debug options")] public bool showWireframe = false;
+        public bool showUVSeams = false;
+        public bool showResolved = false;
+        public bool showMouseOver = false;
 
-		private MeshInfo cachedMeshInfo;
-		private int cachedMeshInfoFrame = -1;
+        public event Action afterGPUAttachmentWorkCommitted;
+        public bool IsAfterGPUResolveFenceValid => afterGPUResolveFenceValid;
+        public GraphicsFence AfterGPUResolveFence => afterGPUResolveFence;
 
-		private JobHandle[] stagingJobs;
-		private Vector3[][] stagingData;
-		private GCHandle[] stagingPins;
+        public bool ExecuteSkinAttachmentResolveAutomatically { get; set; } =
+            true; //if set to false, external logic must drive the resolve tick
 
-		void OnEnable()
-		{
-			UpdateMeshBuffers();
-		}
+#if UNITY_2021_2_OR_NEWER
+        [VisibleIfAttribute("executeOnGPU", true)]
+        public bool readbackTransformPositions = false;
 
-		void LateUpdate()
-		{
-			if (UpdateMeshBuffers())
-			{
-				ResolveSubjects();
-			}
-		}
+        [Header("Execution")] public bool executeOnGPU = false;
 
-		bool UpdateMeshBuffers()
-		{
-			meshBakedOrAsset = null;
-			{
-				var mf = GetComponent<MeshFilter>();
-				if (mf != null)
-				{
-					meshBakedOrAsset = mf.sharedMesh;
-				}
+        public ComputeBuffer TransformAttachmentGPUPositionBuffer => transformAttachmentPosBuffer;
+        public int TransformAttachmentGPUPositionBufferStride => transformAttachmentBufferStride;
 
-				var smr = GetComponent<SkinnedMeshRenderer>();
-				if (smr != null)
-				{
-					if (meshBakedSmr == null)
-					{
-						meshBakedSmr = new Mesh();
-						meshBakedSmr.name = "SkinAttachmentTarget(BakeMesh)";
-						meshBakedSmr.hideFlags = HideFlags.HideAndDontSave & ~HideFlags.DontUnloadUnusedAsset;
-						meshBakedSmr.MarkDynamic();
-					}
 
-					meshBakedOrAsset = meshBakedSmr;
+#else
+        public readonly bool executeOnGPU = false;
 
-					Profiler.BeginSample("smr.BakeMesh");
-					{
-						smr.BakeMesh(meshBakedSmr);
-						{
-							meshBakedSmr.bounds = smr.bounds;
-						}
-					}
-					Profiler.EndSample();
-				}
-			}
-
-			if (meshBakedOrAsset == null)
-				return false;
-
-			if (meshBuffers == null || meshBuffersLastAsset != meshBakedOrAsset)
-			{
-				meshBuffers = new MeshBuffers(meshBakedOrAsset);
-			}
-			else
-			{
-				meshBuffers.LoadPositionsFrom(meshBakedOrAsset);
-				meshBuffers.LoadNormalsFrom(meshBakedOrAsset);
-			}
-
-			meshBuffersLastAsset = meshBakedOrAsset;
-			return true;
-		}
-
-		void UpdateMeshInfo(ref MeshInfo info)
-		{
-			Profiler.BeginSample("upd-mesh-inf");
-			if (meshBuffers == null)
-			{
-				info.valid = false;
-			}
-			else
-			{
-				info.meshBuffers = meshBuffers;
-
-				const bool weldedAdjacency = false;//TODO enable for more reliable poses along uv seams
-
-				if (info.meshAdjacency == null)
-					info.meshAdjacency = new MeshAdjacency(meshBuffers, weldedAdjacency);
-				else if (info.meshAdjacency.vertexCount != meshBuffers.vertexCount)
-					info.meshAdjacency.LoadFrom(meshBuffers, weldedAdjacency);
-
-				if (info.meshVertexBSP == null)
-					info.meshVertexBSP = new KdTree3(meshBuffers.vertexPositions, meshBuffers.vertexCount);
-				else
-					info.meshVertexBSP.BuildFrom(meshBuffers.vertexPositions, meshBuffers.vertexCount);
-
-				info.valid = true;
-			}
-			Profiler.EndSample();
-		}
-
-		public ref MeshInfo GetCachedMeshInfo(bool forceRefresh = false)
-		{
-			int frameIndex = Time.frameCount;
-			if (frameIndex != cachedMeshInfoFrame || forceRefresh)
-			{
-				UpdateMeshInfo(ref cachedMeshInfo);
-
-				if (cachedMeshInfo.valid)
-					cachedMeshInfoFrame = frameIndex;
-			}
-			return ref cachedMeshInfo;
-		}
-
-		public void AddSubject(SkinAttachment subject)
-		{
-			if (subjects.Contains(subject) == false)
-				subjects.Add(subject);
-		}
-
-		public void RemoveSubject(SkinAttachment subject)
-		{
-			if (subjects.Contains(subject))
-				subjects.Remove(subject);
-		}
-
-		public bool CommitRequired()
-		{
-			if (attachData == null)
-				return false;
-
-			if (meshBuffers.vertexCount < attachData.driverVertexCount)
-				return true;
-
-			for (int i = 0, n = subjects.Count; i != n; i++)
-			{
-				if (subjects[i].ChecksumCompare(attachData) == false)
-					return true;
-			}
-
-			return false;
-		}
-
-		public void CommitSubjectsIfRequired()
-		{
-			if (CommitRequired())
-				CommitSubjects();
-		}
-
-		public void CommitSubjects()
-		{
-			if (attachData == null)
-				return;
-
-			var meshInfo = GetCachedMeshInfo(forceRefresh: true);
-			if (meshInfo.valid == false)
-				return;
-
-			attachData.Clear();
-			attachData.driverVertexCount = meshInfo.meshBuffers.vertexCount;
-			{
-				subjects.RemoveAll(p => (p == null));
-
-				// pass 1: dry run
-				int dryRunPoseCount = 0;
-				int dryRunItemCount = 0;
-
-				for (int i = 0, n = subjects.Count; i != n; i++)
-				{
-					if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
-					{
-						subjects[i].RevertVertexData();
-						BuildDataAttachSubject(ref attachData, transform, meshInfo, subjects[i], dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
-					}
-				}
-
-				dryRunPoseCount = Mathf.NextPowerOfTwo(dryRunPoseCount);
-				dryRunItemCount = Mathf.NextPowerOfTwo(dryRunItemCount);
-
-				ArrayUtils.ResizeCheckedIfLessThan(ref attachData.pose, dryRunPoseCount);
-				ArrayUtils.ResizeCheckedIfLessThan(ref attachData.item, dryRunItemCount);
-
-				// pass 2: build poses
-				for (int i = 0, n = subjects.Count; i != n; i++)
-				{
-					if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
-					{
-						BuildDataAttachSubject(ref attachData, transform, meshInfo, subjects[i], dryRun: false, ref dryRunPoseCount, ref dryRunPoseCount);
-					}
-				}
-
-				// pass 3: reference poses
-				for (int i = 0, n = subjects.Count; i != n; i++)
-				{
-					switch (subjects[i].attachmentMode)
-					{
-						case SkinAttachment.AttachmentMode.LinkPosesByReference:
-							{
-								if (subjects[i].attachmentLink != null)
-								{
-									subjects[i].attachmentType = subjects[i].attachmentLink.attachmentType;
-									subjects[i].attachmentIndex = subjects[i].attachmentLink.attachmentIndex;
-									subjects[i].attachmentCount = subjects[i].attachmentLink.attachmentCount;
-								}
-								else
-								{
-									subjects[i].attachmentIndex = -1;
-									subjects[i].attachmentCount = 0;
-								}
-							}
-							break;
-
-						case SkinAttachment.AttachmentMode.LinkPosesBySpecificIndex:
-							{
-								subjects[i].attachmentIndex = Mathf.Clamp(subjects[i].attachmentIndex, 0, attachData.itemCount - 1);
-								subjects[i].attachmentCount = Mathf.Clamp(subjects[i].attachmentCount, 0, attachData.itemCount - subjects[i].attachmentIndex);
-							}
-							break;
-					}
-				}
-			}
-			attachData.subjectCount = subjects.Count;
-			attachData.Persist();
-
-			for (int i = 0, n = subjects.Count; i != n; i++)
-			{
-				subjects[i].checksum0 = attachData.checksum0;
-				subjects[i].checksum1 = attachData.checksum1;
-#if UNITY_EDITOR
-				UnityEditor.EditorUtility.SetDirty(subjects[i]);
-				UnityEditor.Undo.ClearUndo(subjects[i]);
 #endif
-			}
-		}
+        private bool UseCPUExecution => !executeOnGPU;
 
-		void ResolveSubjects()
-		{
-			if (attachData == null)
-				return;
+        private MeshInfo cachedMeshInfo;
+        private int cachedMeshInfoFrame = -1;
 
-			if (attachData.driverVertexCount > meshBuffers.vertexCount)
-				return;// prevent out of bounds if mesh shrunk since data was built
+        private JobHandle[] stagingJobs;
+        private Vector3[][] stagingData;
+        private GCHandle[] stagingPins;
 
-			Profiler.BeginSample("resolve-subj-all");
 
-			subjects.RemoveAll(p => p == null);
+        private bool subjectsNeedRefresh = false;
 
-			//Profiler.BeginSample("sort");
-			//subjects.Sort((a, b) => { return b.attachmentCount.CompareTo(a.attachmentCount); });
-			//Profiler.EndSample();
+        private bool afterGPUResolveFenceValid;
+        private GraphicsFence afterGPUResolveFence;
+        private bool afterResolveFenceRequested = false;
+        private bool transformGPUPositionsReadBack = false;
 
-			int stagingPinsSourceDataCount = 3;
-			int stagingPinsSourceDataOffset = subjects.Count * 2;
 
-			ArrayUtils.ResizeChecked(ref stagingJobs, subjects.Count);
-			ArrayUtils.ResizeChecked(ref stagingData, subjects.Count * 2);
-			ArrayUtils.ResizeChecked(ref stagingPins, subjects.Count * 2 + stagingPinsSourceDataCount);
+#if UNITY_2021_2_OR_NEWER
+        private ComputeShader resolveAttachmentsCS;
+        private int resolveAttachmentsKernel = 0;
+        private int resolveAttachmentsWithMovecsKernel = 0;
+        private int resolveTransformAttachmentsKernel = 0;
+        private ComputeBuffer attachmentPosesBuffer;
+        private ComputeBuffer attachmentItemsBuffer;
+        private ComputeBuffer transformAttachmentPosBuffer;
+        private ComputeBuffer transformAttachmentOffsetBuffer;
+        private int transformAttachmentCount = 0;
+        private bool gpuResourcesAllocated = false;
+        const int transformAttachmentBufferStride = 3 * sizeof(float); //float3, position
 
-			GCHandle attachDataPosePin = GCHandle.Alloc(attachData.pose, GCHandleType.Pinned);
-			GCHandle attachDataItemPin = GCHandle.Alloc(attachData.item, GCHandleType.Pinned);
+        static class UniformsResolve
+        {
+            internal static int _AttachmentPosesBuffer = Shader.PropertyToID("_AttachmentPosesBuffer");
+            internal static int _AttachmentItemsBuffer = Shader.PropertyToID("_AttachmentItemsBuffer");
 
-			stagingPins[stagingPinsSourceDataOffset + 0] = GCHandle.Alloc(meshBuffers.vertexPositions, GCHandleType.Pinned);
-			stagingPins[stagingPinsSourceDataOffset + 1] = GCHandle.Alloc(meshBuffers.vertexTangents, GCHandleType.Pinned);
-			stagingPins[stagingPinsSourceDataOffset + 2] = GCHandle.Alloc(meshBuffers.vertexNormals, GCHandleType.Pinned);
+            internal static int _TransformAttachmentOffsetBuffer =
+                Shader.PropertyToID("_TransformAttachmentOffsetBuffer");
 
-			// NOTE: for skinned targets, targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
-			Matrix4x4 targetToWorld;
-			{
-				if (this.meshBakedSmr != null)
-					targetToWorld = Matrix4x4.TRS(this.transform.position, this.transform.rotation, Vector3.one);
-				else
-					targetToWorld = this.transform.localToWorldMatrix;
-			}
+            internal static int _SkinPosNormalBuffer = Shader.PropertyToID("_SkinPosNormalBuffer");
+            internal static int _AttachmentPosNormalBuffer = Shader.PropertyToID("_AttachmentPosNormalBuffer");
+            internal static int _AttachmentMovecsBuffer = Shader.PropertyToID("_AttachmentMovecsBuffer");
 
-			var targetMeshWorldBounds = meshBakedOrAsset.bounds;
-			var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
-			var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
+            internal static int _StridePosNormOffsetSkin = Shader.PropertyToID("_StridePosNormOffsetSkin");
+            internal static int _StridePosNormOffsetAttachment = Shader.PropertyToID("_StridePosNormOffsetAttachment");
+            internal static int _StrideOffsetMovecs = Shader.PropertyToID("_StrideOffsetMovecs");
 
-			for (int i = 0, n = subjects.Count; i != n; i++)
-			{
-				var subject = subjects[i];
-				if (subject.ChecksumCompare(attachData) == false)
-					continue;
+            internal static int _ResolveTransform = Shader.PropertyToID("_ResolveTransform");
 
-				int attachmentIndex = subject.attachmentIndex;
-				int attachmentCount = subject.attachmentCount;
-				if (attachmentIndex == -1)
-					continue;
+            internal static int _PostSkinningToAttachmentTransform =
+                Shader.PropertyToID("_PostSkinningToAttachmentTransform");
 
-				if (attachmentIndex + attachmentCount > attachData.itemCount)
-					continue;// prevent out of bounds if subject holds damaged index/count 
+            internal static int _NumberOfAttachments = Shader.PropertyToID("_NumberOfAttachments");
+            internal static int _AttachmentOffset = Shader.PropertyToID("_AttachmentOffset");
+        }
+#endif
+        void OnEnable()
+        {
+            UpdateMeshBuffers();
+            subjectsNeedRefresh = true;
 
-				var indexPos = i * 2 + 0;
-				var indexNrm = i * 2 + 1;
+            afterGPUResolveFenceValid = false;
+#if UNITY_2021_2_OR_NEWER
+            var smr = GetComponent<SkinnedMeshRenderer>();
+            if (smr != null)
+            {
+                smr.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
+            }
 
-				ArrayUtils.ResizeChecked(ref stagingData[indexPos], attachmentCount);
-				ArrayUtils.ResizeChecked(ref stagingData[indexNrm], attachmentCount);
-				stagingPins[indexPos] = GCHandle.Alloc(stagingData[indexPos], GCHandleType.Pinned);
-				stagingPins[indexNrm] = GCHandle.Alloc(stagingData[indexNrm], GCHandleType.Pinned);
+            var mf = GetComponent<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null)
+            {
+                mf.sharedMesh.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
+            }
 
-				unsafe
-				{
-					var resolvedPositions = (Vector3*)stagingPins[indexPos].AddrOfPinnedObject().ToPointer();
-					var resolvedNormals = (Vector3*)stagingPins[indexNrm].AddrOfPinnedObject().ToPointer();
-					switch (subject.attachmentType)
-					{
-						case SkinAttachment.AttachmentType.Transform:
-							{
-								stagingJobs[i] = ScheduleResolve(attachmentIndex, attachmentCount, ref targetToWorld, resolvedPositions, resolvedNormals);
-							}
-							break;
+            RenderPipelineManager.beginFrameRendering -= AfterGpuSkinningCallback;
+            RenderPipelineManager.beginFrameRendering += AfterGpuSkinningCallback;
 
-						case SkinAttachment.AttachmentType.Mesh:
-						case SkinAttachment.AttachmentType.MeshRoots:
-							{
-								Matrix4x4 targetToSubject;
-								{
-									// this used to always read:
-									//   var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
-									//
-									// to support attachments that have skinning renderers, we sometimes have to transform
-									// the vertices into a space that takes into account the subsequently applied skinning:
-									//    var targetToSubject = (subject.skinningBone.localToWorldMatrix * subject.meshInstanceBoneBindPose).inverse * targetToWorld;
-									//
-									// we can reshuffle a bit to get rid of the per-resolve inverse:
-									//    var targetToSubject = (subject.skinningBoneBindPoseInverse * subject.meshInstanceBone.worldToLocalMatrix) * targetToWorld;
+            RenderPipelineManager.endFrameRendering -= AfterFrameDone;
+            RenderPipelineManager.endFrameRendering += AfterFrameDone;
+#endif
+        }
 
-									if (subject.skinningBone != null)
-										targetToSubject = (subject.skinningBoneBindPoseInverse * subject.skinningBone.worldToLocalMatrix) * targetToWorld;
-									else
-										targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
-								}
+        private void OnDisable()
+        {
+#if UNITY_2021_2_OR_NEWER
+            DestroyGPUResources();
+            RenderPipelineManager.beginFrameRendering -= AfterGpuSkinningCallback;
+            RenderPipelineManager.endFrameRendering -= AfterFrameDone;
+#endif
+        }
 
-								stagingJobs[i] = ScheduleResolve(attachmentIndex, attachmentCount, ref targetToSubject, resolvedPositions, resolvedNormals);
-							}
-							break;
-					}
-				}
-			}
+        void LateUpdate()
+        {
+            if (ExecuteSkinAttachmentResolveAutomatically && UseCPUExecution)
+            {
+                ResolveSubjects();
+            }
+        }
 
-			JobHandle.ScheduleBatchedJobs();
+        bool PrepareSubjectsResolve()
+        {
+            if (attachData == null || meshBuffers == null)
+                return false;
 
-			while (true)
-			{
-				var jobsRunning = false;
+            if (attachData.driverVertexCount > meshBuffers.vertexCount)
+                return false; // prevent out of bounds if mesh shrunk since data was built
 
-				for (int i = 0, n = subjects.Count; i != n; i++)
-				{
-					var subject = subjects[i];
-					if (subject.ChecksumCompare(attachData) == false)
-						continue;
+#if UNITY_2021_2_OR_NEWER
+            if (gpuResourcesAllocated != executeOnGPU)
+            {
+                subjectsNeedRefresh = true;
+            }
+#endif
+            
+            int removed = subjects.RemoveAll(p => p == null);
+            bool subjectsChanged = removed > 0 || subjectsNeedRefresh;
+            subjectsNeedRefresh = false;
+#if UNITY_2021_2_OR_NEWER
+            if (subjectsChanged)
+            {
+                if (executeOnGPU)
+                {
+                    CreateGPUResources();
+                }
+                else
+                {
+                    DestroyGPUResources();
+                }
+            }
+#endif
+            return true;
+        }
 
-					var stillRunning = (stagingJobs[i].IsCompleted == false);
-					if (stillRunning)
-					{
-						jobsRunning = true;
-						continue;
-					}
+        void ResolveSubjects()
+        {
+            if (!PrepareSubjectsResolve()) return;
+            if (UseCPUExecution)
+            {
+                if (UpdateMeshBuffers(true))
+                {
+                    ResolveSubjectsCPU();
+                }
+            }
+#if UNITY_2021_2_OR_NEWER
+            else
+            {
+                ResolveSubjectsGPU();
+                afterGPUAttachmentWorkCommitted?.Invoke();
+            }
+#endif
+        }
 
-					var indexPos = i * 2 + 0;
-					var indexNrm = i * 2 + 1;
 
-					var alreadyApplied = (stagingPins[indexPos].IsAllocated == false);
-					if (alreadyApplied)
-						continue;
+        void ResolveSubjectsCPU()
+        {
+            Profiler.BeginSample("resolve-subj-all-cpu");
+            int stagingPinsSourceDataCount = 3;
+            int stagingPinsSourceDataOffset = subjects.Count * 2;
 
-					stagingPins[indexPos].Free();
-					stagingPins[indexNrm].Free();
+            ArrayUtils.ResizeChecked(ref stagingJobs, subjects.Count);
+            ArrayUtils.ResizeChecked(ref stagingData, subjects.Count * 2);
+            ArrayUtils.ResizeChecked(ref stagingPins, subjects.Count * 2 + stagingPinsSourceDataCount);
 
-					Profiler.BeginSample("gather-subj");
-					switch (subject.attachmentType)
-					{
-						case SkinAttachment.AttachmentType.Transform:
-							{
-								subject.transform.position = stagingData[indexPos][0];
-							}
-							break;
+            GCHandle attachDataPosePin = GCHandle.Alloc(attachData.pose, GCHandleType.Pinned);
+            GCHandle attachDataItemPin = GCHandle.Alloc(attachData.item, GCHandleType.Pinned);
 
-						case SkinAttachment.AttachmentType.Mesh:
-						case SkinAttachment.AttachmentType.MeshRoots:
-							{
-								if (subject.meshInstance == null)
-									break;
+            MeshBuffers mb = meshBuffers;
 
-								if (subject.meshInstance.vertexCount != stagingData[indexPos].Length)
-								{
-									Debug.LogError("mismatching vertex- and attachment count", subject);
-									break;
-								}
+            stagingPins[stagingPinsSourceDataOffset + 0] =
+                GCHandle.Alloc(mb.vertexPositions, GCHandleType.Pinned);
+            stagingPins[stagingPinsSourceDataOffset + 1] =
+                GCHandle.Alloc(mb.vertexTangents, GCHandleType.Pinned);
+            stagingPins[stagingPinsSourceDataOffset + 2] =
+                GCHandle.Alloc(mb.vertexNormals, GCHandleType.Pinned);
 
-								subject.meshInstance.SilentlySetVertices(stagingData[indexPos]);
-								subject.meshInstance.SilentlySetNormals(stagingData[indexNrm]);
+            // NOTE: for skinned targets, targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
+            Matrix4x4 targetToWorld;
+            {
+                if (this.meshBakedSmr != null)
+                    targetToWorld = Matrix4x4.TRS(this.transform.position, this.transform.rotation, Vector3.one);
+                else
+                    targetToWorld = this.transform.localToWorldMatrix;
+            }
 
-								Profiler.BeginSample("conservative-bounds");
-								{
-									//Debug.Log("targetMeshWorldBoundsCenter = " + targetMeshWorldBoundsCenter.ToString("G4") + " (from meshBakedOrAsset = " + meshBakedOrAsset.ToString() + ")");
-									//Debug.Log("targetMeshWorldBoundsExtents = " + targetMeshWorldBoundsExtents.ToString("G4"));
-									var worldToSubject = subject.transform.worldToLocalMatrix;
-									var subjectBoundsCenter = worldToSubject.MultiplyPoint(targetMeshWorldBoundsCenter);
-									var subjectBoundsRadius = worldToSubject.MultiplyVector(targetMeshWorldBoundsExtent).magnitude + subject.meshAssetRadius;
-									var subjectBounds = subject.meshInstance.bounds;
-									{
-										subjectBounds.center = subjectBoundsCenter;
-										subjectBounds.extents = subjectBoundsRadius * Vector3.one;
-									}
-									subject.meshInstance.bounds = subjectBounds;
-								}
-								Profiler.EndSample();
-							}
-							break;
-					}
-					Profiler.EndSample();
-				}
+            var targetMeshWorldBounds = meshBakedOrAsset.bounds;
+            var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
+            var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
 
-				if (jobsRunning == false)
-					break;
-			}
+            for (int i = 0, n = subjects.Count; i != n; i++)
+            {
+                var subject = subjects[i];
+                if (subject.ChecksumCompare(attachData) == false)
+                    continue;
 
-			for (int i = 0; i != stagingPinsSourceDataCount; i++)
-			{
-				stagingPins[stagingPinsSourceDataOffset + i].Free();
-			}
+                int attachmentIndex = subject.attachmentIndex;
+                int attachmentCount = subject.attachmentCount;
+                if (attachmentIndex == -1)
+                    continue;
 
-			attachDataPosePin.Free();
-			attachDataItemPin.Free();
+                if (attachmentIndex + attachmentCount > attachData.itemCount)
+                    continue; // prevent out of bounds if subject holds damaged index/count 
 
-			Profiler.EndSample();
-		}
+                if (!subject.gameObject.activeInHierarchy)
+                    continue;
 
-		public unsafe JobHandle ScheduleResolve(int attachmentIndex, int attachmentCount, ref Matrix4x4 resolveTransform, Vector3* resolvedPositions, Vector3* resolvedNormals)
-		{
-			fixed (Vector3* meshPositions = meshBuffers.vertexPositions)
-			fixed (Vector3* meshNormals = meshBuffers.vertexNormals)
-			fixed (SkinAttachmentItem* attachItem = attachData.item)
-			fixed (SkinAttachmentPose* attachPose = attachData.pose)
-			{
-				var job = new ResolveJob()
-				{
-					meshPositions = meshPositions,
-					meshNormals = meshNormals,
-					attachItem = attachItem,
-					attachPose = attachPose,
-					resolveTransform = resolveTransform,
-					resolvedPositions = resolvedPositions,
-					resolvedNormals = resolvedNormals,
-					attachmentIndex = attachmentIndex,
-					attachmentCount = attachmentCount,
-				};
-				return job.Schedule(attachmentCount, 64);
-			}
-		}
+                var indexPos = i * 2 + 0;
+                var indexNrm = i * 2 + 1;
 
-		[BurstCompile(FloatMode = FloatMode.Fast)]
-		unsafe struct ResolveJob : IJobParallelFor
-		{
-			[NativeDisableUnsafePtrRestriction, NoAlias] public Vector3* meshPositions;
-			[NativeDisableUnsafePtrRestriction, NoAlias] public Vector3* meshNormals;
-			[NativeDisableUnsafePtrRestriction, NoAlias] public SkinAttachmentItem* attachItem;
-			[NativeDisableUnsafePtrRestriction, NoAlias] public SkinAttachmentPose* attachPose;
-			[NativeDisableUnsafePtrRestriction, NoAlias] public Vector3* resolvedPositions;
-			[NativeDisableUnsafePtrRestriction, NoAlias] public Vector3* resolvedNormals;
+                ArrayUtils.ResizeChecked(ref stagingData[indexPos], attachmentCount);
+                ArrayUtils.ResizeChecked(ref stagingData[indexNrm], attachmentCount);
+                stagingPins[indexPos] = GCHandle.Alloc(stagingData[indexPos], GCHandleType.Pinned);
+                stagingPins[indexNrm] = GCHandle.Alloc(stagingData[indexNrm], GCHandleType.Pinned);
 
-			public Matrix4x4 resolveTransform;
+                unsafe
+                {
+                    Vector3* resolvedPositions = (Vector3*) stagingPins[indexPos].AddrOfPinnedObject().ToPointer();
+                    Vector3* resolvedNormals = (Vector3*) stagingPins[indexNrm].AddrOfPinnedObject().ToPointer();
 
-			public int attachmentIndex;
-			public int attachmentCount;
+                    switch (subject.attachmentType)
+                    {
+                        case SkinAttachment.AttachmentType.Transform:
+                        {
+                            stagingJobs[i] = ScheduleResolve(attachmentIndex, attachmentCount,
+                                ref targetToWorld, mb,
+                                resolvedPositions, resolvedNormals);
+                        }
+                            break;
 
-			//TODO this needs optimization
-			public void Execute(int i)
-			{
-				var targetBlended = new Vector3(0.0f, 0.0f, 0.0f);
-				var targetWeights = 0.0f;
+                        case SkinAttachment.AttachmentType.Mesh:
+                        case SkinAttachment.AttachmentType.MeshRoots:
+                        {
+                            Matrix4x4 targetToSubject;
+                            {
+                                // this used to always read:
+                                //   var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+                                //
+                                // to support attachments that have skinning renderers, we sometimes have to transform
+                                // the vertices into a space that takes into account the subsequently applied skinning:
+                                //    var targetToSubject = (subject.skinningBone.localToWorldMatrix * subject.meshInstanceBoneBindPose).inverse * targetToWorld;
+                                //
+                                // we can reshuffle a bit to get rid of the per-resolve inverse:
+                                //    var targetToSubject = (subject.skinningBoneBindPoseInverse * subject.meshInstanceBone.worldToLocalMatrix) * targetToWorld;
 
-				SkinAttachmentItem item = attachItem[attachmentIndex + i];
+                                if (subject.skinningBone != null)
+                                    targetToSubject =
+                                        (subject.skinningBoneBindPoseInverse *
+                                         subject.skinningBone.worldToLocalMatrix) * targetToWorld;
+                                else
+                                    targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+                            }
 
-				var poseIndex0 = item.poseIndex;
-				var poseIndexN = item.poseIndex + item.poseCount;
+                            stagingJobs[i] = ScheduleResolve(attachmentIndex, attachmentCount,
+                                ref targetToSubject, mb,
+                                resolvedPositions, resolvedNormals);
+                        }
+                            break;
+                    }
+                }
+            }
 
-				for (int poseIndex = poseIndex0; poseIndex != poseIndexN; poseIndex++)
-				{
-					SkinAttachmentPose pose = attachPose[poseIndex];
+            JobHandle.ScheduleBatchedJobs();
 
-					var p0 = meshPositions[pose.v0];
-					var p1 = meshPositions[pose.v1];
-					var p2 = meshPositions[pose.v2];
+            while (true)
+            {
+                var jobsRunning = false;
 
-					var v0v1 = p1 - p0;
-					var v0v2 = p2 - p0;
+                for (int i = 0, n = subjects.Count; i != n; i++)
+                {
+                    var subject = subjects[i];
+                    if (subject.ChecksumCompare(attachData) == false)
+                        continue;
 
-					var triangleNormal = Vector3.Cross(v0v1, v0v2);
-					var triangleArea = Vector3.Magnitude(triangleNormal);
+                    var stillRunning = (stagingJobs[i].IsCompleted == false);
+                    if (stillRunning)
+                    {
+                        jobsRunning = true;
+                        continue;
+                    }
 
-					triangleNormal /= triangleArea;
-					triangleArea *= 0.5f;
+                    var indexPos = i * 2 + 0;
+                    var indexNrm = i * 2 + 1;
 
-					var targetProjected = pose.targetCoord.Resolve(ref p0, ref p1, ref p2);
-					var target = targetProjected + triangleNormal * pose.targetDist;
+                    bool alreadyApplied = stagingPins[indexPos].IsAllocated == false;
 
-					targetBlended += triangleArea * target;
-					targetWeights += triangleArea;
-				}
+                    if (alreadyApplied)
+                        continue;
 
-				var targetNormalRot = Quaternion.FromToRotation(item.baseNormal, meshNormals[item.baseVertex]);
-				var targetNormal = targetNormalRot * item.targetNormal;
-				var targetOffset = targetNormalRot * item.targetOffset;
+                    stagingPins[indexPos].Free();
+                    stagingPins[indexNrm].Free();
 
-				resolvedPositions[i] = resolveTransform.MultiplyPoint3x4(targetBlended / targetWeights + targetOffset);
-				resolvedNormals[i] = resolveTransform.MultiplyVector(targetNormal);
-			}
-		}
+                    Profiler.BeginSample("gather-subj");
+                    switch (subject.attachmentType)
+                    {
+                        case SkinAttachment.AttachmentType.Transform:
+                        {
+                            subject.transform.position = stagingData[indexPos][0];
+                        }
+                            break;
+
+                        case SkinAttachment.AttachmentType.Mesh:
+                        case SkinAttachment.AttachmentType.MeshRoots:
+                        {
+                            if (subject.meshInstance == null)
+                                break;
+
+                            if (subject.meshInstance.vertexCount != stagingData[indexPos].Length)
+                            {
+                                Debug.LogError("mismatching vertex- and attachment count", subject);
+                                break;
+                            }
+
+                            subject.meshInstance.SilentlySetVertices(stagingData[indexPos]);
+                            subject.meshInstance.SilentlySetNormals(stagingData[indexNrm]);
+
+                            Profiler.BeginSample("conservative-bounds");
+                            {
+                                //Debug.Log("targetMeshWorldBoundsCenter = " + targetMeshWorldBoundsCenter.ToString("G4") + " (from meshBakedOrAsset = " + meshBakedOrAsset.ToString() + ")");
+                                //Debug.Log("targetMeshWorldBoundsExtents = " + targetMeshWorldBoundsExtents.ToString("G4"));
+                                var worldToSubject = subject.transform.worldToLocalMatrix;
+                                var subjectBoundsCenter = worldToSubject.MultiplyPoint(targetMeshWorldBoundsCenter);
+                                var subjectBoundsRadius =
+                                    worldToSubject.MultiplyVector(targetMeshWorldBoundsExtent).magnitude +
+                                    subject.meshAssetRadius;
+                                var subjectBounds = subject.meshInstance.bounds;
+                                {
+                                    subjectBounds.center = subjectBoundsCenter;
+                                    subjectBounds.extents = subjectBoundsRadius * Vector3.one;
+                                }
+                                subject.meshInstance.bounds = subjectBounds;
+                            }
+                            Profiler.EndSample();
+                        }
+                            break;
+                    }
+
+                    Profiler.EndSample();
+                }
+
+                if (jobsRunning == false)
+                    break;
+            }
+
+            for (int i = 0; i != stagingPinsSourceDataCount; i++)
+            {
+                stagingPins[stagingPinsSourceDataOffset + i].Free();
+            }
+
+            attachDataPosePin.Free();
+            attachDataItemPin.Free();
+
+            Profiler.EndSample();
+        }
+
+        bool UpdateMeshBuffers(bool forceMeshBakeCPU = false)
+        {
+            meshBakedOrAsset = null;
+            {
+                var mf = GetComponent<MeshFilter>();
+                if (mf != null)
+                {
+                    meshBakedOrAsset = mf.sharedMesh;
+                }
+
+                var smr = GetComponent<SkinnedMeshRenderer>();
+                if (smr != null)
+                {
+                    if (meshBakedSmr == null)
+                    {
+                        meshBakedSmr = Instantiate(smr.sharedMesh);
+                        meshBakedSmr.name = "SkinAttachmentTarget(BakeMesh)";
+                        meshBakedSmr.hideFlags = HideFlags.HideAndDontSave & ~HideFlags.DontUnloadUnusedAsset;
+                        meshBakedSmr.MarkDynamic();
+                    }
+
+                    meshBakedOrAsset = meshBakedSmr;
+                    if (forceMeshBakeCPU)
+                    {
+                        Profiler.BeginSample("smr.BakeMesh");
+                        {
+                            smr.BakeMesh(meshBakedSmr);
+                            {
+                                meshBakedSmr.bounds = smr.bounds;
+                            }
+                        }
+                        Profiler.EndSample();
+                    }
+                }
+            }
+
+            if (meshBakedOrAsset == null)
+                return false;
+
+            if (meshBuffers == null || meshBuffersLastAsset != meshBakedOrAsset)
+            {
+                meshBuffers = new MeshBuffers(meshBakedOrAsset);
+            }
+            else
+            {
+                meshBuffers.LoadPositionsFrom(meshBakedOrAsset);
+                meshBuffers.LoadNormalsFrom(meshBakedOrAsset);
+            }
+
+            meshBuffersLastAsset = meshBakedOrAsset;
+            return true;
+        }
+
+        void UpdateMeshInfo(ref MeshInfo info)
+        {
+            Profiler.BeginSample("upd-mesh-inf");
+            UpdateMeshBuffers(true);
+            if (meshBuffers == null)
+            {
+                info.valid = false;
+            }
+            else
+            {
+                info.meshBuffers = meshBuffers;
+
+                const bool weldedAdjacency = false; //TODO enable for more reliable poses along uv seams
+
+                if (info.meshAdjacency == null)
+                    info.meshAdjacency = new MeshAdjacency(meshBuffers, weldedAdjacency);
+                else if (info.meshAdjacency.vertexCount != meshBuffers.vertexCount)
+                    info.meshAdjacency.LoadFrom(meshBuffers, weldedAdjacency);
+
+                if (info.meshVertexBSP == null)
+                    info.meshVertexBSP = new KdTree3(meshBuffers.vertexPositions, meshBuffers.vertexCount);
+                else
+                    info.meshVertexBSP.BuildFrom(meshBuffers.vertexPositions, meshBuffers.vertexCount);
+
+                info.valid = true;
+            }
+
+            Profiler.EndSample();
+        }
+
+        public void RequestGPUFenceAfterResolve()
+        {
+            afterResolveFenceRequested = true;
+        }
+
+        public void Resolve()
+        {
+            if (ExecuteSkinAttachmentResolveAutomatically)
+            {
+                Debug.LogError("Trying to call explicit Resolve but ExecuteSkinAttachmentResolveAutomatically is true. Ignoring...");
+                return;
+            }
+            
+            ResolveSubjects();
+        }
+
+
+        public ref MeshInfo GetCachedMeshInfo(bool forceRefresh = false)
+        {
+            int frameIndex = Time.frameCount;
+            if (frameIndex != cachedMeshInfoFrame || forceRefresh)
+            {
+                UpdateMeshInfo(ref cachedMeshInfo);
+
+                if (cachedMeshInfo.valid)
+                    cachedMeshInfoFrame = frameIndex;
+            }
+
+            return ref cachedMeshInfo;
+        }
+
+        public void AddSubject(SkinAttachment subject)
+        {
+            if (subjects.Contains(subject) == false)
+                subjects.Add(subject);
+
+            subjectsNeedRefresh = true;
+        }
+
+        public void RemoveSubject(SkinAttachment subject)
+        {
+            if (subjects.Contains(subject))
+                subjects.Remove(subject);
+
+            subjectsNeedRefresh = true;
+        }
+
+        public bool CommitRequired()
+        {
+            if (attachData == null || meshBuffers == null)
+                return false;
+
+            if (meshBuffers.vertexCount < attachData.driverVertexCount)
+                return true;
+
+            for (int i = 0, n = subjects.Count; i != n; i++)
+            {
+                if (subjects[i].ChecksumCompare(attachData) == false)
+                    return true;
+            }
+
+            return false;
+        }
+
+        public void CommitSubjectsIfRequired()
+        {
+            if (CommitRequired())
+                CommitSubjects();
+        }
+
+        public void CommitSubjects()
+        {
+            if (attachData == null)
+                return;
+
+            var meshInfo = GetCachedMeshInfo(true);
+            if (meshInfo.valid == false)
+                return;
+
+            attachData.Clear();
+            attachData.driverVertexCount = meshInfo.meshBuffers.vertexCount;
+            {
+                subjects.RemoveAll(p => (p == null));
+
+                // pass 1: dry run
+                int dryRunPoseCount = 0;
+                int dryRunItemCount = 0;
+
+                for (int i = 0, n = subjects.Count; i != n; i++)
+                {
+                    if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
+                    {
+                        subjects[i].RevertVertexData();
+                        BuildDataAttachSubject(ref attachData, transform, meshInfo, subjects[i], dryRun: true,
+                            ref dryRunPoseCount, ref dryRunItemCount);
+                    }
+                }
+
+                dryRunPoseCount = Mathf.NextPowerOfTwo(dryRunPoseCount);
+                dryRunItemCount = Mathf.NextPowerOfTwo(dryRunItemCount);
+
+                ArrayUtils.ResizeCheckedIfLessThan(ref attachData.pose, dryRunPoseCount);
+                ArrayUtils.ResizeCheckedIfLessThan(ref attachData.item, dryRunItemCount);
+
+                // pass 2: build poses
+                for (int i = 0, n = subjects.Count; i != n; i++)
+                {
+                    if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
+                    {
+                        BuildDataAttachSubject(ref attachData, transform, meshInfo, subjects[i], dryRun: false,
+                            ref dryRunPoseCount, ref dryRunPoseCount);
+                    }
+                }
+
+                // pass 3: reference poses
+                for (int i = 0, n = subjects.Count; i != n; i++)
+                {
+                    switch (subjects[i].attachmentMode)
+                    {
+                        case SkinAttachment.AttachmentMode.LinkPosesByReference:
+                        {
+                            if (subjects[i].attachmentLink != null)
+                            {
+                                subjects[i].attachmentType = subjects[i].attachmentLink.attachmentType;
+                                subjects[i].attachmentIndex = subjects[i].attachmentLink.attachmentIndex;
+                                subjects[i].attachmentCount = subjects[i].attachmentLink.attachmentCount;
+                            }
+                            else
+                            {
+                                subjects[i].attachmentIndex = -1;
+                                subjects[i].attachmentCount = 0;
+                            }
+                        }
+                            break;
+
+                        case SkinAttachment.AttachmentMode.LinkPosesBySpecificIndex:
+                        {
+                            subjects[i].attachmentIndex =
+                                Mathf.Clamp(subjects[i].attachmentIndex, 0, attachData.itemCount - 1);
+                            subjects[i].attachmentCount = Mathf.Clamp(subjects[i].attachmentCount, 0,
+                                attachData.itemCount - subjects[i].attachmentIndex);
+                        }
+                            break;
+                    }
+                }
+            }
+
+            attachData.subjectCount = subjects.Count;
+            attachData.Persist();
+
+
+            for (int i = 0, n = subjects.Count; i != n; i++)
+            {
+                subjects[i].checksum0 = attachData.checksum0;
+                subjects[i].checksum1 = attachData.checksum1;
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(subjects[i]);
+                UnityEditor.Undo.ClearUndo(subjects[i]);
+#endif
+            }
+
+            subjectsNeedRefresh = true;
+        }
+
+        public unsafe JobHandle ScheduleResolve(int attachmentIndex, int attachmentCount,
+            ref Matrix4x4 resolveTransform, MeshBuffers sourceMeshBuffers, Vector3* resolvedPositions,
+            Vector3* resolvedNormals)
+        {
+            fixed (Vector3* meshPositions = sourceMeshBuffers.vertexPositions)
+            fixed (Vector3* meshNormals = sourceMeshBuffers.vertexNormals)
+            fixed (SkinAttachmentItem* attachItem = attachData.item)
+            fixed (SkinAttachmentPose* attachPose = attachData.pose)
+            {
+                var job = new ResolveJob()
+                {
+                    meshPositions = meshPositions,
+                    meshNormals = meshNormals,
+                    attachItem = attachItem,
+                    attachPose = attachPose,
+                    resolveTransform = resolveTransform,
+                    resolvedPositions = resolvedPositions,
+                    resolvedNormals = resolvedNormals,
+                    attachmentIndex = attachmentIndex,
+                    attachmentCount = attachmentCount,
+                };
+                return job.Schedule(attachmentCount, 64);
+            }
+        }
+
+        [BurstCompile(FloatMode = FloatMode.Fast)]
+        unsafe struct ResolveJob : IJobParallelFor
+        {
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* meshPositions;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* meshNormals;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public SkinAttachmentItem* attachItem;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public SkinAttachmentPose* attachPose;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* resolvedPositions;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* resolvedNormals;
+
+            public Matrix4x4 resolveTransform;
+
+            public int attachmentIndex;
+            public int attachmentCount;
+
+            //TODO this needs optimization
+            public void Execute(int i)
+            {
+                var targetBlended = new Vector3(0.0f, 0.0f, 0.0f);
+                var targetWeights = 0.0f;
+
+                SkinAttachmentItem item = attachItem[attachmentIndex + i];
+
+                var poseIndex0 = item.poseIndex;
+                var poseIndexN = item.poseIndex + item.poseCount;
+
+                for (int poseIndex = poseIndex0; poseIndex != poseIndexN; poseIndex++)
+                {
+                    SkinAttachmentPose pose = attachPose[poseIndex];
+
+                    var p0 = meshPositions[pose.v0];
+                    var p1 = meshPositions[pose.v1];
+                    var p2 = meshPositions[pose.v2];
+
+                    var v0v1 = p1 - p0;
+                    var v0v2 = p2 - p0;
+
+                    var triangleNormal = Vector3.Cross(v0v1, v0v2);
+                    var triangleArea = Vector3.Magnitude(triangleNormal);
+
+                    triangleNormal /= triangleArea;
+                    triangleArea *= 0.5f;
+
+                    var targetProjected = pose.targetCoord.Resolve(ref p0, ref p1, ref p2);
+                    var target = targetProjected + triangleNormal * pose.targetDist;
+
+                    targetBlended += triangleArea * target;
+                    targetWeights += triangleArea;
+                }
+
+                var targetNormalRot = Quaternion.FromToRotation(item.baseNormal, meshNormals[item.baseVertex]);
+                var targetNormal = targetNormalRot * item.targetNormal;
+                var targetOffset = targetNormalRot * item.targetOffset;
+
+                resolvedPositions[i] = resolveTransform.MultiplyPoint3x4(targetBlended / targetWeights + targetOffset);
+                resolvedNormals[i] = resolveTransform.MultiplyVector(targetNormal);
+            }
+        }
+
+        #region GPUResolve
+
+#if UNITY_2021_2_OR_NEWER
+
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        struct SkinAttachmentPoseGPU
+        {
+            public float3 targetCoord;
+            public int v0;
+            public int v1;
+            public int v2;
+            public float area;
+            public float targetDist;
+        };
+
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        struct SkinAttachmentItemGPU
+        {
+            public float3 baseNormal;
+            public int poseIndex;
+            public float3 targetNormal;
+            public int poseCount;
+            public float3 targetOffset; //TODO split this into leaf type item that doesn't perform full resolve
+            public int baseVertex;
+        };
+
+        void AfterFrameDone(ScriptableRenderContext scriptableRenderContext, Camera[] cameras)
+        {
+            afterResolveFenceRequested = false;
+        }
+
+        void AfterGpuSkinningCallback(ScriptableRenderContext scriptableRenderContext, Camera[] cameras)
+        {
+            if (!ExecuteSkinAttachmentResolveAutomatically)
+                return;
+
+            ResolveSubjects();
+        }
+
+        bool CreateGPUResources()
+        {
+            DestroyGPUResources();
+
+            if (resolveAttachmentsCS == null)
+            {
+                resolveAttachmentsCS = Resources.Load<ComputeShader>("SkinAttachmentCS");
+            }
+
+            if (resolveAttachmentsCS == null)
+            {
+                return false;
+            }
+
+            resolveAttachmentsKernel = resolveAttachmentsCS.FindKernel("ResolveAttachment");
+            resolveAttachmentsWithMovecsKernel = resolveAttachmentsCS.FindKernel("ResolveAttachmentWithMovecs");
+            resolveTransformAttachmentsKernel = resolveAttachmentsCS.FindKernel("ResolveTransformAttachments");
+
+            const int itemStructSize = 3 * 4 * sizeof(float); //4 * float4
+            const int poseStructSize = 2 * 4 * sizeof(float); //2 * float4
+
+
+            int itemsCount = attachData.itemCount;
+            int posesCount = attachData.poseCount;
+
+            int resolvedVerticesCount = 0;
+            for (int i = 0; i < subjects.Count; ++i)
+            {
+                resolvedVerticesCount += subjects[i].attachmentCount;
+            }
+
+            attachmentPosesBuffer = new ComputeBuffer(posesCount, poseStructSize);
+            attachmentItemsBuffer = new ComputeBuffer(itemsCount, itemStructSize);
+
+            //upload stuff that doesn't change
+            NativeArray<SkinAttachmentPoseGPU> posesBuffer =
+                new NativeArray<SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
+            for (int i = 0; i < posesCount; ++i)
+            {
+                SkinAttachmentPoseGPU poseGPU;
+                poseGPU.targetCoord.x = attachData.pose[i].targetCoord.u;
+                poseGPU.targetCoord.y = attachData.pose[i].targetCoord.v;
+                poseGPU.targetCoord.z = attachData.pose[i].targetCoord.w;
+                poseGPU.v0 = attachData.pose[i].v0;
+                poseGPU.v1 = attachData.pose[i].v1;
+                poseGPU.v2 = attachData.pose[i].v2;
+                poseGPU.area = attachData.pose[i].area;
+                poseGPU.targetDist = attachData.pose[i].targetDist;
+                posesBuffer[i] = poseGPU;
+            }
+
+            attachmentPosesBuffer.SetData(posesBuffer);
+            posesBuffer.Dispose();
+
+            NativeArray<SkinAttachmentItemGPU> itemsBuffer =
+                new NativeArray<SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
+            for (int i = 0; i < itemsCount; ++i)
+            {
+                SkinAttachmentItemGPU itemGPU;
+                itemGPU.baseNormal = attachData.item[i].baseNormal;
+                itemGPU.poseIndex = attachData.item[i].poseIndex;
+                itemGPU.targetNormal = attachData.item[i].targetNormal;
+                itemGPU.poseCount = attachData.item[i].poseCount;
+                itemGPU.targetOffset = attachData.item[i].targetOffset;
+                itemGPU.baseVertex = attachData.item[i].baseVertex;
+                itemsBuffer[i] = itemGPU;
+            }
+
+            attachmentItemsBuffer.SetData(itemsBuffer);
+            itemsBuffer.Dispose();
+
+            //buffers for resolving transform attachments on GPU
+            transformAttachmentCount = 0;
+            for (int i = 0; i < subjects.Count; ++i)
+            {
+                if (subjects[i].attachmentType == SkinAttachment.AttachmentType.Transform)
+                {
+                    subjects[i].TransformAttachmentGPUBufferIndex = transformAttachmentCount;
+                    ++transformAttachmentCount;
+                }
+            }
+
+            //push transform attachments pose offset to a buffer to allow resolving them in one go
+            if (transformAttachmentCount > 0)
+            {
+                {
+                    NativeArray<uint> transformPoseOffsetCount =
+                        new NativeArray<uint>(transformAttachmentCount, Allocator.Temp);
+                    int transformPoseOffsetIndex = 0;
+                    for (int i = 0; i < subjects.Count; ++i)
+                    {
+                        if (subjects[i].attachmentType == SkinAttachment.AttachmentType.Transform)
+                        {
+                            transformPoseOffsetCount[transformPoseOffsetIndex++] = (uint) subjects[i].attachmentIndex;
+                        }
+                    }
+
+                    transformAttachmentOffsetBuffer = new ComputeBuffer(transformAttachmentCount, sizeof(uint),
+                        ComputeBufferType.Structured);
+                    transformAttachmentOffsetBuffer.SetData(transformPoseOffsetCount);
+                    transformPoseOffsetCount.Dispose();
+                }
+
+                transformAttachmentPosBuffer =
+                    new ComputeBuffer(transformAttachmentCount, transformAttachmentBufferStride, ComputeBufferType.Raw);
+                transformAttachmentPosBuffer.name = "Transform Attachment Positions Buffer";
+            }
+
+            gpuResourcesAllocated = true;
+
+            return true;
+        }
+
+        void DestroyGPUResources()
+        {
+            if (attachmentPosesBuffer != null)
+            {
+                attachmentPosesBuffer.Dispose();
+                attachmentItemsBuffer.Dispose();
+
+                attachmentPosesBuffer = null;
+            }
+
+            if (transformAttachmentPosBuffer != null)
+            {
+                transformAttachmentPosBuffer.Dispose();
+                transformAttachmentPosBuffer = null;
+            }
+
+            if (transformAttachmentOffsetBuffer != null)
+            {
+                transformAttachmentOffsetBuffer.Dispose();
+                transformAttachmentOffsetBuffer = null;
+            }
+
+            gpuResourcesAllocated = false;
+        }
+
+        void ResolveSubjectsGPU()
+        {
+            if (subjects.Count == 0 || resolveAttachmentsCS == null || attachmentPosesBuffer == null) return;
+            var mf = GetComponent<MeshFilter>();
+            var smr = GetComponent<SkinnedMeshRenderer>();
+            var mr = GetComponent<MeshRenderer>();
+            if (smr == null && (mf == null || mr == null)) return;
+
+            Mesh skinMesh = mf != null ? mf.sharedMesh : smr.sharedMesh;
+            if (skinMesh == null) return;
+            int positionStream = skinMesh.GetVertexAttributeStream(VertexAttribute.Position);
+            int normalStream = skinMesh.GetVertexAttributeStream(VertexAttribute.Normal);
+
+            if (smr && (smr.vertexBufferTarget & GraphicsBuffer.Target.Raw) == 0)
+            {
+                smr.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
+            }
+
+            if (mf && (mf.sharedMesh.vertexBufferTarget & GraphicsBuffer.Target.Raw) == 0)
+            {
+                mf.sharedMesh.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
+            }
+
+            if (positionStream != normalStream)
+            {
+                Debug.LogError(
+                    "SkinAttachmentTarget requires that the skin has it's positions and normals in the same vertex buffer/stream. Unable to drive attachments.");
+                return;
+            }
+
+            var targetMeshWorldBounds = smr ? smr.bounds : mr.bounds;
+            var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
+            var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
+
+            using GraphicsBuffer skinVertexBuffer =
+                mf != null ? mf.sharedMesh.GetVertexBuffer(positionStream) : smr.GetVertexBuffer();
+
+            if (skinVertexBuffer == null)
+            {
+                return;
+            }
+
+            int[] skinVertexBufferStrideAndOffsets =
+            {
+                skinMesh.GetVertexBufferStride(positionStream),
+                skinMesh.GetVertexAttributeOffset(VertexAttribute.Position),
+                skinMesh.GetVertexAttributeOffset(VertexAttribute.Normal)
+            };
+
+            Matrix4x4 targetToWorld;
+            Matrix4x4
+                postSkinningToAttachment =
+                    Matrix4x4.identity; //need to apply rootbone transform to skinned vertices when resolving since bakemesh has applied it when attachdata is calculated
+            {
+                if (smr)
+                {
+                    targetToWorld = transform.parent.localToWorldMatrix * Matrix4x4.TRS(this.transform.localPosition,
+                        this.transform.localRotation, Vector3.one);
+
+                    if (smr.rootBone)
+                    {
+                        Matrix4x4 boneLocalToWorldNoScale =
+                            Matrix4x4.TRS(smr.rootBone.position, smr.rootBone.rotation, Vector3.one);
+                        postSkinningToAttachment = transform.parent.worldToLocalMatrix * boneLocalToWorldNoScale;
+                    }
+                }
+                else
+                {
+                    postSkinningToAttachment = Matrix4x4.identity;
+                    targetToWorld = this.transform.localToWorldMatrix;
+                }
+            }
+            
+
+            CommandBuffer cmd = CommandBufferPool.Get("Resolve SkinAttachments");
+
+            cmd.BeginSample("Resolve SkinAttachments");
+            //common uniforms
+            cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._StridePosNormOffsetSkin,
+                skinVertexBufferStrideAndOffsets);
+
+            int[] kernels =
+                {resolveAttachmentsKernel, resolveAttachmentsWithMovecsKernel, resolveTransformAttachmentsKernel};
+            foreach (int kernel in kernels)
+            {
+                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
+                    UniformsResolve._AttachmentPosesBuffer,
+                    attachmentPosesBuffer);
+                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
+                    UniformsResolve._AttachmentItemsBuffer,
+                    attachmentItemsBuffer);
+                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
+                    UniformsResolve._SkinPosNormalBuffer,
+                    skinVertexBuffer);
+            }
+
+
+            //first resolve mesh attachments
+            for (int i = 0; i < subjects.Count; i++)
+            {
+                SkinAttachment subject = subjects[i];
+                if (subject.meshInstance == null) continue;
+
+                Matrix4x4 targetToSubject;
+                {
+                    // this used to always read:
+                    //   var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+                    //
+                    // to support attachments that have skinning renderers, we sometimes have to transform
+                    // the vertices into a space that takes into account the subsequently applied skinning:
+                    //    var targetToSubject = (subject.skinningBone.localToWorldMatrix * subject.meshInstanceBoneBindPose).inverse * targetToWorld;
+                    //
+                    // we can reshuffle a bit to get rid of the per-resolve inverse:
+                    //    var targetToSubject = (subject.skinningBoneBindPoseInverse * subject.meshInstanceBone.worldToLocalMatrix) * targetToWorld;
+
+                    if (subject.skinningBone != null)
+                        targetToSubject =
+                            (subject.skinningBoneBindPoseInverse * subject.skinningBone.worldToLocalMatrix) *
+                            targetToWorld;
+                    else
+                        targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+                }
+
+
+                int posStream = subject.meshInstance.GetVertexAttributeStream(VertexAttribute.Position);
+                int normStream = subject.meshInstance.GetVertexAttributeStream(VertexAttribute.Normal);
+
+                if (posStream != normStream)
+                {
+                    Debug.LogError(
+                        "Attachment is required to have positions and normals in the same stream. Skipping attachment " +
+                        subject.name);
+                    continue;
+                }
+
+                int resolveKernel = resolveAttachmentsKernel;
+
+                //movecs
+                if (subject.GeneratePrecalculatedMotionVectors)
+                {
+                    resolveKernel = resolveAttachmentsWithMovecsKernel;
+                    int movecsStream = subject.meshInstance.GetVertexAttributeStream(VertexAttribute.TexCoord5);
+
+                    using GraphicsBuffer movecsVertexBuffer = subject.meshInstance.GetVertexBuffer(movecsStream);
+                    int[] strideOffset =
+                    {
+                        subject.meshInstance.GetVertexBufferStride(movecsStream),
+                        subject.meshInstance.GetVertexAttributeOffset(VertexAttribute.TexCoord5)
+                    };
+
+                    cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._StrideOffsetMovecs,
+                        strideOffset);
+                    cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
+                        UniformsResolve._AttachmentMovecsBuffer, movecsVertexBuffer);
+                }
+
+                using GraphicsBuffer attachmentVertexBuffer = subject.meshInstance.GetVertexBuffer(posStream);
+                int[] attachmentVertexBufferStrideAndOffsets =
+                {
+                    subject.meshInstance.GetVertexBufferStride(posStream),
+                    subject.meshInstance.GetVertexAttributeOffset(VertexAttribute.Position),
+                    subject.meshInstance.GetVertexAttributeOffset(VertexAttribute.Normal)
+                };
+
+                cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
+                    UniformsResolve._AttachmentPosNormalBuffer, attachmentVertexBuffer);
+                cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._StridePosNormOffsetAttachment,
+                    attachmentVertexBufferStrideAndOffsets);
+
+                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._ResolveTransform, targetToSubject);
+                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._PostSkinningToAttachmentTransform,
+                    postSkinningToAttachment);
+                cmd.SetComputeIntParam(resolveAttachmentsCS, UniformsResolve._NumberOfAttachments,
+                    subject.attachmentCount);
+                cmd.SetComputeIntParam(resolveAttachmentsCS, UniformsResolve._AttachmentOffset,
+                    subject.attachmentIndex);
+
+
+                resolveAttachmentsCS.GetKernelThreadGroupSizes(resolveKernel, out uint groupX, out uint groupY,
+                    out uint groupZ);
+                int dispatchCount = (subjects[i].attachmentCount + (int) groupX - 1) / (int) groupX;
+                cmd.DispatchCompute(resolveAttachmentsCS, resolveKernel, dispatchCount, 1, 1);
+
+                subject.NotifyOfMeshModified(cmd);
+
+                Profiler.BeginSample("conservative-bounds");
+                {
+                    var worldToSubject = subject.transform.worldToLocalMatrix;
+                    var subjectBoundsCenter = worldToSubject.MultiplyPoint(targetMeshWorldBoundsCenter);
+                    var subjectBoundsRadius =
+                        worldToSubject.MultiplyVector(targetMeshWorldBoundsExtent).magnitude +
+                        subject.meshAssetRadius;
+                    var subjectBounds = subject.meshInstance.bounds;
+                    {
+                        subjectBounds.center = subjectBoundsCenter;
+                        subjectBounds.extents = subjectBoundsRadius * Vector3.one;
+                    }
+                    subject.meshInstance.bounds = subjectBounds;
+                }
+                Profiler.EndSample();
+            }
+
+            //Resolve transform attachments
+            if (transformAttachmentPosBuffer != null)
+            {
+                int resolveKernel = resolveTransformAttachmentsKernel;
+
+                int[] posBufferStrideOffset =
+                {
+                    transformAttachmentPosBuffer.stride,
+                    0
+                };
+
+                cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
+                    UniformsResolve._AttachmentPosNormalBuffer, transformAttachmentPosBuffer);
+                cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._StridePosNormOffsetAttachment,
+                    posBufferStrideOffset);
+
+                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._ResolveTransform, targetToWorld);
+                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._PostSkinningToAttachmentTransform,
+                    postSkinningToAttachment);
+                cmd.SetComputeIntParam(resolveAttachmentsCS, UniformsResolve._NumberOfAttachments,
+                    transformAttachmentCount);
+                cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
+                    UniformsResolve._TransformAttachmentOffsetBuffer,
+                    transformAttachmentOffsetBuffer);
+
+
+                resolveAttachmentsCS.GetKernelThreadGroupSizes(resolveKernel, out uint groupX, out uint groupY,
+                    out uint groupZ);
+                int dispatchCount = (transformAttachmentCount + (int) groupX - 1) / (int) groupX;
+                cmd.DispatchCompute(resolveAttachmentsCS, resolveKernel, dispatchCount, 1, 1);
+            }
+
+            cmd.EndSample("Resolve SkinAttachments");
+
+            bool needsGPUFence = afterResolveFenceRequested;
+
+            if (needsGPUFence)
+            {
+                afterGPUResolveFence = cmd.CreateAsyncGraphicsFence();
+                afterGPUResolveFenceValid = true;
+            }
+            else
+            {
+                afterGPUResolveFenceValid = false;
+            }
+
+            Graphics.ExecuteCommandBuffer(cmd);
+            
+
+
+            CommandBufferPool.Release(cmd);
+
+            transformGPUPositionsReadBack = false;
+        }
+
+#endif
+
+        #endregion GPUResolve
 
 #if UNITY_EDITOR
-		public void OnDrawGizmosSelected()
-		{
-			var activeGO = UnityEditor.Selection.activeGameObject;
-			if (activeGO == null)
-				return;
-			if (activeGO != this.gameObject && activeGO.GetComponent<SkinAttachment>() == null)
-				return;
+        public void OnDrawGizmosSelected()
+        {
+            var activeGO = UnityEditor.Selection.activeGameObject;
+            if (activeGO == null)
+                return;
+            if (activeGO != this.gameObject && activeGO.GetComponent<SkinAttachment>() == null)
+                return;
 
-			Gizmos.matrix = this.transform.localToWorldMatrix;
+            Gizmos.matrix = this.transform.localToWorldMatrix;
+#if UNITY_2021_2_OR_NEWER
+            if (executeOnGPU && !transformGPUPositionsReadBack)
+            {
+                //readback transform positions to CPU for debugging
+                if (readbackTransformPositions && transformAttachmentPosBuffer != null)
+                {
+                    NativeArray<Vector3> readBackBuffer = new NativeArray<Vector3>(
+                        transformAttachmentPosBuffer.count,
+                        Allocator.Persistent);
 
-			if (showWireframe)
-			{
-				Profiler.BeginSample("show-wire");
-				{
-					var meshVertexCount = meshBuffers.vertexCount;
-					var meshPositions = meshBuffers.vertexPositions;
-					var meshNormals = meshBuffers.vertexNormals;
+                    var readbackRequest =
+                        AsyncGPUReadback.RequestIntoNativeArray(ref readBackBuffer, transformAttachmentPosBuffer);
+                    readbackRequest.WaitForCompletion();
 
-					Gizmos.color = Color.Lerp(Color.clear, Color.green, 0.25f);
-					Gizmos.DrawWireMesh(meshBakedOrAsset, 0);
+                    for (int i = 0; i < subjects.Count; ++i)
+                    {
+                        if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
+                        int index = subjects[i].TransformAttachmentGPUBufferIndex;
+                        Vector3 pos = readBackBuffer[index];
+                        subjects[i].transform.position = pos;
+                    }
 
-					Gizmos.color = Color.red;
-					for (int i = 0; i != meshVertexCount; i++)
-					{
-						Gizmos.DrawRay(meshPositions[i], meshNormals[i] * 0.001f);// 1mm
-					}
-				}
-				Profiler.EndSample();
-			}
-
-			if (showUVSeams)
-			{
-				Profiler.BeginSample("show-seams");
-				{
-					Gizmos.color = Color.cyan;
-					var weldedAdjacency = new MeshAdjacency(meshBuffers, true);
-					for (int i = 0; i != weldedAdjacency.vertexCount; i++)
-					{
-						if (weldedAdjacency.vertexWelded.GetCount(i) > 0)
-						{
-							bool seam = false;
-							foreach (var j in weldedAdjacency.vertexVertices[i])
-							{
-								if (weldedAdjacency.vertexWelded.GetCount(j) > 0)
-								{
-									seam = true;
-									if (i < j)
-									{
-										Gizmos.DrawLine(meshBuffers.vertexPositions[i], meshBuffers.vertexPositions[j]);
-									}
-								}
-							}
-							if (!seam)
-							{
-								Gizmos.color = Color.magenta;
-								Gizmos.DrawRay(meshBuffers.vertexPositions[i], meshBuffers.vertexNormals[i] * 0.003f);
-								Gizmos.color = Color.cyan;
-							}
-						}
-					}
-				}
-				Profiler.EndSample();
-			}
-
-			if (showResolved)
-			{
-				Profiler.BeginSample("show-resolve");
-				unsafe
-				{
-					var attachmentIndex = 0;
-					var attachmentCount = attachData.itemCount;
-
-					using (var resolvedPositions = new UnsafeArrayVector3(attachmentCount))
-					using (var resolvedNormals = new UnsafeArrayVector3(attachmentCount))
-					{
-						var resolveTransform = Matrix4x4.identity;
-						var resolveJob = ScheduleResolve(attachmentIndex, attachmentCount, ref resolveTransform, resolvedPositions.val, resolvedNormals.val);
-
-						JobHandle.ScheduleBatchedJobs();
-
-						resolveJob.Complete();
-
-						Gizmos.color = Color.yellow;
-						Vector3 size = 0.0002f * Vector3.one;
-
-						for (int i = 0; i != attachmentCount; i++)
-						{
-							Gizmos.DrawCube(resolvedPositions.val[i], size);
-						}
-					}
-				}
-				Profiler.EndSample();
-			}
-		}
+                    readBackBuffer.Dispose();
+                    transformGPUPositionsReadBack = true;
+                }
+            }
 #endif
-	}
+            if (showWireframe)
+            {
+                Profiler.BeginSample("show-wire");
+                {
+                    var meshVertexCount = meshBuffers.vertexCount;
+                    var meshPositions = meshBuffers.vertexPositions;
+                    var meshNormals = meshBuffers.vertexNormals;
+
+                    Gizmos.color = Color.Lerp(Color.clear, Color.green, 0.25f);
+                    Gizmos.DrawWireMesh(meshBakedOrAsset, 0);
+
+                    Gizmos.color = Color.red;
+                    for (int i = 0; i != meshVertexCount; i++)
+                    {
+                        Gizmos.DrawRay(meshPositions[i], meshNormals[i] * 0.001f); // 1mm
+                    }
+                }
+                Profiler.EndSample();
+            }
+
+            if (showUVSeams)
+            {
+                Profiler.BeginSample("show-seams");
+                {
+                    Gizmos.color = Color.cyan;
+                    var weldedAdjacency = new MeshAdjacency(meshBuffers, true);
+                    for (int i = 0; i != weldedAdjacency.vertexCount; i++)
+                    {
+                        if (weldedAdjacency.vertexWelded.GetCount(i) > 0)
+                        {
+                            bool seam = false;
+                            foreach (var j in weldedAdjacency.vertexVertices[i])
+                            {
+                                if (weldedAdjacency.vertexWelded.GetCount(j) > 0)
+                                {
+                                    seam = true;
+                                    if (i < j)
+                                    {
+                                        Gizmos.DrawLine(meshBuffers.vertexPositions[i], meshBuffers.vertexPositions[j]);
+                                    }
+                                }
+                            }
+
+                            if (!seam)
+                            {
+                                Gizmos.color = Color.magenta;
+                                Gizmos.DrawRay(meshBuffers.vertexPositions[i], meshBuffers.vertexNormals[i] * 0.003f);
+                                Gizmos.color = Color.cyan;
+                            }
+                        }
+                    }
+                }
+                Profiler.EndSample();
+            }
+
+            if (showResolved)
+            {
+                Profiler.BeginSample("show-resolve");
+                unsafe
+                {
+                    var attachmentIndex = 0;
+                    var attachmentCount = attachData.itemCount;
+
+                    using (var resolvedPositions = new UnsafeArrayVector3(attachmentCount))
+                    using (var resolvedNormals = new UnsafeArrayVector3(attachmentCount))
+                    {
+                        var resolveTransform = Matrix4x4.identity;
+                        var resolveJob = ScheduleResolve(attachmentIndex, attachmentCount, ref resolveTransform,
+                            meshBuffers,
+                            resolvedPositions.val, resolvedNormals.val);
+
+                        JobHandle.ScheduleBatchedJobs();
+
+                        resolveJob.Complete();
+
+                        Gizmos.color = Color.yellow;
+                        Vector3 size = 0.0002f * Vector3.one;
+
+                        for (int i = 0; i != attachmentCount; i++)
+                        {
+                            Gizmos.DrawCube(resolvedPositions.val[i], size);
+                        }
+                    }
+                }
+
+                Profiler.EndSample();
+            }
+        }
+#endif
+    }
 }

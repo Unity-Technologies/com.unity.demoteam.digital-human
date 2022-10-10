@@ -29,6 +29,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		[HideInInspector]
 		public int subjectCount = 0;
 
+		
 		public Hash128 Checksum()
 		{
 			return new Hash128(checksum0, checksum1);

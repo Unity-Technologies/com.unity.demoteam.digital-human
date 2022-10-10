@@ -1,0 +1,166 @@
+﻿#pragma kernel CalculateEyeOcclusionParameters
+
+#include "EyeOcclusionParameters.cs.hlsl"
+
+#define CONEMAPPING_OBJECTSPACEMEAN 0
+#define CONEMAPPING_CLOSINGAXISSPACESPLIT 1
+
+float4x4 _WorldToLocalMat;
+
+uint _ConeMappingType;
+float3 _GeometryOrigin;
+float4 _ASGConeRotation;
+float _ASGConeOffset;
+float2 _ASGConeScale;
+
+ByteAddressBuffer _ASGMarkerPositionsBuffer;
+uint4 _ASGMarkerBufferOffsets;
+
+float _ASGThreshold;
+float _ASGPower;
+
+RWStructuredBuffer<EyeOcclusionParameters> _EyeOcclusionParametersOutput;
+
+// https://mynameismjp.wordpress.com/2016/10/09/sg-series-part-2-spherical-gaussians-101/
+float AsgSharpnessFromThreshold(float epsilon, float amplitude, float power, float cosTheta)
+{
+    return 0.5f * pow(-log(epsilon) - log(amplitude), 1.f / power) / -(cosTheta - 1.f);
+}
+
+float3 ProjectOnPlane(float3 p, float3 normal)
+{
+    float num2 = dot(p, normal);
+    return p - normal * num2;
+}
+
+float3 RotateVector(float4 quat, float3 vec)
+{
+    return vec + 2.0 * cross(cross(vec, quat.xyz) + quat.w * vec, quat.xyz);
+}
+
+void CalculateASGParameters(uint coneMappingType,
+                            float3 geometryOrigin, float3 osMarkerL, float3 osMarkerT, float3 osMarkerR,
+                            float3 osMarkerB,
+                            float4 asgPolygonRot, float coneOffset, float2 coneScale,
+                            float asgThreshold, float asgPower,
+                            out EyeOcclusionParameters asgParamsOut)
+{
+    float cosThetaTangent;
+    float cosThetaBitangent;
+
+    float3 asgOriginOS;
+    float3 asgMeanOS;
+    float3 asgTangentOS;
+    float3 asgBitangentOS;
+
+    if (coneMappingType == CONEMAPPING_OBJECTSPACEMEAN)
+    {
+        asgOriginOS = geometryOrigin;
+        asgMeanOS = normalize(
+            normalize(osMarkerT) +
+            normalize(osMarkerR) +
+            normalize(osMarkerB) +
+            normalize(osMarkerL)
+        );
+        asgBitangentOS = cross(asgMeanOS, normalize(osMarkerR - osMarkerL));
+        asgTangentOS = cross(asgBitangentOS, asgMeanOS);
+
+        float cosThetaMeanToLeft = dot(normalize(osMarkerL), asgMeanOS);
+        float cosThetaMeanToRight = dot(normalize(osMarkerR), asgMeanOS);
+        float cosThetaMeanToTop = dot(normalize(osMarkerT), asgMeanOS);
+        float cosThetaMeanToBottom = dot(normalize(osMarkerB), asgMeanOS);
+
+        cosThetaTangent = (cosThetaMeanToLeft + cosThetaMeanToRight) * 0.5f;
+        cosThetaBitangent = (cosThetaMeanToTop + cosThetaMeanToBottom) * 0.5f;
+    }
+    else
+    {
+        osMarkerL = RotateVector(asgPolygonRot, osMarkerL);
+        osMarkerR = RotateVector(asgPolygonRot, osMarkerR);
+        osMarkerT = RotateVector(asgPolygonRot, osMarkerT);
+        osMarkerB = RotateVector(asgPolygonRot, osMarkerB);
+
+        float3 closingPlaneNormal = normalize(osMarkerR - osMarkerL);
+        float3 closingPlaneOrigin = ProjectOnPlane(osMarkerL, closingPlaneNormal);
+
+        float3 closingPlanePosTop = ProjectOnPlane(osMarkerT, closingPlaneNormal) - closingPlaneOrigin;
+        float3 closingPlanePosBottom = ProjectOnPlane(osMarkerB, closingPlaneNormal) - closingPlaneOrigin;
+        float3 closingPlaneDirTop = normalize(closingPlanePosTop);
+        float3 closingPlaneDirBottom = normalize(closingPlanePosBottom);
+
+        float3 closingPlaneForward = normalize(closingPlaneDirTop + closingPlaneDirBottom);
+        {
+            closingPlaneOrigin -= closingPlaneForward * (0.01f * coneOffset);
+
+            closingPlanePosTop = ProjectOnPlane(osMarkerT, closingPlaneNormal) - closingPlaneOrigin;
+            closingPlanePosBottom = ProjectOnPlane(osMarkerB, closingPlaneNormal) - closingPlaneOrigin;
+            closingPlaneDirTop = normalize(closingPlanePosTop);
+            closingPlaneDirBottom = normalize(closingPlanePosBottom);
+
+            closingPlaneForward = normalize(closingPlaneDirTop + closingPlaneDirBottom);
+        }
+
+        float3 openingPosLeft = (osMarkerL - closingPlaneOrigin);
+        float3 openingPosRight = (osMarkerR - closingPlaneOrigin);
+        float3 openingDirLeft = normalize(openingPosLeft);
+        float3 openingDirRight = normalize(openingPosRight);
+
+        float closingPlaneAltitude = coneScale.y * 0.5f * acos(dot(closingPlaneDirTop, closingPlaneDirBottom));
+        float closingPlaneAzimuth = coneScale.x * 0.5f * acos(dot(openingDirLeft, openingDirRight));
+
+        asgOriginOS = closingPlaneOrigin;
+        asgMeanOS = closingPlaneForward;
+        asgTangentOS = closingPlaneNormal;
+        asgBitangentOS = normalize(cross(asgMeanOS, asgTangentOS));
+
+        cosThetaTangent = cos(closingPlaneAzimuth);
+        cosThetaBitangent = cos(closingPlaneAltitude);
+    }
+
+
+    asgParamsOut.asgOriginOS = float4(asgOriginOS, 1.f);
+    asgParamsOut.asgMeanOS = float4(asgMeanOS, 1.f);;
+    asgParamsOut.asgTangentOS = float4(asgTangentOS, 1.f);;
+    asgParamsOut.asgBitangentOS = float4(asgBitangentOS, 1.f);;
+
+    asgParamsOut.asgSharpness.x = AsgSharpnessFromThreshold(asgThreshold, 1.f, asgPower, cosThetaTangent);
+    asgParamsOut.asgSharpness.y = AsgSharpnessFromThreshold(asgThreshold, 1.f, asgPower, cosThetaBitangent);
+
+    asgParamsOut.asgThresholdScaleBias.x = 1.f / (1.f - asgThreshold);
+    asgParamsOut.asgThresholdScaleBias.y = -asgThreshold / (1.f - asgThreshold);
+}
+
+
+[numthreads(1,1,1)]
+void CalculateEyeOcclusionParameters(uint id : SV_DispatchThreadID)
+{
+    EyeOcclusionParameters parameters;
+
+    float4 markers[4] =
+    {
+        float4(asfloat(_ASGMarkerPositionsBuffer.Load3(_ASGMarkerBufferOffsets.x)), 1.f),
+        float4(asfloat(_ASGMarkerPositionsBuffer.Load3(_ASGMarkerBufferOffsets.y)), 1.f),
+        float4(asfloat(_ASGMarkerPositionsBuffer.Load3(_ASGMarkerBufferOffsets.z)), 1.f),
+        float4(asfloat(_ASGMarkerPositionsBuffer.Load3(_ASGMarkerBufferOffsets.w)), 1.f),
+    };
+
+    [unroll]
+    for (uint i = 0; i < 4; ++i)
+    {
+        markers[i] = mul(_WorldToLocalMat, markers[i]);
+    }
+
+    //       1
+    //   .-´   `-.
+    // 0           2
+    //   `-.   .-´
+    //       3
+
+
+    CalculateASGParameters(_ConeMappingType,
+                           _GeometryOrigin, markers[0].xyz, markers[1].xyz, markers[2].xyz, markers[3].xyz,
+                           _ASGConeRotation, _ASGConeOffset, _ASGConeScale,
+                           _ASGThreshold, _ASGPower, parameters);
+
+    _EyeOcclusionParametersOutput[0] = parameters;
+}

@@ -4,7 +4,7 @@
 SamplerState SNAPPERS_sampler_linear_repeat;
 #define SNAPPERS_SAMPLER SNAPPERS_sampler_linear_repeat
 
-//#define _SNAPPERS_TEXTURE_ARRAYS
+#define _SNAPPERS_TEXTURE_ARRAYS
 #ifdef _SNAPPERS_TEXTURE_ARRAYS
 TEXTURE2D_ARRAY(_SnappersMask);// [0, ..., 11]
 TEXTURE2D_ARRAY(_SnappersAlbedo);// [0, ..., 3] 
@@ -52,7 +52,7 @@ float SnappersMaskSum(float3 a, float3 b, float3 c)
 #ifdef _SNAPPERS_TEXTURE_ARRAYS
 float4 SnappersSample(int index, Texture2DArray array, float2 uv)
 {
-	return array.Sample(SNAPPERS_SAMPLER, float3(uv, index - 1));
+	return SAMPLE_TEXTURE2D_ARRAY(array, SNAPPERS_SAMPLER, uv, index - 1);
 }
 
 float SnappersMaskSum9(int mask123, int mask456, int mask789, float2 uv, const int offset)
@@ -98,82 +98,82 @@ void SnappersBlend_float(in float2 uv, in float3 inAlbedo, in float4 inNormal, i
 #else
 	// mask 1-3
 	float AddOp1 = SnappersMaskSum(
-		_SnappersMask1.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(1, 2, 3),
-		_SnappersMask2.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(4, 5, 6),
-		_SnappersMask3.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(7, 8, 9));
+		SAMPLE_TEXTURE2D(_SnappersMask1, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(1, 2, 3),
+		SAMPLE_TEXTURE2D(_SnappersMask2, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(4, 5, 6),
+		SAMPLE_TEXTURE2D(_SnappersMask3, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(7, 8, 9));
 
 	float AddOp2 = SnappersMaskSum(
-		_SnappersMask1.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(10, 11, 12),
-		_SnappersMask2.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(13, 14, 15),
-		_SnappersMask3.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(16, 17, 18));
+		SAMPLE_TEXTURE2D(_SnappersMask1, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(10, 11, 12),
+		SAMPLE_TEXTURE2D(_SnappersMask2, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(13, 14, 15),
+		SAMPLE_TEXTURE2D(_SnappersMask3, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(16, 17, 18));
 
 	float AddOp3 = SnappersMaskSum(
-		_SnappersMask1.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(19, 20, 21),
-		_SnappersMask2.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(22, 23, 24),
-		_SnappersMask3.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(25, 26, 27));
+		SAMPLE_TEXTURE2D(_SnappersMask1, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(19, 20, 21),
+		SAMPLE_TEXTURE2D(_SnappersMask2, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(22, 23, 24),
+		SAMPLE_TEXTURE2D(_SnappersMask3, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(25, 26, 27));
 
 	// mask 4-6
 	float AddOp4 = SnappersMaskSum(
-		_SnappersMask4.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(28, 29, 30),
-		_SnappersMask5.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(31, 32, 33),
-		_SnappersMask6.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(34, 35, 36));
+		SAMPLE_TEXTURE2D(_SnappersMask4, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(28, 29, 30),
+		SAMPLE_TEXTURE2D(_SnappersMask5, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(31, 32, 33),
+		SAMPLE_TEXTURE2D(_SnappersMask6, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(34, 35, 36));
 	
 	float AddOp5 = SnappersMaskSum(
-		_SnappersMask4.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(37, 38, 39),
-		_SnappersMask5.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(40, 41, 42),
-		_SnappersMask6.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(43, 44, 45));
+		SAMPLE_TEXTURE2D(_SnappersMask4, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(37, 38, 39),
+		SAMPLE_TEXTURE2D(_SnappersMask5, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(40, 41, 42),
+		SAMPLE_TEXTURE2D(_SnappersMask6, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(43, 44, 45));
 
 	float AddOp6 = SnappersMaskSum(
-		_SnappersMask4.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(46, 47, 48),
-		_SnappersMask5.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(49, 50, 51),
-		_SnappersMask6.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(52, 53, 54));
+		SAMPLE_TEXTURE2D(_SnappersMask4, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(46, 47, 48),
+		SAMPLE_TEXTURE2D(_SnappersMask5, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(49, 50, 51),
+		SAMPLE_TEXTURE2D(_SnappersMask6, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(52, 53, 54));
 
 	float AddOp7 = SnappersMaskSum(
-		_SnappersMask4.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(55, 56, 57),
-		_SnappersMask5.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(58, 59, 60),
-		_SnappersMask6.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(61, 62, 63));
+		SAMPLE_TEXTURE2D(_SnappersMask4, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(55, 56, 57),
+		SAMPLE_TEXTURE2D(_SnappersMask5, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(58, 59, 60),
+		SAMPLE_TEXTURE2D(_SnappersMask6, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(61, 62, 63));
 
 	// mask 7-9
 	float AddOp8 = SnappersMaskSum(
-		_SnappersMask7.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(64, 65, 66),
-		_SnappersMask8.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(67, 68, 69),
-		_SnappersMask9.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(70, 71, 72));
+		SAMPLE_TEXTURE2D(_SnappersMask7, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(64, 65, 66),
+		SAMPLE_TEXTURE2D(_SnappersMask8, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(67, 68, 69),
+		SAMPLE_TEXTURE2D(_SnappersMask9, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(70, 71, 72));
 
 	float AddOp9 = SnappersMaskSum(
-		_SnappersMask7.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(73, 74, 75),
-		_SnappersMask8.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(76, 77, 78),
-		_SnappersMask9.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(79, 80, 81));
+		SAMPLE_TEXTURE2D(_SnappersMask7, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(73, 74, 75),
+		SAMPLE_TEXTURE2D(_SnappersMask8, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(76, 77, 78),
+		SAMPLE_TEXTURE2D(_SnappersMask9, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(79, 80, 81));
 
 	float AddOp10 = SnappersMaskSum(
-		_SnappersMask7.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(82, 83, 84),
-		_SnappersMask8.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(85, 86, 87),
-		_SnappersMask9.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(88, 89, 90));
+		SAMPLE_TEXTURE2D(_SnappersMask7, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(82, 83, 84),
+		SAMPLE_TEXTURE2D(_SnappersMask8, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(85, 86, 87),
+		SAMPLE_TEXTURE2D(_SnappersMask9, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(88, 89, 90));
 
 	float AddOp11 = SnappersMaskSum(
-		_SnappersMask7.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(91, 92, 93),
-		_SnappersMask8.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(94, 95, 96),
-		_SnappersMask9.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(97, 98, 99));
+		SAMPLE_TEXTURE2D(_SnappersMask7, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(91, 92, 93),
+		SAMPLE_TEXTURE2D(_SnappersMask8, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(94, 95, 96),
+		SAMPLE_TEXTURE2D(_SnappersMask9, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(97, 98, 99));
 
 	// mask 10-12
 	float AddOp12 = SnappersMaskSum(
-		_SnappersMask10.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(100, 101, 102),
-		_SnappersMask11.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(103, 104, 105),
-		_SnappersMask12.Sample(SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(106, 107, 108));
+		SAMPLE_TEXTURE2D(_SnappersMask10, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(100, 101, 102),
+		SAMPLE_TEXTURE2D(_SnappersMask11, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(103, 104, 105),
+		SAMPLE_TEXTURE2D(_SnappersMask12, SNAPPERS_SAMPLER, normalUV).xyz * SnappersMaskParams(106, 107, 108));
 
 	float AddOp13 = SnappersMaskSum(
-		_SnappersMask10.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(109, 110, 111),
-		_SnappersMask11.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(112, 113, 114),
-		_SnappersMask12.Sample(SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(115, 116, 117));
+		SAMPLE_TEXTURE2D(_SnappersMask10, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(109, 110, 111),
+		SAMPLE_TEXTURE2D(_SnappersMask11, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(112, 113, 114),
+		SAMPLE_TEXTURE2D(_SnappersMask12, SNAPPERS_SAMPLER, comp1UV).xyz * SnappersMaskParams(115, 116, 117));
 
 	float AddOp14 = SnappersMaskSum(
-		_SnappersMask10.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(118, 119, 120),
-		_SnappersMask11.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(121, 122, 123),
-		_SnappersMask12.Sample(SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(124, 125, 126));
+		SAMPLE_TEXTURE2D(_SnappersMask10, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(118, 119, 120),
+		SAMPLE_TEXTURE2D(_SnappersMask11, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(121, 122, 123),
+		SAMPLE_TEXTURE2D(_SnappersMask12, SNAPPERS_SAMPLER, comp2UV).xyz * SnappersMaskParams(124, 125, 126));
 
 	float AddOp15 = SnappersMaskSum(
-		_SnappersMask10.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(127, 128, 129),
-		_SnappersMask11.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(130, 131, 132),
-		_SnappersMask12.Sample(SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(133, 134, 135));
+		SAMPLE_TEXTURE2D(_SnappersMask10, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(127, 128, 129),
+		SAMPLE_TEXTURE2D(_SnappersMask11, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(130, 131, 132),
+		SAMPLE_TEXTURE2D(_SnappersMask12, SNAPPERS_SAMPLER, comp3UV).xyz * SnappersMaskParams(133, 134, 135));
 #endif
 
 	float AddOpAll = AddOp1 + AddOp2 + AddOp3 + AddOp4 + AddOp5 + AddOp6 + AddOp7 + AddOp8 + AddOp9 + AddOp10 + AddOp11 + AddOp12 + AddOp13 + AddOp14 + AddOp15;
@@ -204,24 +204,24 @@ void SnappersBlend_float(in float2 uv, in float3 inAlbedo, in float4 inNormal, i
 		float3 albedoSample14 = SnappersSample(4, _SnappersAlbedo, comp2UV).xyz;
 		float3 albedoSample15 = SnappersSample(4, _SnappersAlbedo, comp3UV).xyz;
 #else
-		float3 albedoSample1 = _SnappersAlbedo1.Sample(SNAPPERS_SAMPLER, comp1UV).xyz;
-		float3 albedoSample2 = _SnappersAlbedo1.Sample(SNAPPERS_SAMPLER, comp2UV).xyz;
-		float3 albedoSample3 = _SnappersAlbedo1.Sample(SNAPPERS_SAMPLER, comp3UV).xyz;
+		float3 albedoSample1 = SAMPLE_TEXTURE2D(_SnappersAlbedo1, SNAPPERS_SAMPLER, comp1UV).xyz;
+		float3 albedoSample2 = SAMPLE_TEXTURE2D(_SnappersAlbedo1, SNAPPERS_SAMPLER, comp2UV).xyz;
+		float3 albedoSample3 = SAMPLE_TEXTURE2D(_SnappersAlbedo1, SNAPPERS_SAMPLER, comp3UV).xyz;
 
-		float3 albedoSample4 = _SnappersAlbedo2.Sample(SNAPPERS_SAMPLER, normalUV).xyz;
-		float3 albedoSample5 = _SnappersAlbedo2.Sample(SNAPPERS_SAMPLER, comp1UV).xyz;
-		float3 albedoSample6 = _SnappersAlbedo2.Sample(SNAPPERS_SAMPLER, comp2UV).xyz;
-		float3 albedoSample7 = _SnappersAlbedo2.Sample(SNAPPERS_SAMPLER, comp3UV).xyz;
+		float3 albedoSample4 = SAMPLE_TEXTURE2D(_SnappersAlbedo2, SNAPPERS_SAMPLER, normalUV).xyz;
+		float3 albedoSample5 = SAMPLE_TEXTURE2D(_SnappersAlbedo2, SNAPPERS_SAMPLER, comp1UV).xyz;
+		float3 albedoSample6 = SAMPLE_TEXTURE2D(_SnappersAlbedo2, SNAPPERS_SAMPLER, comp2UV).xyz;
+		float3 albedoSample7 = SAMPLE_TEXTURE2D(_SnappersAlbedo2, SNAPPERS_SAMPLER, comp3UV).xyz;
 
-		float3 albedoSample8 = _SnappersAlbedo3.Sample(SNAPPERS_SAMPLER, normalUV).xyz;
-		float3 albedoSample9 = _SnappersAlbedo3.Sample(SNAPPERS_SAMPLER, comp1UV).xyz;
-		float3 albedoSample10 = _SnappersAlbedo3.Sample(SNAPPERS_SAMPLER, comp2UV).xyz;
-		float3 albedoSample11 = _SnappersAlbedo3.Sample(SNAPPERS_SAMPLER, comp3UV).xyz;
+		float3 albedoSample8 = SAMPLE_TEXTURE2D(_SnappersAlbedo3, SNAPPERS_SAMPLER, normalUV).xyz;
+		float3 albedoSample9 = SAMPLE_TEXTURE2D(_SnappersAlbedo3, SNAPPERS_SAMPLER, comp1UV).xyz;
+		float3 albedoSample10 = SAMPLE_TEXTURE2D(_SnappersAlbedo3, SNAPPERS_SAMPLER, comp2UV).xyz;
+		float3 albedoSample11 = SAMPLE_TEXTURE2D(_SnappersAlbedo3, SNAPPERS_SAMPLER, comp3UV).xyz;
 
-		float3 albedoSample12 = _SnappersAlbedo4.Sample(SNAPPERS_SAMPLER, normalUV).xyz;
-		float3 albedoSample13 = _SnappersAlbedo4.Sample(SNAPPERS_SAMPLER, comp1UV).xyz;
-		float3 albedoSample14 = _SnappersAlbedo4.Sample(SNAPPERS_SAMPLER, comp2UV).xyz;
-		float3 albedoSample15 = _SnappersAlbedo4.Sample(SNAPPERS_SAMPLER, comp3UV).xyz;
+		float3 albedoSample12 = SAMPLE_TEXTURE2D(_SnappersAlbedo4, SNAPPERS_SAMPLER, normalUV).xyz;
+		float3 albedoSample13 = SAMPLE_TEXTURE2D(_SnappersAlbedo4, SNAPPERS_SAMPLER, comp1UV).xyz;
+		float3 albedoSample14 = SAMPLE_TEXTURE2D(_SnappersAlbedo4, SNAPPERS_SAMPLER, comp2UV).xyz;
+		float3 albedoSample15 = SAMPLE_TEXTURE2D(_SnappersAlbedo4, SNAPPERS_SAMPLER, comp3UV).xyz;
 #endif
 
 		outAlbedo = inAlbedo * (1 - AddOpAll_upperbound_1) + IntersectionInv *
@@ -267,24 +267,24 @@ void SnappersBlend_float(in float2 uv, in float3 inAlbedo, in float4 inNormal, i
 		float4 normalSample15 = SnappersSample(4, _SnappersNormal, comp3UV);
 #else
 		//float4 normalBase = _NormalMap.Sample(sampler_NormalMap, uv);
-		float4 normalSample1 = _SnappersNormal1.Sample(SNAPPERS_SAMPLER, comp1UV);
-		float4 normalSample2 = _SnappersNormal1.Sample(SNAPPERS_SAMPLER, comp2UV);
-		float4 normalSample3 = _SnappersNormal1.Sample(SNAPPERS_SAMPLER, comp3UV);
+		float4 normalSample1 = SAMPLE_TEXTURE2D(_SnappersNormal1, SNAPPERS_SAMPLER, comp1UV);
+		float4 normalSample2 = SAMPLE_TEXTURE2D(_SnappersNormal1, SNAPPERS_SAMPLER, comp2UV);
+		float4 normalSample3 = SAMPLE_TEXTURE2D(_SnappersNormal1, SNAPPERS_SAMPLER, comp3UV);
 
-		float4 normalSample4 = _SnappersNormal2.Sample(SNAPPERS_SAMPLER, normalUV);
-		float4 normalSample5 = _SnappersNormal2.Sample(SNAPPERS_SAMPLER, comp1UV);
-		float4 normalSample6 = _SnappersNormal2.Sample(SNAPPERS_SAMPLER, comp2UV);
-		float4 normalSample7 = _SnappersNormal2.Sample(SNAPPERS_SAMPLER, comp3UV);
+		float4 normalSample4 = SAMPLE_TEXTURE2D(_SnappersNormal2, SNAPPERS_SAMPLER, normalUV);
+		float4 normalSample5 = SAMPLE_TEXTURE2D(_SnappersNormal2, SNAPPERS_SAMPLER, comp1UV);
+		float4 normalSample6 = SAMPLE_TEXTURE2D(_SnappersNormal2, SNAPPERS_SAMPLER, comp2UV);
+		float4 normalSample7 = SAMPLE_TEXTURE2D(_SnappersNormal2, SNAPPERS_SAMPLER, comp3UV);
 
-		float4 normalSample8 = _SnappersNormal3.Sample(SNAPPERS_SAMPLER, normalUV);
-		float4 normalSample9 = _SnappersNormal3.Sample(SNAPPERS_SAMPLER, comp1UV);
-		float4 normalSample10 = _SnappersNormal3.Sample(SNAPPERS_SAMPLER, comp2UV);
-		float4 normalSample11 = _SnappersNormal3.Sample(SNAPPERS_SAMPLER, comp3UV);
+		float4 normalSample8 = SAMPLE_TEXTURE2D(_SnappersNormal3, SNAPPERS_SAMPLER, normalUV);
+		float4 normalSample9 = SAMPLE_TEXTURE2D(_SnappersNormal3, SNAPPERS_SAMPLER, comp1UV);
+		float4 normalSample10 = SAMPLE_TEXTURE2D(_SnappersNormal3, SNAPPERS_SAMPLER, comp2UV);
+		float4 normalSample11 = SAMPLE_TEXTURE2D(_SnappersNormal3, SNAPPERS_SAMPLER, comp3UV);
 
-		float4 normalSample12 = _SnappersNormal4.Sample(SNAPPERS_SAMPLER, normalUV);
-		float4 normalSample13 = _SnappersNormal4.Sample(SNAPPERS_SAMPLER, comp1UV);
-		float4 normalSample14 = _SnappersNormal4.Sample(SNAPPERS_SAMPLER, comp2UV);
-		float4 normalSample15 = _SnappersNormal4.Sample(SNAPPERS_SAMPLER, comp3UV);
+		float4 normalSample12 = SAMPLE_TEXTURE2D(_SnappersNormal4, SNAPPERS_SAMPLER, normalUV);
+		float4 normalSample13 = SAMPLE_TEXTURE2D(_SnappersNormal4, SNAPPERS_SAMPLER, comp1UV);
+		float4 normalSample14 = SAMPLE_TEXTURE2D(_SnappersNormal4, SNAPPERS_SAMPLER, comp2UV);
+		float4 normalSample15 = SAMPLE_TEXTURE2D(_SnappersNormal4, SNAPPERS_SAMPLER, comp3UV);
 #endif
 
 		outNormal = inNormal * (1 - AddOpAll_upperbound_1) + IntersectionInv *
@@ -329,24 +329,24 @@ void SnappersBlend_float(in float2 uv, in float3 inAlbedo, in float4 inNormal, i
 		float cavitySample14 = SnappersSample(4, _SnappersCavity, comp2UV).r;
 		float cavitySample15 = SnappersSample(4, _SnappersCavity, comp3UV).r;
 #else
-		float cavitySample1 = _SnappersCavity1.Sample(SNAPPERS_SAMPLER, comp1UV).r;
-		float cavitySample2 = _SnappersCavity1.Sample(SNAPPERS_SAMPLER, comp2UV).r;
-		float cavitySample3 = _SnappersCavity1.Sample(SNAPPERS_SAMPLER, comp3UV).r;
+		float cavitySample1 = SAMPLE_TEXTURE2D(_SnappersCavity1, SNAPPERS_SAMPLER, comp1UV).r;
+		float cavitySample2 = SAMPLE_TEXTURE2D(_SnappersCavity1, SNAPPERS_SAMPLER, comp2UV).r;
+		float cavitySample3 = SAMPLE_TEXTURE2D(_SnappersCavity1, SNAPPERS_SAMPLER, comp3UV).r;
 
-		float cavitySample4 = _SnappersCavity2.Sample(SNAPPERS_SAMPLER, normalUV).r;
-		float cavitySample5 = _SnappersCavity2.Sample(SNAPPERS_SAMPLER, comp1UV).r;
-		float cavitySample6 = _SnappersCavity2.Sample(SNAPPERS_SAMPLER, comp2UV).r;
-		float cavitySample7 = _SnappersCavity2.Sample(SNAPPERS_SAMPLER, comp3UV).r;
+		float cavitySample4 = SAMPLE_TEXTURE2D(_SnappersCavity2, SNAPPERS_SAMPLER, normalUV).r;
+		float cavitySample5 = SAMPLE_TEXTURE2D(_SnappersCavity2, SNAPPERS_SAMPLER, comp1UV).r;
+		float cavitySample6 = SAMPLE_TEXTURE2D(_SnappersCavity2, SNAPPERS_SAMPLER, comp2UV).r;
+		float cavitySample7 = SAMPLE_TEXTURE2D(_SnappersCavity2, SNAPPERS_SAMPLER, comp3UV).r;
 
-		float cavitySample8 = _SnappersCavity3.Sample(SNAPPERS_SAMPLER, normalUV).r;
-		float cavitySample9 = _SnappersCavity3.Sample(SNAPPERS_SAMPLER, comp1UV).r;
-		float cavitySample10 = _SnappersCavity3.Sample(SNAPPERS_SAMPLER, comp2UV).r;
-		float cavitySample11 = _SnappersCavity3.Sample(SNAPPERS_SAMPLER, comp3UV).r;
+		float cavitySample8 = SAMPLE_TEXTURE2D(_SnappersCavity3, SNAPPERS_SAMPLER, normalUV).r;
+		float cavitySample9 = SAMPLE_TEXTURE2D(_SnappersCavity3, SNAPPERS_SAMPLER, comp1UV).r;
+		float cavitySample10 = SAMPLE_TEXTURE2D(_SnappersCavity3, SNAPPERS_SAMPLER, comp2UV).r;
+		float cavitySample11 = SAMPLE_TEXTURE2D(_SnappersCavity3, SNAPPERS_SAMPLER, comp3UV).r;
 
-		float cavitySample12 = _SnappersCavity4.Sample(SNAPPERS_SAMPLER, normalUV).r;
-		float cavitySample13 = _SnappersCavity4.Sample(SNAPPERS_SAMPLER, comp1UV).r;
-		float cavitySample14 = _SnappersCavity4.Sample(SNAPPERS_SAMPLER, comp2UV).r;
-		float cavitySample15 = _SnappersCavity4.Sample(SNAPPERS_SAMPLER, comp3UV).r;
+		float cavitySample12 = SAMPLE_TEXTURE2D(_SnappersCavity4, SNAPPERS_SAMPLER, normalUV).r;
+		float cavitySample13 = SAMPLE_TEXTURE2D(_SnappersCavity4, SNAPPERS_SAMPLER, comp1UV).r;
+		float cavitySample14 = SAMPLE_TEXTURE2D(_SnappersCavity4, SNAPPERS_SAMPLER, comp2UV).r;
+		float cavitySample15 = SAMPLE_TEXTURE2D(_SnappersCavity4, SNAPPERS_SAMPLER, comp3UV).r;
 #endif
 
 		outCavity = inCavity * (1 - AddOpAll_upperbound_1) + IntersectionInv *

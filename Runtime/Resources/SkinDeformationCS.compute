@@ -1,0 +1,58 @@
+
+#pragma kernel ApplySkinDeform
+
+StructuredBuffer<float3> _NeutralPositions;
+StructuredBuffer<float3> _NeutralNormals;
+
+RWByteAddressBuffer _TargetMeshPosNormalBuffer;
+
+int _NumberOfVertices;
+int2 _PositionStrideOffset;
+int2 _NormalStrideOffset;
+
+//Apply deform
+ByteAddressBuffer _PositionAndNormalDeltas;
+
+
+
+void fetchPositionAndNormalDeltas(in int vertexIndex, out float3 posOut, out float3 normalOut)
+{
+    const int packedEntrySize = 12;
+
+    uint3 posNormalPacked = _PositionAndNormalDeltas.Load3(vertexIndex * packedEntrySize);
+    
+    float a = f16tof32(posNormalPacked.x & 0xFFFF);
+    float b = f16tof32(posNormalPacked.x >> 16);
+    float c = f16tof32(posNormalPacked.y & 0xFFFF);
+    float d = f16tof32(posNormalPacked.y >> 16);
+    float e = f16tof32(posNormalPacked.z & 0xFFFF);
+    float f = f16tof32(posNormalPacked.z >> 16);
+
+
+    posOut = float3(a, b, c);
+    normalOut = float3(d, e, f);
+}
+
+[numthreads(64,1,1)]
+void ApplySkinDeform (uint id : SV_DispatchThreadID)
+{
+    if(id < (uint)_NumberOfVertices)
+    {
+        float3 posDelta;
+        float3 normalDelta;
+        fetchPositionAndNormalDeltas(id, posDelta, normalDelta);
+
+        float3 pos = _NeutralPositions[id];
+        float3 norm = _NeutralNormals[id];
+
+        pos += posDelta;
+        norm += normalDelta;
+
+        norm = normalize(norm);
+
+        _TargetMeshPosNormalBuffer.Store3(id * _PositionStrideOffset.x + _PositionStrideOffset.y, asuint(pos));
+        _TargetMeshPosNormalBuffer.Store3(id * _NormalStrideOffset.x + _NormalStrideOffset.y, asuint(norm));
+        
+    }
+}
+

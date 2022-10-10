@@ -1,7 +1,7 @@
 {
     "name": "Unity.DemoTeam.DigitalHuman.Runtime",
+    "rootNamespace": "",
     "references": [
-        "GUID:f430d943acec4664388d12e0bbff46de",
         "GUID:2665a8d13d1b3f18800f46e256720795",
         "GUID:e0cd26848372d4e5c891c569017e11f1",
         "GUID:d8b63aba1907145bea998dd612889d6b",

@@ -1,4 +1,4 @@
-﻿//#define _SNAPPERS_TEXTURE_ARRAYS
+﻿#define _SNAPPERS_TEXTURE_ARRAYS
 
 using UnityEditor;
 using UnityEngine;
@@ -98,7 +98,11 @@ namespace Unity.DemoTeam.DigitalHuman
 						//}
 
 						EditorGUI.BeginChangeCheck();
-						pos = Handles.FreeMoveHandle(pos, Quaternion.identity, hndSize, hndSnap * Vector3.one, Handles.SphereHandleCap);
+						#if UNITY_2022_1_OR_NEWER
+						var fmh_101_41_637902790171159361 = Quaternion.identity; pos = Handles.FreeMoveHandle(pos, hndSize, hndSnap * Vector3.one, Handles.SphereHandleCap);
+						#else
+						var fmh_101_41_637902790171159361 = Quaternion.identity; pos = Handles.FreeMoveHandle(pos, Quaternion.identity, hndSize, hndSnap * Vector3.one, Handles.SphereHandleCap);
+						#endif
 						if (EditorGUI.EndChangeCheck())
 						{
 							Undo.RecordObject(t, "Move control rig handle");

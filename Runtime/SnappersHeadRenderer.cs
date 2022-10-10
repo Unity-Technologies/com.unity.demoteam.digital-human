@@ -1,9 +1,8 @@
-﻿//#define _SNAPPERS_TEXTURE_ARRAYS
+﻿#define _SNAPPERS_TEXTURE_ARRAYS
 
 using System;
 using UnityEngine;
 using UnityEngine.Serialization;
-using Unity.DemoTeam.Attributes;
 
 namespace Unity.DemoTeam.DigitalHuman
 {

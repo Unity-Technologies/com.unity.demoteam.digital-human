@@ -1,0 +1,52 @@
+﻿#pragma kernel CalculateSkinTension
+
+ByteAddressBuffer _PosNormalBuffer;
+RWStructuredBuffer<float> _TensionWeightsBuffer;
+
+int _NumberOfVertices;
+int2 _PositionStrideOffset;
+
+StructuredBuffer<float> _EdgeRestLengthsBuffer;
+StructuredBuffer<int> _AdjacentVerticesBuffer;
+StructuredBuffer<int> _AdjacentVerticesCountBuffer;
+StructuredBuffer<int> _AdjacentOffsetsBuffer;
+float _SkinTensionGain;
+
+float gain(float x, float k)
+{
+    float a = 0.5f * pow(abs(2.0f * ((x < 0.5f) ? x : 1.0f - x)), k);
+    return (x < 0.5f) ? a : 1.0f - a;
+}
+
+[numthreads(64,1,1)]
+void CalculateSkinTension (uint id : SV_DispatchThreadID)
+{
+    if(id < (uint)_NumberOfVertices)
+    {
+        
+        float avgEdgeLength = 0.0f;
+        int adjacentCount = _AdjacentVerticesCountBuffer[id];
+        int adjacentOffset = _AdjacentOffsetsBuffer[id];
+        float avgEdgeLengthAtRest = _EdgeRestLengthsBuffer[id];
+
+        float3 pos = asfloat(_PosNormalBuffer.Load3(id * _PositionStrideOffset.x + _PositionStrideOffset.y));
+        
+        for (int i = 0; i < adjacentCount; i++)
+        {
+            int idx = adjacentOffset + i;
+            int neighbourIndex = _AdjacentVerticesBuffer[idx];
+            float3 neighbourPos   = asfloat(_PosNormalBuffer.Load3(neighbourIndex * _PositionStrideOffset.x + _PositionStrideOffset.y));
+            avgEdgeLength += length(neighbourPos - pos);
+        }
+
+        avgEdgeLength /= adjacentCount;
+
+        float edgeDeltaValue = (avgEdgeLength - avgEdgeLengthAtRest) / avgEdgeLengthAtRest;
+        float edgeDelta = saturate(gain(abs(edgeDeltaValue), _SkinTensionGain)) * (edgeDeltaValue < 0 ? -1.f : 1.f);
+
+        _TensionWeightsBuffer[id] = edgeDelta;
+       
+    }
+
+    
+}
