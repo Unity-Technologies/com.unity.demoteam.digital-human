@@ -2,6 +2,16 @@
 
 Library of tech features used to realize the digital human from *The Heretic* and *Enemies*.
 
+## Usage
+
+Declare the package as a git dependency in `Packages/manifest.json`:
+
+```
+"dependencies": {
+    "com.unity.demoteam.digital-human": "https://github.com/Unity-Technologies/com.unity.demoteam.digital-human.git",
+    ...
+}
+```
 
 ## Requirements
 -*Minimum Requirements*
@@ -41,17 +51,7 @@ Library of tech features used to realize the digital human from *The Heretic* an
   - Added skin tension to apply wrinkle maps.
   - Custom pass for slight blurring around the eye lids.
   - New shader graphs for eyes and skin.
-
-## Usage
-
-Declare the package as a git dependency in `Packages/manifest.json`:
-
-```
-"dependencies": {
-    "com.unity.demoteam.digital-human": "https://github.com/Unity-Technologies/com.unity.demoteam.digital-human.git",
-    ...
-}
-```
+  - SnappersHeadRenderer now uses texture arrays. If migrating from older version of DHP, use "build texture arrays" to setup the textures properly.
 
 
 ## See also
