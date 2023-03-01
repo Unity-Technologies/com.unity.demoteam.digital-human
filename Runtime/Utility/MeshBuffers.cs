@@ -102,7 +102,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				ArrayUtils.ResizeCheckedIfLessThan(ref vertexNormals, vertexCount);
 
 				nativeMesh.vertexPositions.CopyTo(vertexPositions);
-				Array.Clear(vertexTangents, 0, vertexTangents.Length);
+				nativeMesh.vertexTangents.CopyTo(vertexTangents);
 				nativeMesh.vertexNormals.CopyTo(vertexNormals);
 			}
 			Profiler.EndSample();

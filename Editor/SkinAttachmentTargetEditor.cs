@@ -80,8 +80,8 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 attachData.Persist();
             }
-
-            if (DrawGUIGrowShrink("Items", ref attachData.item, attachData.itemCount))
+            
+            if (DrawGUIGrowShrink("Items", ref attachData.ItemDataRef, attachData.itemCount))
             {
                 attachData.Persist();
             }

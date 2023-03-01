@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -161,6 +162,16 @@ namespace Unity.DemoTeam.DigitalHuman
             DiscoverSkinningBone();
 #if UNITY_2021_2_OR_NEWER
             //if we need to generate precalculated movecs, we need float3 texcoord5 
+
+            List<Tuple<VertexAttribute, int>> neededAttributes = new List<Tuple<VertexAttribute, int>>();
+            neededAttributes.Add(Tuple.Create(VertexAttribute.Position, 0));
+            neededAttributes.Add(Tuple.Create(VertexAttribute.Normal, 0));
+
+            if (meshInstance.HasVertexAttribute(VertexAttribute.Tangent))
+            {
+                neededAttributes.Add(Tuple.Create(VertexAttribute.Tangent, 0));
+            }
+                
             if (GeneratePrecalculatedMotionVectors)
             {
 
@@ -183,12 +194,12 @@ namespace Unity.DemoTeam.DigitalHuman
                         VertexAttributeFormat.Float32, 3, 1);
                     meshInstance.SetVertexBufferParams(meshInstance.vertexCount, newAttributes);
                 }
-                
-                meshInstance.ChangeVertexStreamLayout(new[]{ Tuple.Create(VertexAttribute.Position, 0), Tuple.Create(VertexAttribute.Normal, 0), Tuple.Create(VertexAttribute.TexCoord5, 1) }, 2);
+                neededAttributes.Add(Tuple.Create(VertexAttribute.TexCoord5, 1));
+                meshInstance.ChangeVertexStreamLayout(neededAttributes.ToArray(), 2);
             }
             else
             {
-                meshInstance.ChangeVertexStreamLayout(new[]{ Tuple.Create(VertexAttribute.Position, 0), Tuple.Create(VertexAttribute.Normal, 0)  }, 1);
+                meshInstance.ChangeVertexStreamLayout(neededAttributes.ToArray(), 1);
             }
             
 
@@ -433,16 +444,21 @@ namespace Unity.DemoTeam.DigitalHuman
 
                     int dryRunPoseCount = -1;
                     int dryRunItemCount = -1;
+                    
+                    PoseBuildSettings poseBuildParams = new PoseBuildSettings
+                    {
+                        onlyAllowPoseTrianglesContainingAttachedPoint = false
+                    };
 
                     SkinAttachmentDataBuilder.BuildDataAttachSubjectReadOnly(ref debugData, target.transform,
-                        target.GetCachedMeshInfo(), this, dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
+                        target.GetCachedMeshInfo(),poseBuildParams, this, dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
                     {
                         ArrayUtils.ResizeCheckedIfLessThan(ref debugData.pose, dryRunPoseCount);
-                        ArrayUtils.ResizeCheckedIfLessThan(ref debugData.item, dryRunItemCount);
+                        ArrayUtils.ResizeCheckedIfLessThan(ref debugData.ItemDataRef, dryRunItemCount);
                     }
 
                     SkinAttachmentDataBuilder.BuildDataAttachSubjectReadOnly(ref debugData, target.transform,
-                        target.GetCachedMeshInfo(), this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount);
+                        target.GetCachedMeshInfo(), poseBuildParams, this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount);
 
                     Matrix4x4 targetToWorld;
                     {
@@ -468,7 +484,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         Gizmos.color = Color.Lerp(Color.clear, debugColors[island % debugColors.Length], 0.5f);
                         foreach (var i in meshIslands.islandVertices[island])
                         {
-                            Vector3 rootOffset = targetToSubject.MultiplyVector(-debugData.item[i].targetOffset);
+                            Vector3 rootOffset = targetToSubject.MultiplyVector(-debugData.ItemData[i].targetOffset);
                             Gizmos.DrawRay(subjectPositions[i], rootOffset);
                         }
                     }

@@ -9,6 +9,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		public NativeArray<Vector3> vertexPositions;
 		public NativeArray<Vector2> vertexTexCoords;
 		public NativeArray<Vector3> vertexNormals;
+		public NativeArray<Vector4> vertexTangents;
 		public int vertexCount;
 
 		public NativeArray<int> faceIndices;
@@ -19,6 +20,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			vertexPositions.Dispose();
 			vertexTexCoords.Dispose();
 			vertexNormals.Dispose();
+			vertexTangents.Dispose();
 			vertexCount = 0;
 
 			faceIndices.Dispose();
@@ -30,6 +32,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			vertexPositions = new NativeArray<Vector3>(other.vertexPositions, allocator);
 			vertexTexCoords = new NativeArray<Vector2>(other.vertexTexCoords, allocator);
 			vertexNormals = new NativeArray<Vector3>(other.vertexNormals, allocator);
+			vertexTangents = new NativeArray<Vector4>(other.vertexTangents, allocator);
 			vertexCount = other.vertexCount;
 
 			faceIndices = new NativeArray<int>(other.faceIndices, allocator);
@@ -41,6 +44,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			this.vertexPositions = new NativeArray<Vector3>(vertexCount, allocator);
 			this.vertexTexCoords = new NativeArray<Vector2>(vertexCount, allocator);
 			this.vertexNormals = new NativeArray<Vector3>(vertexCount, allocator);
+			this.vertexTangents = new NativeArray<Vector4>(vertexCount, allocator);
 			this.vertexCount = vertexCount;
 
 			this.faceIndices = new NativeArray<int>(faceIndicesCount, allocator);
@@ -55,6 +59,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			this.vertexPositions.CopyFrom(other.vertexPositions);
 			this.vertexTexCoords.CopyFrom(other.vertexTexCoords);
 			this.vertexNormals.CopyFrom(other.vertexNormals);
+			this.vertexTangents.CopyFrom(other.vertexTangents);
 			this.vertexCount = other.vertexCount;
 
 			this.faceIndices.CopyFrom(other.faceIndices);
@@ -69,6 +74,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			other.vertexPositions.CopyFrom(this.vertexPositions);
 			other.vertexTexCoords.CopyFrom(this.vertexTexCoords);
 			other.vertexNormals.CopyFrom(this.vertexNormals);
+			other.vertexTangents.CopyFrom(this.vertexTangents);
 			other.vertexCount = this.vertexCount;
 
 			other.faceIndices.CopyFrom(this.faceIndices);
