@@ -44,6 +44,17 @@ namespace Unity.DemoTeam.DigitalHuman
 			mesh.EnableSilentWrites(false);
 #endif
 		}
+		
+		public static void SilentlySetTangents(this Mesh mesh, Vector4[] tangents)
+		{
+#if UNITY_2020_1_OR_NEWER
+			mesh.SetTangents(tangents, 0, tangents.Length, UPDATE_FLAGS_SILENT);
+#else
+			mesh.EnableSilentWrites(true);
+			mesh.SetTangents(tangents, 0, tangents.Length);
+			mesh.EnableSilentWrites(false);
+#endif
+		}
 
 		public static void SilentlyRecalculateTangents(this Mesh mesh)
 		{

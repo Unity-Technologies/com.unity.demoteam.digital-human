@@ -20,23 +20,32 @@ struct SkinAttachmentPose
 
 struct SkinAttachmentItem
 {
-    float3 baseNormal;
-    int poseIndex;
-    float3 targetNormal;
-    int poseCount;
-    float3 targetOffset;//TODO split this into leaf type item that doesn't perform full resolve
+    float4 baseTangentFrame;
+    float4 targetTangentFrame;
+    float3 targetOffset;
     int baseVertex;
+    int poseIndex;
+    int poseCount;
+    int pad0;
+    int pad1;
 };
 
-
+//baked attachments data
 StructuredBuffer<SkinAttachmentPose> _AttachmentPosesBuffer;
 StructuredBuffer<SkinAttachmentItem> _AttachmentItemsBuffer;
 StructuredBuffer<uint> _TransformAttachmentOffsetBuffer;
 
-ByteAddressBuffer _SkinPosNormalBuffer;
-RWByteAddressBuffer _AttachmentPosNormalBuffer;
-int3 _StridePosNormOffsetSkin;
-int3 _StridePosNormOffsetAttachment;
+//skin buffers
+ByteAddressBuffer _SkinPositionsBuffer;
+ByteAddressBuffer _SkinNormalsBuffer;
+ByteAddressBuffer _SkinTangentsBuffer;
+int2 _SkinPositionStrideOffset;
+int2 _SkinNormalStrideOffset;
+int2 _SkinTangentStrideOffset;
+
+//attachment buffers
+RWByteAddressBuffer _AttachmentPosNormalTangentBuffer;
+int4 _StridePosNormTanOffsetAttachment;
 
 RWByteAddressBuffer _AttachmentMovecsBuffer;
 int2 _StrideOffsetMovecs;
@@ -46,49 +55,78 @@ float4x4 _ResolveTransform;
 float4x4 _PostSkinningToAttachmentTransform;
 int _NumberOfAttachments;
 int _AttachmentOffset;
+int _NormalResolveMode; //0 == rotation via quat, 1 rotation via constructing full tangent space
 
-// https://twistedpairdevelopment.wordpress.com/2013/02/11/rotating-a-vector-by-a-quaternion-in-glsl/
-float3 rotateVector( float4 quat, float3 vec )
-{
-    return vec + 2.0 * cross( cross( vec, quat.xyz ) + quat.w * vec, quat.xyz );
-}
-
-float4 quatFromAngleAxis(float3 axis, float angle)
-{
-    float s = sin(angle * 0.5f);
-    float c = sqrt(1.f - s*s);
-
-    return float4(s * axis, c);
-}
-
-float4 quatFromTo(float3 from, float3 to)
+//from com.unity.demoteam.hair
+float4 QMul(float4 a, float4 b)
 {
     float4 q;
-    float d = dot(from, to);
-    if (d < -0.999999f)
-    {
-        float3 right = float3(1, 0, 0);
-        float3 up = float3(0, 1, 0);
-        float3 tmp = cross(right, from);
-        if (length(tmp) < 0.000001)
-        {
-            tmp = cross(up, from);
-        }
-        tmp = normalize(tmp);
-        q = quatFromAngleAxis(tmp, PI);
-    } else if (d > 0.999999) {
-        q = float4(0.f, 0.f, 0.f, 1.f);
-    } else {
-        q.xyz = cross(to, from);
-        q.w = 1 + d;
-        q = normalize(q);
-    }
-    
+    q.xyz = a.w * b.xyz + b.w * a.xyz + cross(a.xyz, b.xyz);
+    q.w = a.w * b.w - dot(a.xyz, b.xyz);
     return q;
 }
 
+float3 QMul(float4 q, float3 v)
+{
+    float3 t = 2.0 * cross(q.xyz, v);
+    return v + q.w * t + cross(q.xyz, t);
+}
+
+float4 QConjugate(float4 q)
+{
+    return q * float4(-1.0, -1.0, -1.0, 1.0);
+}
+
+float4 QInverse(float4 q)
+{
+    return QConjugate(q) * rcp(dot(q, q));
+}
+
+float4 MakeQuaternionFromTo(float3 u, float3 v)
+{
+    float4 q;
+    float s = 1.0 + dot(u, v);
+    if (s < 1e-6)// if 'u' and 'v' are directly opposing
+        {
+        q.xyz = abs(u.x) > abs(u.z) ? float3(-u.y, u.x, 0.0) : float3(0.0, -u.z, u.y);
+        q.w = 0.0;
+        }
+    else
+    {
+        q.xyz = cross(u, v);
+        q.w = s;
+    }
+    return normalize(q);
+}
+
+float4 MakeQuaternionFromToWithFallback(float3 u, float3 v, float3 w)
+{
+    float4 q;
+    float s = 1.0 + dot(u, v);
+    if (s < 1e-6)// if 'u' and 'v' are directly opposing
+        {
+        q.xyz = w;
+        q.w = 0.0;
+        }
+    else
+    {
+        q.xyz = cross(u, v);
+        q.w = s;
+    }
+    return normalize(q);
+}
 
 
+float4 MakeQuaternionLookAt(float3 forward, float3 up)
+{
+    float3 localForward = float3(0, 0, 1);
+    float3 localUp = float3(0, 1, 0);
+
+    float4 rotForward = MakeQuaternionFromTo(localForward, forward);
+    float4 rotForwardTwist = MakeQuaternionFromToWithFallback(QMul(rotForward, localUp), up, forward);
+
+    return QMul(rotForwardTwist, rotForward);
+}
 
 [numthreads(64,1,1)]
 void KERNEL_NAME (uint id : SV_DispatchThreadID)
@@ -107,7 +145,7 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         #endif
 
         #if GENERATE_MOVECS
-        float3 previousPos = asfloat(_AttachmentPosNormalBuffer.Load3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.y));
+        float3 previousPos = asfloat(_AttachmentPosNormalTangentBuffer.Load3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.y));
         #endif
         
         SkinAttachmentItem item = _AttachmentItemsBuffer[itemIndex];
@@ -119,9 +157,9 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         {
             SkinAttachmentPose pose = _AttachmentPosesBuffer[poseIndex];
 
-            float3 p0 = asfloat(_SkinPosNormalBuffer.Load3(pose.v0 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
-            float3 p1 = asfloat(_SkinPosNormalBuffer.Load3(pose.v1 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
-            float3 p2 = asfloat(_SkinPosNormalBuffer.Load3(pose.v2 * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.y));
+            float3 p0 = asfloat(_SkinPositionsBuffer.Load3(pose.v0 * _SkinPositionStrideOffset.x + _SkinPositionStrideOffset.y));
+            float3 p1 = asfloat(_SkinPositionsBuffer.Load3(pose.v1 * _SkinPositionStrideOffset.x + _SkinPositionStrideOffset.y));
+            float3 p2 = asfloat(_SkinPositionsBuffer.Load3(pose.v2 * _SkinPositionStrideOffset.x + _SkinPositionStrideOffset.y));
 
             float3 v0v1 = p1 - p0;
             float3 v0v2 = p2 - p0;
@@ -140,25 +178,42 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         }
 
         targetBlended = targetBlended / targetWeights;
-        float3 toNormal = asfloat(_SkinPosNormalBuffer.Load3(item.baseVertex * _StridePosNormOffsetSkin.x + _StridePosNormOffsetSkin.z));
-
+        float3 toNormal = asfloat(_SkinNormalsBuffer.Load3(item.baseVertex * _SkinNormalStrideOffset.x + _SkinNormalStrideOffset.y));
+        float4 toTangent4 = asfloat(_SkinTangentsBuffer.Load4(item.baseVertex * _SkinTangentStrideOffset.x + _SkinTangentStrideOffset.y));
+        float3 toTangent = toTangent4.xyz * toTangent4.w;
+        
         //convert to the same space as the attachment vertices
         targetBlended = mul(_PostSkinningToAttachmentTransform, float4(targetBlended, 1.f) ).xyz;
         toNormal = mul(_PostSkinningToAttachmentTransform, float4(toNormal, 0.f) ).xyz;
         toNormal = normalize(toNormal);
-        
-        float3 fromNormal = item.baseNormal;
-        float4 rot = quatFromTo(fromNormal, toNormal);
+        toTangent = mul(_PostSkinningToAttachmentTransform, float4(toTangent, 0.f) ).xyz;
+        toTangent = normalize(toTangent);
 
-        float3 targetNormal = rotateVector(rot, item.targetNormal);
-        float3 targetOffset = rotateVector(rot, item.targetOffset);
+        float4 fromBase = QInverse(item.baseTangentFrame);
+        float4 toBase = MakeQuaternionLookAt(toTangent, toNormal);
+        float4 tangentFrameRotation = QMul(toBase, fromBase);
+
+        float4 originalTargetFrame = item.targetTangentFrame;
+        float4 currentTargetFrame = QMul(tangentFrameRotation ,originalTargetFrame);
+
+        float3 targetOffset = QMul(tangentFrameRotation, item.targetOffset);
 
         float3 resolvedPos = mul(_ResolveTransform, float4(targetBlended + targetOffset, 1.f)).xyz;
-        float3 resolvedNormal = mul(_ResolveTransform,float4(targetNormal, 0.f)).xyz;
 
-        _AttachmentPosNormalBuffer.Store3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.y, asuint(resolvedPos));
+        float3 resolvedNormal = QMul(currentTargetFrame, float3(0.f, 1.f, 0.f));
+        float3 resolvedTangent = QMul(currentTargetFrame, float3(0.f, 0.f, 1.f));
+
+        resolvedNormal = mul(_ResolveTransform, float4(resolvedNormal, 0.f));
+        resolvedTangent = mul(_ResolveTransform,float4(resolvedTangent, 0.f));
+
+        _AttachmentPosNormalTangentBuffer.Store3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.y, asuint(resolvedPos));
 #if !TRANSFORM_RESOLVE
-        _AttachmentPosNormalBuffer.Store3(resolveVertexIndex * _StridePosNormOffsetAttachment.x + _StridePosNormOffsetAttachment.z, asuint(normalize(resolvedNormal)));
+        _AttachmentPosNormalTangentBuffer.Store3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.z, asuint(normalize(resolvedNormal)));
+        if(_StridePosNormTanOffsetAttachment.w != -1)
+        {
+            _AttachmentPosNormalTangentBuffer.Store4(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.w, asuint(float4(normalize(resolvedTangent), toTangent4.w)));
+        }
+        
 #endif
         #if GENERATE_MOVECS
         _AttachmentMovecsBuffer.Store3(resolveVertexIndex * _StrideOffsetMovecs.x + _StrideOffsetMovecs.y, asuint(resolvedPos - previousPos));
