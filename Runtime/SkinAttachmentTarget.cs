@@ -224,6 +224,33 @@ namespace Unity.DemoTeam.DigitalHuman
             else
             {
                 ResolveSubjectsGPU();
+				if (executeOnGPU && !transformGPUPositionsReadBack)
+				
+				//readback transform positions to CPU for debugging
+				if (readbackTransformPositions && transformAttachmentPosBuffer != null)
+				{
+					NativeArray<Vector3> readBackBuffer = new NativeArray<Vector3>(
+						transformAttachmentPosBuffer.count,
+						Allocator.Persistent);
+	
+					var readbackRequest =
+						AsyncGPUReadback.RequestIntoNativeArray(ref readBackBuffer, transformAttachmentPosBuffer);
+					readbackRequest.WaitForCompletion();
+	
+					for (int i = 0; i < subjects.Count; ++i)
+					{
+						if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
+						int index = subjects[i].TransformAttachmentGPUBufferIndex;
+						Vector3 pos = readBackBuffer[index];
+						subjects[i].transform.position = pos;
+					}
+	
+					readBackBuffer.Dispose();
+					transformGPUPositionsReadBack = true;
+				}
+				
+				
+				
                 afterGPUAttachmentWorkCommitted?.Invoke();
             }
 #endif
@@ -1323,33 +1350,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 return;
 
             Gizmos.matrix = this.transform.localToWorldMatrix;
-#if UNITY_2021_2_OR_NEWER
-            if (executeOnGPU && !transformGPUPositionsReadBack)
-            {
-                //readback transform positions to CPU for debugging
-                if (readbackTransformPositions && transformAttachmentPosBuffer != null)
-                {
-                    NativeArray<Vector3> readBackBuffer = new NativeArray<Vector3>(
-                        transformAttachmentPosBuffer.count,
-                        Allocator.Persistent);
 
-                    var readbackRequest =
-                        AsyncGPUReadback.RequestIntoNativeArray(ref readBackBuffer, transformAttachmentPosBuffer);
-                    readbackRequest.WaitForCompletion();
-
-                    for (int i = 0; i < subjects.Count; ++i)
-                    {
-                        if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
-                        int index = subjects[i].TransformAttachmentGPUBufferIndex;
-                        Vector3 pos = readBackBuffer[index];
-                        subjects[i].transform.position = pos;
-                    }
-
-                    readBackBuffer.Dispose();
-                    transformGPUPositionsReadBack = true;
-                }
-            }
-#endif
             if (showWireframe)
             {
                 Profiler.BeginSample("show-wire");
