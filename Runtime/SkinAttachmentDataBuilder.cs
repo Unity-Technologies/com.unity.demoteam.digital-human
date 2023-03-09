@@ -146,13 +146,17 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
 
                     Vector4 baseTangent = meshInfo.meshBuffers.vertexTangents[targetVertices[i]];
-                    
+                    Vector4 targetTangent = targetTangents[i];
+                    if (targetTangent.sqrMagnitude == 0)
+                    {
+                        targetTangent = new Vector4(0, 0, 1, 1);
+                    }
 
                     item[itemIndex].poseIndex = poseIndex;
                     item[itemIndex].poseCount = poseCount;
                     item[itemIndex].baseVertex = targetVertices[i];
                     item[itemIndex].baseTangentFrame = Quaternion.LookRotation((Vector3)baseTangent * baseTangent.w, meshInfo.meshBuffers.vertexNormals[targetVertices[i]]);
-                    item[itemIndex].targetTangentFrame = Quaternion.LookRotation((Vector3)targetTangents[i] * targetTangents[i].w, targetNormals[i]);
+                    item[itemIndex].targetTangentFrame = Quaternion.LookRotation((Vector3)targetTangent * targetTangent.w, targetNormals[i]);
                     item[itemIndex].targetOffset = targetOffsets[i];
 
                     poseIndex += poseCount;
