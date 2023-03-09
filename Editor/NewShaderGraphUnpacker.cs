@@ -16,7 +16,7 @@ public class NewShaderGraphUnpacker
         DirectoryInfo dirSrc = new DirectoryInfo(Path.GetFullPath(newSGSrcPath));
         DirectoryInfo dirDst = new DirectoryInfo(Path.GetFullPath(newSGDstPath));
 
-        if (dirSrc.Exists && !dirDst.Exists)
+        if (dirSrc.Exists && dirDst.Exists && dirDst.GetFiles().Length == 0)
         {
             Debug.LogFormat("Copying New Digital Human shader graphs to {0}", dirDst.FullName);
             Directory.CreateDirectory(newSGDstPath);
