@@ -754,7 +754,7 @@ namespace Unity.DemoTeam.DigitalHuman
             fixed (Vector3* meshPositions = sourceMeshBuffers.vertexPositions)
             fixed (Vector3* meshNormals = sourceMeshBuffers.vertexNormals)
             fixed (Vector4* meshTangents = sourceMeshBuffers.vertexTangents)
-            fixed (SkinAttachmentItem2* attachItem = attachData.ItemData)
+            fixed (SkinAttachmentItem3* attachItem = attachData.ItemData)
             fixed (SkinAttachmentPose* attachPose = attachData.pose)
             {
                 var job = new ResolveJob()
@@ -789,7 +789,7 @@ namespace Unity.DemoTeam.DigitalHuman
             public Vector4* meshTangents;
 
             [NativeDisableUnsafePtrRestriction, NoAlias]
-            public SkinAttachmentItem2* attachItem;
+            public SkinAttachmentItem3* attachItem;
 
             [NativeDisableUnsafePtrRestriction, NoAlias]
             public SkinAttachmentPose* attachPose;
@@ -812,10 +812,10 @@ namespace Unity.DemoTeam.DigitalHuman
             //TODO this needs optimization
             public void Execute(int i)
             {
-                float3 targetBlended = new float3(0.0f, 0.0f, 0.0f);
+                var targetBlended = new Vector3(0.0f, 0.0f, 0.0f);
                 var targetWeights = 0.0f;
 
-                SkinAttachmentItem2 item = attachItem[attachmentIndex + i];
+                SkinAttachmentItem3 item = attachItem[attachmentIndex + i];
 
                 var poseIndex0 = item.poseIndex;
                 var poseIndexN = item.poseIndex + item.poseCount;
@@ -840,36 +840,27 @@ namespace Unity.DemoTeam.DigitalHuman
                     var targetProjected = pose.targetCoord.Resolve(ref p0, ref p1, ref p2);
                     var target = targetProjected + triangleNormal * pose.targetDist;
 
-                    targetBlended += triangleArea * (float3)target;
+                    targetBlended += triangleArea * target;
                     targetWeights += triangleArea; 
                 }
 
-
-                float3 toNormal = meshNormals[item.baseVertex];
-                float4 toTangent4 = meshTangents[item.baseVertex];
-                float3 toTangent = toTangent4.xyz * toTangent4.w;
-
-                Quaternion fromBase = Quaternion.Inverse(item.baseTangentFrame);
-                Quaternion toBase = Quaternion.LookRotation(toTangent, toNormal);
-                Quaternion tangentFrameRotation = toBase * fromBase;
-
-                Quaternion originalTargetFrame = item.targetTangentFrame;
-                Quaternion currentTargetFrame = tangentFrameRotation * originalTargetFrame;
-
-                float3 forward = new float3(0, 0, 1);
-                float3 up = new float3(0, 1, 0);
+                ref readonly var baseNormal = ref meshNormals[item.baseVertex];
+                ref readonly var baseTangent = ref meshTangents[item.baseVertex];
                 
-                float3 targetOffset = tangentFrameRotation * item.targetOffset;
-                float3 resolvedNormal = currentTargetFrame * up;
-                float3 resolvedTangent = currentTargetFrame * forward;
+                var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3)baseTangent * baseTangent.w);
 
+                var targetFrame = baseFrame * item.targetFrameDelta;
+                var targetOffset = baseFrame * item.targetOffset;
+                var targetNormal = targetFrame * Vector3.forward;
+                var targetTangent = targetFrame * Vector3.up;
 
                 resolvedPositions[i] = resolveTransform.MultiplyPoint3x4(targetBlended / targetWeights + targetOffset);
-                resolvedNormals[i] = resolveTransform.MultiplyVector(resolvedNormal).normalized;
+                resolvedNormals[i] = resolveTransform.MultiplyVector(targetNormal).normalized;
+
                 if (writeTangents)
                 {
-                    resolvedTangent = resolveTransform.MultiplyVector((Vector3) resolvedTangent).normalized;
-                    resolvedTangents[i] = new Vector4(resolvedTangent.x, resolvedTangent.y, resolvedTangent.z, toTangent4.w);
+                    targetTangent = resolveTransform.MultiplyVector(targetTangent).normalized;
+                    resolvedTangents[i] = new Vector4(targetTangent.x, targetTangent.y, targetTangent.z, item.targetFrameW);
                 }
             }
         }
@@ -892,15 +883,13 @@ namespace Unity.DemoTeam.DigitalHuman
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
         struct SkinAttachmentItemGPU
         {
-            public float4 baseTangentFrame;
-            public float4 targetTangentFrame;
+            public float4 targetFrameDelta;
             public float3 targetOffset;
+            public float targetFrameW;
             public int baseVertex;
             public int poseIndex;
             public int poseCount;
             public int pad0;
-            public int pad1;
-
         };
 
         void AfterFrameDone(ScriptableRenderContext scriptableRenderContext, Camera[] cameras)
@@ -934,7 +923,7 @@ namespace Unity.DemoTeam.DigitalHuman
             resolveAttachmentsWithMovecsKernel = resolveAttachmentsCS.FindKernel("ResolveAttachmentWithMovecs");
             resolveTransformAttachmentsKernel = resolveAttachmentsCS.FindKernel("ResolveTransformAttachments");
 
-            const int itemStructSize = 4 * 4 * sizeof(float); //5 * float4
+            const int itemStructSize = 3 * 4 * sizeof(float); //3 * float4
             const int poseStructSize = 2 * 4 * sizeof(float); //2 * float4
 
             int itemsCount = attachData.itemCount;
@@ -975,17 +964,16 @@ namespace Unity.DemoTeam.DigitalHuman
                 new NativeArray<SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
             for (int i = 0; i < itemsCount; ++i)
             {
-                SkinAttachmentItem2 item = attachData.ItemData[i];
+                SkinAttachmentItem3 item = attachData.ItemData[i];
                 
                 SkinAttachmentItemGPU itemGPU;
-                itemGPU.baseTangentFrame = new float4(item.baseTangentFrame[0], item.baseTangentFrame[1], item.baseTangentFrame[2], item.baseTangentFrame[3]);
-                itemGPU.targetTangentFrame = new float4(item.targetTangentFrame[0], item.targetTangentFrame[1], item.targetTangentFrame[2], item.targetTangentFrame[3]);;
+                itemGPU.targetFrameDelta = new float4(item.targetFrameDelta[0], item.targetFrameDelta[1], item.targetFrameDelta[2], item.targetFrameDelta[3]);
+                itemGPU.targetOffset = item.targetOffset;
+                itemGPU.targetFrameW = item.targetFrameW;
+                itemGPU.baseVertex = item.baseVertex;
                 itemGPU.poseIndex = item.poseIndex;
                 itemGPU.poseCount = item.poseCount;
-                itemGPU.targetOffset = item.targetOffset;
-                itemGPU.baseVertex = item.baseVertex;
                 itemGPU.pad0 = 0;
-                itemGPU.pad1 = 0;
                 itemsBuffer[i] = itemGPU;
             }
 
@@ -1416,22 +1404,27 @@ namespace Unity.DemoTeam.DigitalHuman
 
                     using (var resolvedPositions = new UnsafeArrayVector3(attachmentCount))
                     using (var resolvedNormals = new UnsafeArrayVector3(attachmentCount))
+                    using (var resolvedTangents = new UnsafeArrayVector4(attachmentCount))
                     {
                         var resolveTransform = Matrix4x4.identity;
                         var resolveJob = ScheduleResolve(attachmentIndex, attachmentCount, ref resolveTransform,
                             meshBuffers,
-                            resolvedPositions.val, resolvedNormals.val, null);
+                            resolvedPositions.val, resolvedNormals.val, resolvedTangents.val);
 
                         JobHandle.ScheduleBatchedJobs();
 
                         resolveJob.Complete();
 
-                        Gizmos.color = Color.yellow;
                         Vector3 size = 0.0002f * Vector3.one;
 
                         for (int i = 0; i != attachmentCount; i++)
                         {
+                            Gizmos.color = Color.yellow;
                             Gizmos.DrawCube(resolvedPositions.val[i], size);
+                            Gizmos.color = Color.green;
+                            Gizmos.DrawRay(resolvedPositions.val[i], 0.1f * resolvedNormals.val[i]);
+                            Gizmos.color = Color.red;
+                            Gizmos.DrawRay(resolvedPositions.val[i], 0.1f * resolvedTangents.val[i] * resolvedTangents.val[i].w);
                         }
                     }
                 }

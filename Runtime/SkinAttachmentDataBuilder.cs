@@ -131,7 +131,7 @@ namespace Unity.DemoTeam.DigitalHuman
             var itemIndex = attachData.itemCount;
 
             fixed (SkinAttachmentPose* pose = attachData.pose)
-            fixed (SkinAttachmentItem2* item = attachData.ItemData)
+            fixed (SkinAttachmentItem3* item = attachData.ItemData)
             {
                 for (int i = 0; i != targetCount; i++)
                 {
@@ -145,19 +145,23 @@ namespace Unity.DemoTeam.DigitalHuman
                         break;
                     }
 
-                    Vector4 baseTangent = meshInfo.meshBuffers.vertexTangents[targetVertices[i]];
-                    Vector4 targetTangent = targetTangents[i];
+                    ref readonly var baseNormal = ref meshInfo.meshBuffers.vertexNormals[targetVertices[i]];
+                    ref readonly var baseTangent = ref meshInfo.meshBuffers.vertexTangents[targetVertices[i]];
+
+                    var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3)baseTangent * baseTangent.w);
+                    var baseFrameInv = Quaternion.Inverse(baseFrame);
+
+                    var targetTangent = targetTangents[i];
                     if (targetTangent.sqrMagnitude == 0)
-                    {
                         targetTangent = new Vector4(0, 0, 1, 1);
-                    }
+                    var targetFrame = Quaternion.LookRotation(targetNormals[i], (Vector3)targetTangent/* sign is omitted here, added on resolve */);
 
                     item[itemIndex].poseIndex = poseIndex;
                     item[itemIndex].poseCount = poseCount;
                     item[itemIndex].baseVertex = targetVertices[i];
-                    item[itemIndex].baseTangentFrame = Quaternion.LookRotation((Vector3)baseTangent * baseTangent.w, meshInfo.meshBuffers.vertexNormals[targetVertices[i]]);
-                    item[itemIndex].targetTangentFrame = Quaternion.LookRotation((Vector3)targetTangent * targetTangent.w, targetNormals[i]);
-                    item[itemIndex].targetOffset = targetOffsets[i];
+                    item[itemIndex].targetFrameW = targetTangent.w;// used to preserve the sign of the resolved tangent
+                    item[itemIndex].targetFrameDelta = baseFrameInv * targetFrame;
+                    item[itemIndex].targetOffset = baseFrameInv * targetOffsets[i];
 
                     poseIndex += poseCount;
                     itemIndex += 1;

@@ -20,14 +20,13 @@ struct SkinAttachmentPose
 
 struct SkinAttachmentItem
 {
-    float4 baseTangentFrame;
-    float4 targetTangentFrame;
+    float4 targetFrameDelta;
     float3 targetOffset;
+    float targetFrameW;
     int baseVertex;
     int poseIndex;
     int poseCount;
     int pad0;
-    int pad1;
 };
 
 //baked attachments data
@@ -178,40 +177,35 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         }
 
         targetBlended = targetBlended / targetWeights;
-        float3 toNormal = asfloat(_SkinNormalsBuffer.Load3(item.baseVertex * _SkinNormalStrideOffset.x + _SkinNormalStrideOffset.y));
-        float4 toTangent4 = asfloat(_SkinTangentsBuffer.Load4(item.baseVertex * _SkinTangentStrideOffset.x + _SkinTangentStrideOffset.y));
-        float3 toTangent = toTangent4.xyz * toTangent4.w;
+
+        float3 baseNormal = asfloat(_SkinNormalsBuffer.Load3(item.baseVertex * _SkinNormalStrideOffset.x + _SkinNormalStrideOffset.y));
+        float4 baseTangent4 = asfloat(_SkinTangentsBuffer.Load4(item.baseVertex * _SkinTangentStrideOffset.x + _SkinTangentStrideOffset.y));
+        float3 baseTangent = baseTangent4.xyz * baseTangent4.w;
         
-        //convert to the same space as the attachment vertices
+        // convert to the same space as the attachment vertices
         targetBlended = mul(_PostSkinningToAttachmentTransform, float4(targetBlended, 1.f) ).xyz;
-        toNormal = mul(_PostSkinningToAttachmentTransform, float4(toNormal, 0.f) ).xyz;
-        toNormal = normalize(toNormal);
-        toTangent = mul(_PostSkinningToAttachmentTransform, float4(toTangent, 0.f) ).xyz;
-        toTangent = normalize(toTangent);
+        baseNormal = mul(_PostSkinningToAttachmentTransform, float4(baseNormal, 0.f) ).xyz;
+        baseNormal = normalize(baseNormal);
+        baseTangent = mul(_PostSkinningToAttachmentTransform, float4(baseTangent, 0.f) ).xyz;
+        baseTangent = normalize(baseTangent);
 
-        float4 fromBase = QInverse(item.baseTangentFrame);
-        float4 toBase = MakeQuaternionLookAt(toTangent, toNormal);
-        float4 tangentFrameRotation = QMul(toBase, fromBase);
+        float4 baseFrame = MakeQuaternionLookAt(baseNormal, baseTangent);
 
-        float4 originalTargetFrame = item.targetTangentFrame;
-        float4 currentTargetFrame = QMul(tangentFrameRotation ,originalTargetFrame);
-
-        float3 targetOffset = QMul(tangentFrameRotation, item.targetOffset);
+        float4 targetFrame = QMul(baseFrame, item.targetFrameDelta);
+        float3 targetOffset = QMul(baseFrame, item.targetOffset);
+        float3 targetNormal = QMul(targetFrame, float3(0.f, 0.f, 1.f));
+        float3 targetTangent = QMul(targetFrame, float3(0.f, 1.f, 0.f));
 
         float3 resolvedPos = mul(_ResolveTransform, float4(targetBlended + targetOffset, 1.f)).xyz;
-
-        float3 resolvedNormal = QMul(currentTargetFrame, float3(0.f, 1.f, 0.f));
-        float3 resolvedTangent = QMul(currentTargetFrame, float3(0.f, 0.f, 1.f));
-
-        resolvedNormal = mul(_ResolveTransform, float4(resolvedNormal, 0.f));
-        resolvedTangent = mul(_ResolveTransform,float4(resolvedTangent, 0.f));
+        float3 resolvedNormal = mul(_ResolveTransform, float4(targetNormal, 0.f)).xyz;
+        float3 resolvedTangent = mul(_ResolveTransform, float4(targetTangent, 0.f)).xyz;
 
         _AttachmentPosNormalTangentBuffer.Store3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.y, asuint(resolvedPos));
 #if !TRANSFORM_RESOLVE
         _AttachmentPosNormalTangentBuffer.Store3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.z, asuint(normalize(resolvedNormal)));
         if(_StridePosNormTanOffsetAttachment.w != -1)
         {
-            _AttachmentPosNormalTangentBuffer.Store4(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.w, asuint(float4(normalize(resolvedTangent), toTangent4.w)));
+            _AttachmentPosNormalTangentBuffer.Store4(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.w, asuint(float4(normalize(resolvedTangent), item.targetFrameW)));
         }
         
 #endif

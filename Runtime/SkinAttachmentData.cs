@@ -12,7 +12,8 @@ namespace Unity.DemoTeam.DigitalHuman
 		public enum DataVersion
 		{
 			Version_1,
-			Version_2
+			Version_2,
+			Version_3
 		}
 		//[HideInInspector]
 		//public int driverChecksum = -1;
@@ -33,30 +34,65 @@ namespace Unity.DemoTeam.DigitalHuman
 		[HideInInspector] [FormerlySerializedAs("item")]
 		public SkinAttachmentItem1[] itemVer1 = null;
 		[HideInInspector]
-		public SkinAttachmentItem2[] itemVer2 = new SkinAttachmentItem2[16384];
+		public SkinAttachmentItem2[] itemVer2 = null;
+		[HideInInspector]
+		public SkinAttachmentItem3[] itemVer3 = new SkinAttachmentItem3[16384];
 		
 		public int itemCount = 0;
 
 		[HideInInspector]
 		public int subjectCount = 0;
 
-		public SkinAttachmentItem2[] ItemData => itemVer2;
-		public ref SkinAttachmentItem2[] ItemDataRef => ref itemVer2;
+		public SkinAttachmentItem3[] ItemData => itemVer3;
+		public ref SkinAttachmentItem3[] ItemDataRef => ref itemVer3;
 		
 		private bool CheckMigrationFromVer1()
 		{
 			if (dataVersion == DataVersion.Version_1 && itemVer1 != null && itemVer1.Length > 0)
 			{
-				itemVer2 = new SkinAttachmentItem2[itemVer1.Length];
+				itemVer3 = new SkinAttachmentItem3[itemVer1.Length];
 
 				for (int i = 0; i < itemVer1.Length; ++i)
 				{
-					itemVer2[i].poseIndex = itemVer1[i].poseIndex;
-					itemVer2[i].poseCount = itemVer1[i].poseCount;
-					itemVer2[i].baseVertex = itemVer1[i].baseVertex;
-					itemVer2[i].baseTangentFrame = Quaternion.LookRotation(Vector3.forward, itemVer1[i].baseNormal);
-					itemVer2[i].targetTangentFrame = Quaternion.LookRotation(Vector3.forward, itemVer1[i].targetNormal);
-					itemVer2[i].targetOffset = itemVer1[i].targetOffset;
+					var baseFrame = Quaternion.LookRotation(itemVer1[i].baseNormal, Vector3.right);
+					var baseFrameInv = Quaternion.Inverse(baseFrame);
+
+					var targetFrame = Quaternion.LookRotation(itemVer1[i].targetNormal, Vector3.right);
+
+					itemVer3[i].poseIndex = itemVer1[i].poseIndex;
+					itemVer3[i].poseCount = itemVer1[i].poseCount;
+					itemVer3[i].baseVertex = itemVer1[i].baseVertex;
+					itemVer3[i].targetFrameW = 1.0f;// used to preserve the sign of the resolved tangent
+					itemVer3[i].targetFrameDelta = baseFrameInv * targetFrame;
+					itemVer3[i].targetOffset = baseFrameInv * itemVer1[i].targetOffset;
+
+				}
+
+				return true;
+			}
+
+			return false;
+		}
+		
+		private bool CheckMigrationFromVer2()
+		{
+			if (dataVersion == DataVersion.Version_2 && itemVer2 != null && itemVer2.Length > 0)
+			{
+				itemVer3 = new SkinAttachmentItem3[itemVer2.Length];
+
+				for (int i = 0; i < itemVer2.Length; ++i)
+				{
+
+					var baseFrameInv = Quaternion.Inverse(itemVer2[i].baseTangentFrame);
+
+					var targetFrame = itemVer2[i].targetTangentFrame;
+
+					itemVer3[i].poseIndex = itemVer2[i].poseIndex;
+					itemVer3[i].poseCount = itemVer2[i].poseCount;
+					itemVer3[i].baseVertex = itemVer2[i].baseVertex;
+					itemVer3[i].targetFrameW = 1.0f;// used to preserve the sign of the resolved tangent
+					itemVer3[i].targetFrameDelta = baseFrameInv * targetFrame;
+					itemVer3[i].targetOffset = baseFrameInv * itemVer2[i].targetOffset;
 
 				}
 
@@ -69,6 +105,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		private void Awake()
 		{
 			CheckMigrationFromVer1();
+			CheckMigrationFromVer2();
 		}
 
 		public Hash128 Checksum()
@@ -85,6 +122,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			itemCount = 0;
 			subjectCount = 0;
 			itemVer1 = null;
+			itemVer2 = null;
 		}
 
 		public void Persist()
@@ -92,29 +130,21 @@ namespace Unity.DemoTeam.DigitalHuman
 			unsafe
 			{
 				fixed (SkinAttachmentPose* ptrPose = pose)
-				fixed (SkinAttachmentItem1* ptrItemVer1 = itemVer1)
-				fixed (SkinAttachmentItem2* ptrItemVer2 = itemVer2)
+
+				fixed (SkinAttachmentItem3* ptrItemVer3 = itemVer3)
 
 				fixed (ulong* ptrChecksum0 = &checksum0)
 				fixed (ulong* ptrChecksum1 = &checksum1)
 				{
 					HashUnsafeUtilities.ComputeHash128(ptrPose, (ulong)(sizeof(SkinAttachmentPose) * poseCount), ptrChecksum0, ptrChecksum1);
-					switch (dataVersion)
-					{
-						case DataVersion.Version_1:
-							HashUnsafeUtilities.ComputeHash128(ptrItemVer1, (ulong)(sizeof(SkinAttachmentItem1) * itemCount), ptrChecksum0, ptrChecksum1);
-							break;
-						
-						case DataVersion.Version_2:
-							HashUnsafeUtilities.ComputeHash128(ptrItemVer2, (ulong)(sizeof(SkinAttachmentItem2) * itemCount), ptrChecksum0, ptrChecksum1);
-							break;
-					}
-					
+					HashUnsafeUtilities.ComputeHash128(ptrItemVer3, (ulong)(sizeof(SkinAttachmentItem3) * itemCount), ptrChecksum0, ptrChecksum1);
+
 					Debug.LogFormat("SkinAttachmentData changed, new checksum = '{0}' ({1} poses, {2} items)", Checksum(), poseCount, itemCount);
 				}
 			}
 
 #if UNITY_EDITOR
+			dataVersion = DataVersion.Version_3;
 			UnityEditor.EditorUtility.SetDirty(this);
 			UnityEditor.AssetDatabase.SaveAssets();
 			UnityEditor.Undo.ClearUndo(this);
@@ -141,8 +171,9 @@ namespace Unity.DemoTeam.DigitalHuman
 		public int baseVertex;
 		public Vector3 baseNormal;
 		public Vector3 targetNormal;
-		public Vector3 targetOffset;//TODO split this into leaf type item that doesn't perform full resolve
+		public Vector3 targetOffset;
 	}
+	
 	[Serializable]
 	public struct SkinAttachmentItem2
 	{
@@ -151,7 +182,21 @@ namespace Unity.DemoTeam.DigitalHuman
 		public int baseVertex;
 		public Quaternion baseTangentFrame;
 		public Quaternion targetTangentFrame;
+		public Vector3 targetOffset;
+
+	}
+	
+	
+	
+	[Serializable]
+	public struct SkinAttachmentItem3
+	{
+		public int poseIndex;
+		public int poseCount;
+		public int baseVertex;
+		public float targetFrameW;
+		public Quaternion targetFrameDelta;
 		public Vector3 targetOffset;//TODO split this into leaf type item that doesn't perform full resolve
-		
+
 	}
 }
