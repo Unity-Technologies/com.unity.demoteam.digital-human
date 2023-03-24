@@ -24,7 +24,7 @@ RWStructuredBuffer<EyeOcclusionParameters> _EyeOcclusionParametersOutput;
 // https://mynameismjp.wordpress.com/2016/10/09/sg-series-part-2-spherical-gaussians-101/
 float AsgSharpnessFromThreshold(float epsilon, float amplitude, float power, float cosTheta)
 {
-    return 0.5f * pow(-log(epsilon) - log(amplitude), 1.f / power) / -(cosTheta - 1.f);
+    return 0.5f * pow(abs(-log(epsilon) - log(amplitude)), 1.f / power) / -(cosTheta - 1.f);
 }
 
 float3 ProjectOnPlane(float3 p, float3 normal)
