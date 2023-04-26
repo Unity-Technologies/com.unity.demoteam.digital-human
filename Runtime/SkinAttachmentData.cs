@@ -54,10 +54,12 @@ namespace Unity.DemoTeam.DigitalHuman
 
 				for (int i = 0; i < itemVer1.Length; ++i)
 				{
-					var baseFrame = Quaternion.LookRotation(itemVer1[i].baseNormal, Vector3.right);
+					var baseNormal = itemVer1[i].baseNormal.sqrMagnitude > 0 ? itemVer1[i].baseNormal : Vector3.up;
+					var baseFrame = Quaternion.LookRotation(baseNormal, Vector3.right);
 					var baseFrameInv = Quaternion.Inverse(baseFrame);
-
-					var targetFrame = Quaternion.LookRotation(itemVer1[i].targetNormal, Vector3.right);
+					
+					var targetNormal = itemVer1[i].targetNormal.sqrMagnitude > 0 ? itemVer1[i].targetNormal : Vector3.up;
+					var targetFrame = Quaternion.LookRotation(targetNormal, Vector3.right);
 
 					itemVer3[i].poseIndex = itemVer1[i].poseIndex;
 					itemVer3[i].poseCount = itemVer1[i].poseCount;
