@@ -1085,7 +1085,12 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (skinPositionsBuffer == null || skinNormalsBuffer == null || skinTangentsBuffer == null)
             {
-                Debug.LogError("SkinAttachmentTarget unable to fetch vertex attribute buffers, unable to drive attachments");
+                //Don't issue an error if the skinnedmeshrenderer was not visible 
+                if (smr == null || smr.isVisible || smr.updateWhenOffscreen)
+                {
+                    Debug.LogError(
+                        "SkinAttachmentTarget unable to fetch vertex attribute buffers, unable to drive attachments");
+                }
                 return;
             }
             
