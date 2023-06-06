@@ -55,7 +55,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         [Header("Execution")] public bool executeOnGPU = false;
 
-        public ComputeBuffer TransformAttachmentGPUPositionBuffer => transformAttachmentPosBuffer;
+        public GraphicsBuffer TransformAttachmentGPUPositionBuffer => transformAttachmentPosBuffer;
         public int TransformAttachmentGPUPositionBufferStride => transformAttachmentBufferStride;
 
 
@@ -82,48 +82,15 @@ namespace Unity.DemoTeam.DigitalHuman
         private bool transformGPUPositionsReadBack = false;
 
 #if UNITY_2021_2_OR_NEWER
-        private ComputeShader resolveAttachmentsCS;
-        private int resolveAttachmentsKernel = 0;
-        private int resolveAttachmentsWithMovecsKernel = 0;
-        private int resolveTransformAttachmentsKernel = 0;
-        private ComputeBuffer attachmentPosesBuffer;
-        private ComputeBuffer attachmentItemsBuffer;
-        private ComputeBuffer transformAttachmentPosBuffer;
-        private ComputeBuffer transformAttachmentOffsetBuffer;
+        
+        private GraphicsBuffer attachmentPosesBuffer;
+        private GraphicsBuffer attachmentItemsBuffer;
+        private GraphicsBuffer transformAttachmentPosBuffer;
+        private GraphicsBuffer transformAttachmentItemBuffer;
         private int transformAttachmentCount = 0;
         private bool gpuResourcesAllocated = false;
         const int transformAttachmentBufferStride = 3 * sizeof(float); //float3, position
 
-        static class UniformsResolve
-        {
-            internal static int _AttachmentPosesBuffer = Shader.PropertyToID("_AttachmentPosesBuffer");
-            internal static int _AttachmentItemsBuffer = Shader.PropertyToID("_AttachmentItemsBuffer");
-            internal static int _TransformAttachmentOffsetBuffer = Shader.PropertyToID("_TransformAttachmentOffsetBuffer");
-
-            internal static int _SkinPositionsBuffer = Shader.PropertyToID("_SkinPositionsBuffer");
-            internal static int _SkinNormalsBuffer = Shader.PropertyToID("_SkinNormalsBuffer");
-            internal static int _SkinTangentsBuffer = Shader.PropertyToID("_SkinTangentsBuffer");
-            
-            internal static int _SkinPositionStrideOffset = Shader.PropertyToID("_SkinPositionStrideOffset");
-            internal static int _SkinNormalStrideOffset = Shader.PropertyToID("_SkinNormalStrideOffset");
-            internal static int _SkinTangentStrideOffset = Shader.PropertyToID("_SkinTangentStrideOffset");
-
-            internal static int _AttachmentPosNormalTangentBuffer = Shader.PropertyToID("_AttachmentPosNormalTangentBuffer");
-
-            internal static int _AttachmentMovecsBuffer = Shader.PropertyToID("_AttachmentMovecsBuffer");
-
-           
-
-            internal static int _StridePosNormTanOffsetAttachment = Shader.PropertyToID("_StridePosNormTanOffsetAttachment");
-
-            internal static int _StrideOffsetMovecs = Shader.PropertyToID("_StrideOffsetMovecs");
-
-            internal static int _ResolveTransform = Shader.PropertyToID("_ResolveTransform");
-
-            internal static int _PostSkinningToAttachmentTransform = Shader.PropertyToID("_PostSkinningToAttachmentTransform");
-            internal static int _NumberOfAttachments = Shader.PropertyToID("_NumberOfAttachments");
-            internal static int _AttachmentOffset = Shader.PropertyToID("_AttachmentOffset");
-        }
 #endif
         void OnEnable()
         {
@@ -909,37 +876,17 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             DestroyGPUResources();
 
-            if (resolveAttachmentsCS == null)
-            {
-                resolveAttachmentsCS = Resources.Load<ComputeShader>("SkinAttachmentCS");
-            }
-
-            if (resolveAttachmentsCS == null)
-            {
-                return false;
-            }
-
-            resolveAttachmentsKernel = resolveAttachmentsCS.FindKernel("ResolveAttachment");
-            resolveAttachmentsWithMovecsKernel = resolveAttachmentsCS.FindKernel("ResolveAttachmentWithMovecs");
-            resolveTransformAttachmentsKernel = resolveAttachmentsCS.FindKernel("ResolveTransformAttachments");
-
-            const int itemStructSize = 3 * 4 * sizeof(float); //3 * float4
-            const int poseStructSize = 2 * 4 * sizeof(float); //2 * float4
+            int itemStructSize = UnsafeUtility.SizeOf<SkinAttachmentItemGPU>();
+            int poseStructSize = UnsafeUtility.SizeOf<SkinAttachmentPoseGPU>();
 
             int itemsCount = attachData.itemCount;
             int posesCount = attachData.poseCount;
 
             if (itemsCount == 0 || posesCount == 0) return false;
 
-            int resolvedVerticesCount = 0;
-            for (int i = 0; i < subjects.Count; ++i)
-            {
-                resolvedVerticesCount += subjects[i].attachmentCount;
-            }
-
-            attachmentPosesBuffer = new ComputeBuffer(posesCount, poseStructSize);
-            attachmentItemsBuffer = new ComputeBuffer(itemsCount, itemStructSize);
-
+            attachmentPosesBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, posesCount, poseStructSize);
+            attachmentItemsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, itemsCount, itemStructSize);
+    
             //upload stuff that doesn't change
             NativeArray<SkinAttachmentPoseGPU> posesBuffer =
                 new NativeArray<SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
@@ -978,7 +925,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
             attachmentItemsBuffer.SetData(itemsBuffer);
-            itemsBuffer.Dispose();
+            
 
             //buffers for resolving transform attachments on GPU
             transformAttachmentCount = 0;
@@ -991,32 +938,33 @@ namespace Unity.DemoTeam.DigitalHuman
                 }
             }
 
-            //push transform attachments pose offset to a buffer to allow resolving them in one go
+            //push transform attachment items to separate buffer so they can be resolved all at once
             if (transformAttachmentCount > 0)
             {
                 {
-                    NativeArray<uint> transformPoseOffsetCount =
-                        new NativeArray<uint>(transformAttachmentCount, Allocator.Temp);
+                    NativeArray<SkinAttachmentItemGPU> transformItems =
+                        new NativeArray<SkinAttachmentItemGPU>(transformAttachmentCount, Allocator.Temp);
                     int transformPoseOffsetIndex = 0;
                     for (int i = 0; i < subjects.Count; ++i)
                     {
                         if (subjects[i].attachmentType == SkinAttachment.AttachmentType.Transform)
                         {
-                            transformPoseOffsetCount[transformPoseOffsetIndex++] = (uint) subjects[i].attachmentIndex;
+                            transformItems[transformPoseOffsetIndex++] = itemsBuffer[subjects[i].attachmentIndex];
                         }
                     }
 
-                    transformAttachmentOffsetBuffer = new ComputeBuffer(transformAttachmentCount, sizeof(uint),
-                        ComputeBufferType.Structured);
-                    transformAttachmentOffsetBuffer.SetData(transformPoseOffsetCount);
-                    transformPoseOffsetCount.Dispose();
+                    transformAttachmentItemBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured,transformAttachmentCount, UnsafeUtility.SizeOf<SkinAttachmentItemGPU>());
+                    transformAttachmentItemBuffer.SetData(transformItems);
+                    transformItems.Dispose();
                 }
 
                 transformAttachmentPosBuffer =
-                    new ComputeBuffer(transformAttachmentCount, transformAttachmentBufferStride, ComputeBufferType.Raw);
+                    new GraphicsBuffer(GraphicsBuffer.Target.Raw,transformAttachmentCount, transformAttachmentBufferStride);
                 transformAttachmentPosBuffer.name = "Transform Attachment Positions Buffer";
             }
 
+            itemsBuffer.Dispose();
+            
             gpuResourcesAllocated = true;
 
             return true;
@@ -1038,10 +986,10 @@ namespace Unity.DemoTeam.DigitalHuman
                 transformAttachmentPosBuffer = null;
             }
 
-            if (transformAttachmentOffsetBuffer != null)
+            if (transformAttachmentItemBuffer != null)
             {
-                transformAttachmentOffsetBuffer.Dispose();
-                transformAttachmentOffsetBuffer = null;
+                transformAttachmentItemBuffer.Dispose();
+                transformAttachmentItemBuffer = null;
             }
 
             gpuResourcesAllocated = false;
@@ -1049,131 +997,49 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void ResolveSubjectsGPU()
         {
-            if (subjects.Count == 0 || resolveAttachmentsCS == null || attachmentPosesBuffer == null) return;
+            if (subjects.Count == 0 || attachmentPosesBuffer == null) return;
             TryGetComponent<MeshFilter>(out var mf);
             TryGetComponent<SkinnedMeshRenderer>(out var smr);
             TryGetComponent<MeshRenderer>(out var mr);
             if (smr == null && (mf == null || mr == null)) return;
 
-            Mesh skinMesh = mf != null ? mf.sharedMesh : smr.sharedMesh;
-            if (skinMesh == null) return;
-            int positionStream = skinMesh.GetVertexAttributeStream(VertexAttribute.Position);
-            int normalStream = skinMesh.GetVertexAttributeStream(VertexAttribute.Normal);
-            int tangentStream = skinMesh.GetVertexAttributeStream(VertexAttribute.Tangent);
-
-            if (smr && (smr.vertexBufferTarget & GraphicsBuffer.Target.Raw) == 0)
-            {
-                smr.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
-            }
-
-            if (mf && (mf.sharedMesh.vertexBufferTarget & GraphicsBuffer.Target.Raw) == 0)
-            {
-                mf.sharedMesh.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
-            }
+            SkinAttachmentSystem.SkinAttachmentTargetDescGPU targetDesc = default;
             
-
-            var targetMeshWorldBounds = smr ? smr.bounds : mr.bounds;
-            var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
-            var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
-
-            using GraphicsBuffer skinPositionsBuffer =
-                mf != null ? mf.sharedMesh.GetVertexBuffer(positionStream) : smr.GetVertexBuffer();
-            using GraphicsBuffer skinNormalsBuffer =
-                mf != null ? mf.sharedMesh.GetVertexBuffer(normalStream) : smr.GetVertexBuffer();
-            using GraphicsBuffer skinTangentsBuffer =
-                mf != null ? mf.sharedMesh.GetVertexBuffer(tangentStream) : smr.GetVertexBuffer();
-
-            if (skinPositionsBuffer == null || skinNormalsBuffer == null || skinTangentsBuffer == null)
+            if (smr != null)
             {
-                //Don't issue an error if the skinnedmeshrenderer was not visible 
-                if (smr == null || smr.isVisible || smr.updateWhenOffscreen)
+                if (!SkinAttachmentSystem.FillSkinAttachmentTargetDesc(smr, ref targetDesc))
                 {
-                    Debug.LogError(
-                        "SkinAttachmentTarget unable to fetch vertex attribute buffers, unable to drive attachments");
+                    return;
                 }
-                return;
             }
-            
-            int[] skinPositionStrideOffset =
+            else
             {
-                skinMesh.GetVertexBufferStride(positionStream),
-                skinMesh.GetVertexAttributeOffset(VertexAttribute.Position),
-            };
-            int[] skinNormalStrideOffset =
-            {
-                skinMesh.GetVertexBufferStride(normalStream),
-                skinMesh.GetVertexAttributeOffset(VertexAttribute.Normal),
-            };
-            int[] skinTangentStrideOffset =
-            {
-                skinMesh.GetVertexBufferStride(tangentStream),
-                skinMesh.GetVertexAttributeOffset(VertexAttribute.Tangent),
-            };
+                if (!SkinAttachmentSystem.FillSkinAttachmentTargetDesc(mr, mf, ref targetDesc))
+                {
+                    return;
+                }
+            }
 
             Matrix4x4 targetToWorld;
-            Matrix4x4
-                postSkinningToAttachment =
-                    Matrix4x4.identity; //need to apply rootbone transform to skinned vertices when resolving since bakemesh has applied it when attachdata is calculated
+            if (smr)
             {
-                if (smr)
-                {
-                    targetToWorld = transform.parent.localToWorldMatrix * Matrix4x4.TRS(this.transform.localPosition,
-                        this.transform.localRotation, Vector3.one);
-
-                    if (smr.rootBone)
-                    {
-                        Matrix4x4 boneLocalToWorldNoScale =
-                            Matrix4x4.TRS(smr.rootBone.position, smr.rootBone.rotation, Vector3.one);
-                        postSkinningToAttachment = transform.parent.worldToLocalMatrix * boneLocalToWorldNoScale;
-                    }
-                }
-                else
-                {
-                    postSkinningToAttachment = Matrix4x4.identity;
-                    targetToWorld = this.transform.localToWorldMatrix;
-                }
+                targetToWorld = transform.parent.localToWorldMatrix * Matrix4x4.TRS(transform.localPosition,
+                    transform.localRotation, Vector3.one);
             }
-
+            else
+            {
+                targetToWorld = transform.localToWorldMatrix;
+            }
             CommandBuffer cmd = CommandBufferPool.Get("Resolve SkinAttachments");
-
-            cmd.BeginSample("Resolve SkinAttachments");
-            //common uniforms
-            cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._SkinPositionStrideOffset,
-                skinPositionStrideOffset);
-            cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._SkinNormalStrideOffset,
-                skinNormalStrideOffset);
-            cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._SkinTangentStrideOffset,
-                skinTangentStrideOffset);
-
-            int[] kernels =
-                {resolveAttachmentsKernel, resolveAttachmentsWithMovecsKernel, resolveTransformAttachmentsKernel};
-            foreach (int kernel in kernels)
-            {
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
-                    UniformsResolve._AttachmentPosesBuffer,
-                    attachmentPosesBuffer);
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
-                    UniformsResolve._AttachmentItemsBuffer,
-                    attachmentItemsBuffer);
-                
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
-                    UniformsResolve._SkinPositionsBuffer,
-                    skinPositionsBuffer);
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
-                    UniformsResolve._SkinNormalsBuffer,
-                    skinNormalsBuffer);
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, kernel,
-                    UniformsResolve._SkinTangentsBuffer,
-                    skinTangentsBuffer);
-            }
-
-
-            //first resolve mesh attachments
+            
+            List<SkinAttachmentSystem.SkinAttachmentDescGPU> attachmentDescs =
+                new List<SkinAttachmentSystem.SkinAttachmentDescGPU>();
+            
             for (int i = 0; i < subjects.Count; i++)
             {
                 SkinAttachment subject = subjects[i];
                 if (subject.meshInstance == null) continue;
-
+                
                 Matrix4x4 targetToSubject;
                 {
                     // this used to always read:
@@ -1185,7 +1051,6 @@ namespace Unity.DemoTeam.DigitalHuman
                     //
                     // we can reshuffle a bit to get rid of the per-resolve inverse:
                     //    var targetToSubject = (subject.skinningBoneBindPoseInverse * subject.meshInstanceBone.worldToLocalMatrix) * targetToWorld;
-
                     if (subject.skinningBone != null)
                         targetToSubject =
                             (subject.skinningBoneBindPoseInverse * subject.skinningBone.worldToLocalMatrix) *
@@ -1193,71 +1058,31 @@ namespace Unity.DemoTeam.DigitalHuman
                     else
                         targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
                 }
-
-
-                int posStream = subject.meshInstance.GetVertexAttributeStream(VertexAttribute.Position);
-                int normStream = subject.meshInstance.GetVertexAttributeStream(VertexAttribute.Normal);
-                int tanStream = subject.meshInstance.GetVertexAttributeStream(VertexAttribute.Tangent);
-
-                if (posStream != normStream || (posStream != tanStream && tanStream != -1))
+                
+                SkinAttachmentSystem.SkinAttachmentDescGPU attachmentDesc = default;
+                if (SkinAttachmentSystem.FillSkinAttachmentDesc(subject.meshInstance, targetToSubject,
+                        attachmentPosesBuffer,
+                        attachmentItemsBuffer, subject.attachmentIndex, subject.attachmentCount, ref attachmentDesc))
                 {
-                    Debug.LogError(
-                        "Attachment is required to have positions and normals (and tangents if available) in the same stream. Skipping attachment " +
-                        subject.name);
-                    continue;
+                    attachmentDescs.Add(attachmentDesc);
                 }
+            }
 
-                int resolveKernel = resolveAttachmentsKernel;
-
-                //movecs
-                if (subject.GeneratePrecalculatedMotionVectors)
-                {
-                    resolveKernel = resolveAttachmentsWithMovecsKernel;
-                    int movecsStream = subject.meshInstance.GetVertexAttributeStream(VertexAttribute.TexCoord5);
-
-                    using GraphicsBuffer movecsVertexBuffer = subject.meshInstance.GetVertexBuffer(movecsStream);
-                    int[] strideOffset =
-                    {
-                        subject.meshInstance.GetVertexBufferStride(movecsStream),
-                        subject.meshInstance.GetVertexAttributeOffset(VertexAttribute.TexCoord5)
-                    };
-
-                    cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._StrideOffsetMovecs,
-                        strideOffset);
-                    cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
-                        UniformsResolve._AttachmentMovecsBuffer, movecsVertexBuffer);
-                }
-
-                using GraphicsBuffer attachmentVertexBuffer = subject.meshInstance.GetVertexBuffer(posStream);
-                int[] attachmentVertexBufferStrideAndOffsets =
-                {
-                    subject.meshInstance.GetVertexBufferStride(posStream),
-                    subject.meshInstance.GetVertexAttributeOffset(VertexAttribute.Position),
-                    subject.meshInstance.GetVertexAttributeOffset(VertexAttribute.Normal),
-                    subject.meshInstance.GetVertexAttributeOffset(VertexAttribute.Tangent)
-                };
-
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
-                    UniformsResolve._AttachmentPosNormalTangentBuffer, attachmentVertexBuffer);
-                cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._StridePosNormTanOffsetAttachment,
-                    attachmentVertexBufferStrideAndOffsets);
-
-                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._ResolveTransform, targetToSubject);
-                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._PostSkinningToAttachmentTransform,
-                    postSkinningToAttachment);
-                cmd.SetComputeIntParam(resolveAttachmentsCS, UniformsResolve._NumberOfAttachments,
-                    subject.attachmentCount);
-                cmd.SetComputeIntParam(resolveAttachmentsCS, UniformsResolve._AttachmentOffset,
-                    subject.attachmentIndex);
-
-
-                resolveAttachmentsCS.GetKernelThreadGroupSizes(resolveKernel, out uint groupX, out uint groupY,
-                    out uint groupZ);
-                int dispatchCount = (subjects[i].attachmentCount + (int) groupX - 1) / (int) groupX;
-                cmd.DispatchCompute(resolveAttachmentsCS, resolveKernel, dispatchCount, 1, 1);
-
-                subject.NotifyOfMeshModified(cmd);
-
+            //execute resolve
+            if (attachmentDescs.Count > 0)
+            {
+                SkinAttachmentSystem.ResolveSubjectsGPU(cmd, ref targetDesc, attachmentDescs.ToArray());
+            }
+            
+            //update mesh bounds
+            var targetMeshWorldBounds = smr ? smr.bounds : mr.bounds;
+            var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
+            var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
+            for (int i = 0; i < subjects.Count; i++)
+            {
+                SkinAttachment subject = subjects[i];
+                if (subject.meshInstance == null) continue;
+                
                 Profiler.BeginSample("conservative-bounds");
                 {
                     var worldToSubject = subject.transform.worldToLocalMatrix;
@@ -1273,41 +1098,29 @@ namespace Unity.DemoTeam.DigitalHuman
                     subject.meshInstance.bounds = subjectBounds;
                 }
                 Profiler.EndSample();
+                
+                subject.NotifyOfMeshModified(cmd);
             }
 
             //Resolve transform attachments
             if (transformAttachmentPosBuffer != null)
             {
-                int resolveKernel = resolveTransformAttachmentsKernel;
-
-                int[] posBufferStrideOffset =
+                SkinAttachmentSystem.SkinAttachmentDescGPU transformAttachmentData = new SkinAttachmentSystem.SkinAttachmentDescGPU 
                 {
-                    transformAttachmentPosBuffer.stride,
-                    0, 0, 0
+                    itemsBuffer = transformAttachmentItemBuffer,
+                    posesBuffer = attachmentPosesBuffer,
+                    positionsNormalsTangentsBuffer = transformAttachmentPosBuffer,
+                    movecsBuffer = null,
+                    itemsOffset = 0,
+                    itemsCount = transformAttachmentItemBuffer.count,
+                    positionsNormalsTangentsOffsetStride = (0, -1, -1, transformAttachmentPosBuffer.stride),
+                    movecsOffsetStride = (0,0),
+                    targetToAttachment = targetToWorld,
+                    resolveNormalsAndTangents = false
                 };
-
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
-                    UniformsResolve._AttachmentPosNormalTangentBuffer, transformAttachmentPosBuffer);
-                cmd.SetComputeIntParams(resolveAttachmentsCS, UniformsResolve._StridePosNormTanOffsetAttachment,
-                    posBufferStrideOffset);
-
-                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._ResolveTransform, targetToWorld);
-                cmd.SetComputeMatrixParam(resolveAttachmentsCS, UniformsResolve._PostSkinningToAttachmentTransform,
-                    postSkinningToAttachment);
-                cmd.SetComputeIntParam(resolveAttachmentsCS, UniformsResolve._NumberOfAttachments,
-                    transformAttachmentCount);
-                cmd.SetComputeBufferParam(resolveAttachmentsCS, resolveKernel,
-                    UniformsResolve._TransformAttachmentOffsetBuffer,
-                    transformAttachmentOffsetBuffer);
-
-
-                resolveAttachmentsCS.GetKernelThreadGroupSizes(resolveKernel, out uint groupX, out uint groupY,
-                    out uint groupZ);
-                int dispatchCount = (transformAttachmentCount + (int) groupX - 1) / (int) groupX;
-                cmd.DispatchCompute(resolveAttachmentsCS, resolveKernel, dispatchCount, 1, 1);
+                
+                SkinAttachmentSystem.ResolveSubjectsGPU(cmd, ref targetDesc, new [] { transformAttachmentData });
             }
-
-            cmd.EndSample("Resolve SkinAttachments");
 
             bool needsGPUFence = afterResolveFenceRequested;
 
@@ -1322,11 +1135,18 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
             Graphics.ExecuteCommandBuffer(cmd);
-
-
+            
             CommandBufferPool.Release(cmd);
 
             transformGPUPositionsReadBack = false;
+        
+            foreach (var desc in attachmentDescs)
+            {
+                SkinAttachmentSystem.FreeSkinAttachmentDesc(desc);
+            }
+
+            SkinAttachmentSystem.FreeSkinAttachmentTargetDesc(targetDesc);
+            
         }
 
 #endif

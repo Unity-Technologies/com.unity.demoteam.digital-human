@@ -50,10 +50,10 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public bool showDebugWireframe;
 
-        private ComputeBuffer occlusionMarkersBuffer;
+        private GraphicsBuffer occlusionMarkersBuffer;
         private const int occlusionMarkersBufferStride = sizeof(float) * 3;
 #if UNITY_2021_2_OR_NEWER
-        private ComputeBuffer occlusionMarkerIndicesBuffer;
+        private GraphicsBuffer occlusionMarkerIndicesBuffer;
         private List<SkinAttachment> gatheredAttachments = new List<SkinAttachment>();
         private bool isHookedToSkinAttachmentTarget = false;
         private bool cpuOcclusionParametersValid = true;
@@ -123,7 +123,7 @@ namespace Unity.DemoTeam.DigitalHuman
             if (occlusionMarkersBuffer == null)
             {
                 occlusionMarkersBuffer =
-                    new ComputeBuffer(vertexData.Length, occlusionMarkersBufferStride, ComputeBufferType.Raw);
+                    new GraphicsBuffer(GraphicsBuffer.Target.Raw,vertexData.Length, occlusionMarkersBufferStride);
             }
 
 #if UNITY_2021_2_OR_NEWER
@@ -139,7 +139,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 if (occlusionMarkerIndicesBuffer == null && needsIndirection)
                 {
                     occlusionMarkerIndicesBuffer =
-                        new ComputeBuffer(vertexData.Length, sizeof(uint), ComputeBufferType.Default);
+                        new GraphicsBuffer(GraphicsBuffer.Target.Structured, vertexData.Length, sizeof(uint));
                 }
             }
 
@@ -152,7 +152,7 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             if(gatheredAttachments.Count > 0 && markerAttachmentTarget != null && markerAttachmentTarget.executeOnGPU)
             {
-                ComputeBuffer attachmentBuffer = markerAttachmentTarget.TransformAttachmentGPUPositionBuffer;
+                GraphicsBuffer attachmentBuffer = markerAttachmentTarget.TransformAttachmentGPUPositionBuffer;
 
                 if (attachmentBuffer == null) return;
                 
@@ -291,8 +291,8 @@ namespace Unity.DemoTeam.DigitalHuman
             else
                 PrepareVertexData(vertexLimit);
 
-            ComputeBuffer occlusionMarkers = null;
-            ComputeBuffer attachmentIndicesBuffer = null;
+            GraphicsBuffer occlusionMarkers = null;
+            GraphicsBuffer attachmentIndicesBuffer = null;
             int occlusionMarkersStride = 0;
             bool useGPUAttachmentData = false;
             

@@ -1,8 +1,7 @@
 
-#pragma kernel ResolveAttachment KERNEL_NAME=ResolveAttachment
-#pragma kernel ResolveAttachmentWithMovecs KERNEL_NAME=ResolveAttachmentWithMovecs GENERATE_MOVECS
-#pragma kernel ResolveTransformAttachments KERNEL_NAME=ResolveTransformAttachments TRANSFORM_RESOLVE
-
+#pragma kernel ResolveAttachmentPositions KERNEL_NAME=ResolveAttachmentPositions
+#pragma kernel ResolveAttachmentPositionsNormals KERNEL_NAME=ResolveAttachmentPositionsNormals GENERATE_NORMALS
+#pragma kernel ResolveAttachmentPositionsNormalsMovecs KERNEL_NAME=ResolveAttachmentPositionsNormalsMovecs GENERATE_MOVECS GENERATE_NORMALS
 #ifndef PI
 #define PI 3.14159265359f
 #endif 
@@ -32,7 +31,6 @@ struct SkinAttachmentItem
 //baked attachments data
 StructuredBuffer<SkinAttachmentPose> _AttachmentPosesBuffer;
 StructuredBuffer<SkinAttachmentItem> _AttachmentItemsBuffer;
-StructuredBuffer<uint> _TransformAttachmentOffsetBuffer;
 
 //skin buffers
 ByteAddressBuffer _SkinPositionsBuffer;
@@ -43,18 +41,18 @@ int2 _SkinNormalStrideOffset;
 int2 _SkinTangentStrideOffset;
 
 //attachment buffers
-RWByteAddressBuffer _AttachmentPosNormalTangentBuffer;
-int4 _StridePosNormTanOffsetAttachment;
+RWByteAddressBuffer _AttachmentPosNormTanBuffer;
+int4 _StrideOffsetPosNormTanAttachment;
+
 
 RWByteAddressBuffer _AttachmentMovecsBuffer;
-int2 _StrideOffsetMovecs;
+int2 _StrideOffsetMovecsAttachment;
 
 
 float4x4 _ResolveTransform;
 float4x4 _PostSkinningToAttachmentTransform;
 int _NumberOfAttachments;
 int _AttachmentOffset;
-int _NormalResolveMode; //0 == rotation via quat, 1 rotation via constructing full tangent space
 
 //from com.unity.demoteam.hair
 float4 QMul(float4 a, float4 b)
@@ -139,12 +137,9 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         int itemIndex = _AttachmentOffset + int(id);
         int resolveVertexIndex = int(id);
 
-        #if TRANSFORM_RESOLVE
-        itemIndex = _TransformAttachmentOffsetBuffer[id];
-        #endif
 
         #if GENERATE_MOVECS
-        float3 previousPos = asfloat(_AttachmentPosNormalTangentBuffer.Load3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.y));
+        float3 previousPos = asfloat(_AttachmentPosNormTanBuffer.Load3(resolveVertexIndex * _StrideOffsetPosNormTanAttachment.x + _StrideOffsetPosNormTanAttachment.y));
         #endif
         
         SkinAttachmentItem item = _AttachmentItemsBuffer[itemIndex];
@@ -200,17 +195,16 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         float3 resolvedNormal = mul(_ResolveTransform, float4(targetNormal, 0.f)).xyz;
         float3 resolvedTangent = mul(_ResolveTransform, float4(targetTangent, 0.f)).xyz;
 
-        _AttachmentPosNormalTangentBuffer.Store3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.y, asuint(resolvedPos));
-#if !TRANSFORM_RESOLVE
-        _AttachmentPosNormalTangentBuffer.Store3(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.z, asuint(normalize(resolvedNormal)));
-        if(_StridePosNormTanOffsetAttachment.w != -1)
+        _AttachmentPosNormTanBuffer.Store3(resolveVertexIndex * _StrideOffsetPosNormTanAttachment.x + _StrideOffsetPosNormTanAttachment.y, asuint(resolvedPos));
+#if GENERATE_NORMALS
+        _AttachmentPosNormTanBuffer.Store3(resolveVertexIndex * _StrideOffsetPosNormTanAttachment.x + _StrideOffsetPosNormTanAttachment.z, asuint(normalize(resolvedNormal)));
+        if(_StrideOffsetPosNormTanAttachment.w != -1)
         {
-            _AttachmentPosNormalTangentBuffer.Store4(resolveVertexIndex * _StridePosNormTanOffsetAttachment.x + _StridePosNormTanOffsetAttachment.w, asuint(float4(normalize(resolvedTangent), item.targetFrameW)));
+            _AttachmentPosNormTanBuffer.Store4(resolveVertexIndex * _StrideOffsetPosNormTanAttachment.x + _StrideOffsetPosNormTanAttachment.w, asuint(float4(normalize(resolvedTangent), item.targetFrameW)));
         }
-        
 #endif
         #if GENERATE_MOVECS
-        _AttachmentMovecsBuffer.Store3(resolveVertexIndex * _StrideOffsetMovecs.x + _StrideOffsetMovecs.y, asuint(resolvedPos - previousPos));
+        _AttachmentMovecsBuffer.Store3(resolveVertexIndex * _StrideOffsetMovecsAttachment.x + _StrideOffsetMovecsAttachment.y, asuint(resolvedPos - previousPos));
         #endif
         
     }

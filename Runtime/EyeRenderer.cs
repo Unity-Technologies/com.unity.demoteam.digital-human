@@ -353,7 +353,7 @@ namespace Unity.DemoTeam.DigitalHuman
             CommandBuffer cmd = CommandBufferPool.Get("Calculate Eye Occlusion Parameters");
                 
             var attachmentTarget = markerAttachmentTarget;
-            ComputeBuffer attachmentBuffer = attachmentTarget.TransformAttachmentGPUPositionBuffer;
+            GraphicsBuffer attachmentBuffer = attachmentTarget.TransformAttachmentGPUPositionBuffer;
             
             int attachmentBufferStride = attachmentTarget.TransformAttachmentGPUPositionBufferStride;
             int[] attachmentOffsets =
@@ -394,7 +394,7 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             if(asgMarkerPolygon != null && markerAttachments.Count == 4 && asgMarkerPolygon.childCount == 4)
             {
-                ComputeBuffer attachmentBuffer = markerAttachmentTarget.TransformAttachmentGPUPositionBuffer;
+                GraphicsBuffer attachmentBuffer = markerAttachmentTarget.TransformAttachmentGPUPositionBuffer;
                 
                 if (attachmentBuffer == null) return;
                 
