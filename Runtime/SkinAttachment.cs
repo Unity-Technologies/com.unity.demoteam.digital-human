@@ -444,21 +444,22 @@ namespace Unity.DemoTeam.DigitalHuman
 
                     int dryRunPoseCount = -1;
                     int dryRunItemCount = -1;
-                    
+                    int currentPoseOffset = 0;
+                    int currentItemOffset = 0;
                     PoseBuildSettings poseBuildParams = new PoseBuildSettings
                     {
                         onlyAllowPoseTrianglesContainingAttachedPoint = false
                     };
 
-                    SkinAttachmentDataBuilder.BuildDataAttachSubjectReadOnly(ref debugData, target.transform,
-                        target.GetCachedMeshInfo(),poseBuildParams, this, dryRun: true, ref dryRunPoseCount, ref dryRunItemCount);
+                    SkinAttachmentTarget.BuildDataAttachSubject(ref debugData, target.transform,
+                        target.GetCachedMeshInfo(),poseBuildParams, this, dryRun: true, ref dryRunPoseCount, ref dryRunItemCount, ref currentItemOffset, ref currentPoseOffset);
                     {
                         ArrayUtils.ResizeCheckedIfLessThan(ref debugData.pose, dryRunPoseCount);
                         ArrayUtils.ResizeCheckedIfLessThan(ref debugData.ItemDataRef, dryRunItemCount);
                     }
 
-                    SkinAttachmentDataBuilder.BuildDataAttachSubjectReadOnly(ref debugData, target.transform,
-                        target.GetCachedMeshInfo(), poseBuildParams, this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount);
+                    SkinAttachmentTarget.BuildDataAttachSubject(ref debugData, target.transform,
+                        target.GetCachedMeshInfo(), poseBuildParams, this, dryRun: false, ref dryRunPoseCount, ref dryRunItemCount, ref currentItemOffset, ref currentPoseOffset);
 
                     Matrix4x4 targetToWorld;
                     {

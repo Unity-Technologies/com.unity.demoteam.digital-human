@@ -15,19 +15,10 @@ using UnityEngine.Rendering;
 namespace Unity.DemoTeam.DigitalHuman
 {
     using static SkinAttachmentDataBuilder;
-
+    using SkinAttachmentItem = Unity.DemoTeam.DigitalHuman.SkinAttachmentItem3;
     [ExecuteAlways]
     public class SkinAttachmentTarget : MonoBehaviour
     {
-        public struct MeshInfo
-        {
-            public MeshBuffers meshBuffers;
-            public MeshAdjacency meshAdjacency;
-            public KdTree3 meshVertexBSP;
-            public bool valid;
-        }
-
-        
         [HideInInspector] public List<SkinAttachment> subjects = new List<SkinAttachment>();
 
         [NonSerialized] public Mesh meshBakedSmr;
@@ -539,7 +530,53 @@ namespace Unity.DemoTeam.DigitalHuman
             if (CommitRequired())
                 CommitSubjects();
         }
+        
+        
+        public static void BuildDataAttachSubject(ref SkinAttachmentData attachData, Transform target,
+            in MeshInfo meshInfo, in PoseBuildSettings settings, SkinAttachment subject, bool dryRun,
+            ref int dryRunPoseCount, ref int dryRunItemCount, ref int itemOffset, ref int poseOffset)
+        {
+            Matrix4x4 subjectToTarget;
+            {
+                if (subject.skinningBone != null)
+                    subjectToTarget = target.transform.worldToLocalMatrix *
+                                      (subject.skinningBone.localToWorldMatrix * subject.skinningBoneBindPose);
+                else
+                    subjectToTarget = target.transform.worldToLocalMatrix * subject.transform.localToWorldMatrix;
+            }
+            
+            unsafe
+            {
+                fixed (int* attachmentIndex = &itemOffset)
+                fixed (int* poseIndex = &poseOffset)
+                fixed(SkinAttachmentPose* pose = attachData.pose)
+                fixed(SkinAttachmentItem* items = attachData.ItemData)
+                {
+                    switch (subject.attachmentType)
+                    {
+                        case SkinAttachment.AttachmentType.Transform:
+                            BuildDataAttachTransform(pose, items, subjectToTarget, meshInfo, settings,
+                                dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex, poseIndex);
+                            break;
+                        case SkinAttachment.AttachmentType.Mesh:
+                            BuildDataAttachMesh(pose, items, subjectToTarget, meshInfo, settings,
+                                subject.meshBuffers.vertexPositions, subject.meshBuffers.vertexNormals,
+                                subject.meshBuffers.vertexTangents,
+                                dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex, poseIndex);
+                            break;
+                        case SkinAttachment.AttachmentType.MeshRoots:
+                            BuildDataAttachMeshRoots(pose, items, subjectToTarget, meshInfo, settings,
+                                subject.allowOnlyOneRoot, subject.meshIslands, subject.meshAdjacency,
+                                subject.meshBuffers.vertexPositions, subject.meshBuffers.vertexNormals,
+                                subject.meshBuffers.vertexTangents,
+                                dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex, poseIndex);
+                            break;
+                    }
+                }
+            }
+        }
 
+        
         public void CommitSubjects()
         {
             if (attachData == null)
@@ -563,6 +600,9 @@ namespace Unity.DemoTeam.DigitalHuman
                 // pass 1: dry run
                 int dryRunPoseCount = 0;
                 int dryRunItemCount = 0;
+                
+                int poseOffsetDummy = 0;
+                int itemOffsetDummy = 0;
 
                 for (int i = 0, n = subjects.Count; i != n; i++)
                 {
@@ -570,26 +610,50 @@ namespace Unity.DemoTeam.DigitalHuman
                     {
                         subjects[i].RevertVertexData();
                         BuildDataAttachSubject(ref attachData, transform, meshInfo, poseBuildParams, subjects[i], dryRun: true,
-                            ref dryRunPoseCount, ref dryRunItemCount);
+                            ref dryRunPoseCount, ref dryRunItemCount, ref itemOffsetDummy, ref poseOffsetDummy);
                     }
                 }
 
-                dryRunPoseCount = Mathf.NextPowerOfTwo(dryRunPoseCount);
-                dryRunItemCount = Mathf.NextPowerOfTwo(dryRunItemCount);
+                int dryRunPoseCountNextPowerOfTwo = Mathf.NextPowerOfTwo(dryRunPoseCount);
+                int dryRunItemCountNextPowerOfTwo = Mathf.NextPowerOfTwo(dryRunItemCount);
 
-                ArrayUtils.ResizeCheckedIfLessThan(ref attachData.pose, dryRunPoseCount);
-                ArrayUtils.ResizeCheckedIfLessThan(ref attachData.ItemDataRef, dryRunItemCount);
+                ArrayUtils.ResizeCheckedIfLessThan(ref attachData.pose, dryRunPoseCountNextPowerOfTwo);
+                ArrayUtils.ResizeCheckedIfLessThan(ref attachData.ItemDataRef, dryRunItemCountNextPowerOfTwo);
 
+                int currentPoseOffset = 0;
+                int currentItemOffset = 0;
+                
                 // pass 2: build poses
                 for (int i = 0, n = subjects.Count; i != n; i++)
                 {
                     if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
                     {
+                        int poseOffset = currentPoseOffset;
+                        int itemOffset = currentItemOffset;
+                        
+                        
                         BuildDataAttachSubject(ref attachData, transform, meshInfo, poseBuildParams, subjects[i], dryRun: false,
-                            ref dryRunPoseCount, ref dryRunPoseCount);
+                            ref dryRunPoseCount, ref dryRunPoseCount, ref currentItemOffset, ref currentPoseOffset);
+
+                        int itemCount = currentItemOffset - itemOffset;
+                        int poseCount = currentPoseOffset - poseOffset;
+
+                        if (itemCount != 0)
+                        {
+                            subjects[i].attachmentIndex = itemOffset;
+                            subjects[i].attachmentCount = itemCount;
+                        }
+                        else
+                        {
+                            subjects[i].attachmentIndex = -1;
+                            subjects[i].attachmentCount = 0;
+                        }
                     }
                 }
 
+                attachData.poseCount = dryRunPoseCount;
+                attachData.itemCount = dryRunItemCount;
+                
                 // pass 3: reference poses
                 for (int i = 0, n = subjects.Count; i != n; i++)
                 {
@@ -622,8 +686,9 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
                 }
             }
-            attachData.dataVersion = SkinAttachmentData.DataVersion.Version_2;
+            attachData.dataVersion = SkinAttachmentData.DataVersion.Version_3;
             attachData.subjectCount = subjects.Count;
+            
             attachData.Persist();
 
 
