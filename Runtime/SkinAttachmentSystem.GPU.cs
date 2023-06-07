@@ -12,7 +12,7 @@ namespace Unity.DemoTeam.DigitalHuman
     {
         
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
-        struct SkinAttachmentPoseGPU
+        public struct SkinAttachmentPoseGPU
         {
             public float3 targetCoord;
             public int v0;
@@ -23,7 +23,7 @@ namespace Unity.DemoTeam.DigitalHuman
         };
 
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
-        struct SkinAttachmentItemGPU
+        public struct SkinAttachmentItemGPU
         {
             public float4 targetFrameDelta;
             public float3 targetOffset;

@@ -67,11 +67,9 @@ namespace Unity.DemoTeam.DigitalHuman
 
         private MeshInfo cachedMeshInfo;
         private int cachedMeshInfoFrame = -1;
-
-        private JobHandle[] stagingJobs;
+        
         private Vector3[][] stagingDataVec3;
         private Vector4[][] stagingDataVec4;
-        private GCHandle[] stagingPins;
 
 
         private bool subjectsNeedRefresh = false;
@@ -227,25 +225,10 @@ namespace Unity.DemoTeam.DigitalHuman
         void ResolveSubjectsCPU()
         {
             Profiler.BeginSample("resolve-subj-all-cpu");
-            int stagingPinsSourceDataCount = 3;
-            int stagingPinsSourceDataOffset = subjects.Count * 3;
 
-            ArrayUtils.ResizeChecked(ref stagingJobs, subjects.Count);
             ArrayUtils.ResizeChecked(ref stagingDataVec3, subjects.Count * 2);
             ArrayUtils.ResizeChecked(ref stagingDataVec4, subjects.Count);
-            ArrayUtils.ResizeChecked(ref stagingPins, subjects.Count * 3 + stagingPinsSourceDataCount);
-
-            GCHandle attachDataPosePin = GCHandle.Alloc(attachData.pose, GCHandleType.Pinned);
-            GCHandle attachDataItemPin = GCHandle.Alloc(attachData.ItemData, GCHandleType.Pinned);
-
             MeshBuffers mb = meshBuffers;
-
-            stagingPins[stagingPinsSourceDataOffset + 0] =
-                GCHandle.Alloc(mb.vertexPositions, GCHandleType.Pinned);
-            stagingPins[stagingPinsSourceDataOffset + 1] =
-                GCHandle.Alloc(mb.vertexTangents, GCHandleType.Pinned);
-            stagingPins[stagingPinsSourceDataOffset + 2] =
-                GCHandle.Alloc(mb.vertexNormals, GCHandleType.Pinned);
 
             // NOTE: for skinned targets, targetToWorld specifically excludes scale, since source data (BakeMesh) is already scaled
             Matrix4x4 targetToWorld;
@@ -260,7 +243,16 @@ namespace Unity.DemoTeam.DigitalHuman
             var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
             var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
 
-            for (int i = 0, n = subjects.Count; i != n; i++)
+            SkinAttachmentSystem.SkinAttachmentTargetDescCPU attachmentTargetDesc;
+            attachmentTargetDesc.positions = mb.vertexPositions;
+            attachmentTargetDesc.normals = mb.vertexNormals;
+            attachmentTargetDesc.tangents = mb.vertexTangents;
+            
+            List<SkinAttachmentSystem.SkinAttachmentDescCPU> attachmentDescs =
+                new List<SkinAttachmentSystem.SkinAttachmentDescCPU>();
+            List<SkinAttachment> resolvedAttachments = new List<SkinAttachment>();
+            int resolvedSubjectIndex = 0;
+            for (int i = 0; i < subjects.Count; i++)
             {
                 var subject = subjects[i];
                 if (subject.ChecksumCompare(attachData) == false)
@@ -277,181 +269,121 @@ namespace Unity.DemoTeam.DigitalHuman
                 if (!subject.gameObject.activeInHierarchy)
                     continue;
 
-                bool resolveTangents = subject.meshInstance && subject.meshInstance.HasVertexAttribute(VertexAttribute.Tangent);
+                Matrix4x4 resolveTransform = targetToWorld;
+                if (subject.attachmentType != SkinAttachment.AttachmentType.Transform)
+                {
+                    // this used to always read:
+                    //   var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
+                    //
+                    // to support attachments that have skinning renderers, we sometimes have to transform
+                    // the vertices into a space that takes into account the subsequently applied skinning:
+                    //    var targetToSubject = (subject.skinningBone.localToWorldMatrix * subject.meshInstanceBoneBindPose).inverse * targetToWorld;
+                    //
+                    // we can reshuffle a bit to get rid of the per-resolve inverse:
+                    //    var targetToSubject = (subject.skinningBoneBindPoseInverse * subject.meshInstanceBone.worldToLocalMatrix) * targetToWorld;
+                    if (subject.skinningBone != null)
+                        resolveTransform =
+                            (subject.skinningBoneBindPoseInverse *
+                             subject.skinningBone.worldToLocalMatrix) * targetToWorld;
+                    else
+                        resolveTransform = subject.transform.worldToLocalMatrix * targetToWorld;
+                }
+
+                bool resolveTangents = subject.meshInstance &&
+                                       subject.meshInstance.HasVertexAttribute(VertexAttribute.Tangent);
+                var indexPosStaging = resolvedSubjectIndex * 2 + 0;
+                var indexNrmStaging = resolvedSubjectIndex * 2 + 1;
+                var indexTanStaging = resolvedSubjectIndex;
+                ArrayUtils.ResizeChecked(ref stagingDataVec3[indexPosStaging], attachmentCount);
+                ArrayUtils.ResizeChecked(ref stagingDataVec3[indexNrmStaging], attachmentCount);
+                if (resolveTangents)
+                {
+                    ArrayUtils.ResizeChecked(ref stagingDataVec4[indexTanStaging], attachmentCount);
+                }
+
+                SkinAttachmentSystem.SkinAttachmentDescCPU attachmentDesc;
+                attachmentDesc.skinAttachmentItems = attachData.ItemData;
+                attachmentDesc.skinAttachmentPoses = attachData.pose;
+                attachmentDesc.resolvedPositions = stagingDataVec3[indexPosStaging];
+                attachmentDesc.resolvedNormals = stagingDataVec3[indexNrmStaging];
+                attachmentDesc.resolvedTangents = resolveTangents ? stagingDataVec4[indexTanStaging] : null;
+                attachmentDesc.resolveTransform = resolveTransform;
+                attachmentDesc.itemsOffset = subject.attachmentIndex;
+                attachmentDesc.itemsCount = subject.attachmentCount;
+
+                attachmentDescs.Add(attachmentDesc);
+                resolvedAttachments.Add(subject);
+                ++resolvedSubjectIndex;
+            }
+
+            SkinAttachmentSystem.SkinAttachmentDescCPU[] attachmentDescsArray = attachmentDescs.ToArray();
+            SkinAttachmentSystem.ResolveSubjectsCPU(ref attachmentTargetDesc, attachmentDescsArray);
+
+            for (int i = 0; i < attachmentDescs.Count; ++i)
+            {
+                ref SkinAttachmentSystem.SkinAttachmentDescCPU attachmentDesc = ref attachmentDescsArray[i];
+                SkinAttachment subject = resolvedAttachments[i];
                 
+                bool resolveTangents = subject.meshInstance &&
+                                       subject.meshInstance.HasVertexAttribute(VertexAttribute.Tangent);
                 var indexPosStaging = i * 2 + 0;
                 var indexNrmStaging = i * 2 + 1;
                 var indexTanStaging = i;
                 
-                var indexPosPins = i * 3 + 0;
-                var indexNrmPins = i * 3 + 1;
-                var indexTanPins = i * 3 + 2;
+                Profiler.BeginSample("gather-subj");
+                switch (subject.attachmentType)
+                {
+                    case SkinAttachment.AttachmentType.Transform:
+                    {
+                        subject.transform.position = stagingDataVec3[indexPosStaging][0];
+                    } 
+                        break;
+
+                    case SkinAttachment.AttachmentType.Mesh:
+                    case SkinAttachment.AttachmentType.MeshRoots:
+                    {
+                        if (subject.meshInstance == null)
+                            break;
+
+                        if (subject.meshInstance.vertexCount != stagingDataVec3[indexPosStaging].Length)
+                        {
+                            Debug.LogError("mismatching vertex- and attachment count", subject);
+                            break;
+                        }
+
+                        subject.meshInstance.SilentlySetVertices(stagingDataVec3[indexPosStaging]);
+                        subject.meshInstance.SilentlySetNormals(stagingDataVec3[indexNrmStaging]);
+
+                        if (resolveTangents)
+                        {
+                            subject.meshInstance.SilentlySetTangents(stagingDataVec4[indexTanStaging]);
+                        }
+
+                        Profiler.BeginSample("conservative-bounds");
+                        {
+                            //Debug.Log("targetMeshWorldBoundsCenter = " + targetMeshWorldBoundsCenter.ToString("G4") + " (from meshBakedOrAsset = " + meshBakedOrAsset.ToString() + ")");
+                            //Debug.Log("targetMeshWorldBoundsExtents = " + targetMeshWorldBoundsExtents.ToString("G4"));
+                            var worldToSubject = subject.transform.worldToLocalMatrix;
+                            var subjectBoundsCenter = worldToSubject.MultiplyPoint(targetMeshWorldBoundsCenter);
+                            var subjectBoundsRadius =
+                                worldToSubject.MultiplyVector(targetMeshWorldBoundsExtent).magnitude +
+                                subject.meshAssetRadius;
+                            var subjectBounds = subject.meshInstance.bounds;
+                            {
+                                subjectBounds.center = subjectBoundsCenter;
+                                subjectBounds.extents = subjectBoundsRadius * Vector3.one;
+                            }
+                            subject.meshInstance.bounds = subjectBounds;
+                        }
+                        Profiler.EndSample();
+                    }
+                        break;
+                }
+
+                Profiler.EndSample();
                 
-
-                ArrayUtils.ResizeChecked(ref stagingDataVec3[indexPosStaging], attachmentCount);
-                ArrayUtils.ResizeChecked(ref stagingDataVec3[indexNrmStaging], attachmentCount);
-                stagingPins[indexPosPins] = GCHandle.Alloc(stagingDataVec3[indexPosStaging], GCHandleType.Pinned);
-                stagingPins[indexNrmPins] = GCHandle.Alloc(stagingDataVec3[indexNrmStaging], GCHandleType.Pinned);
-                if (resolveTangents)
-                {
-                    ArrayUtils.ResizeChecked(ref stagingDataVec4[indexTanStaging], attachmentCount);
-                    stagingPins[indexTanPins] = GCHandle.Alloc(stagingDataVec4[indexTanStaging], GCHandleType.Pinned);
-                }
-
-                unsafe
-                {
-                    Vector3* resolvedPositions = (Vector3*) stagingPins[indexPosPins].AddrOfPinnedObject().ToPointer();
-                    Vector3* resolvedNormals = (Vector3*) stagingPins[indexNrmPins].AddrOfPinnedObject().ToPointer();
-                    Vector4* resolvedTangents = resolveTangents ? (Vector4*) stagingPins[indexTanPins].AddrOfPinnedObject().ToPointer(): null; 
-                    
-                    switch (subject.attachmentType)
-                    {
-                        case SkinAttachment.AttachmentType.Transform:
-                        {
-                            stagingJobs[i] = ScheduleResolve(attachmentIndex, attachmentCount,
-                                ref targetToWorld, mb,
-                                resolvedPositions, resolvedNormals, resolvedTangents);
-                        }
-                            break;
-
-                        case SkinAttachment.AttachmentType.Mesh:
-                        case SkinAttachment.AttachmentType.MeshRoots:
-                        {
-                            Matrix4x4 targetToSubject;
-                            {
-                                // this used to always read:
-                                //   var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
-                                //
-                                // to support attachments that have skinning renderers, we sometimes have to transform
-                                // the vertices into a space that takes into account the subsequently applied skinning:
-                                //    var targetToSubject = (subject.skinningBone.localToWorldMatrix * subject.meshInstanceBoneBindPose).inverse * targetToWorld;
-                                //
-                                // we can reshuffle a bit to get rid of the per-resolve inverse:
-                                //    var targetToSubject = (subject.skinningBoneBindPoseInverse * subject.meshInstanceBone.worldToLocalMatrix) * targetToWorld;
-
-                                if (subject.skinningBone != null)
-                                    targetToSubject =
-                                        (subject.skinningBoneBindPoseInverse *
-                                         subject.skinningBone.worldToLocalMatrix) * targetToWorld;
-                                else
-                                    targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
-                            }
-
-                            stagingJobs[i] = ScheduleResolve(attachmentIndex, attachmentCount,
-                                ref targetToSubject, mb,
-                                resolvedPositions, resolvedNormals, resolvedTangents);
-                        }
-                            break;
-                    }
-                }
             }
-
-            JobHandle.ScheduleBatchedJobs();
-
-            while (true)
-            {
-                var jobsRunning = false;
-
-                for (int i = 0, n = subjects.Count; i != n; i++)
-                {
-                    var subject = subjects[i];
-                    if (subject.ChecksumCompare(attachData) == false)
-                        continue;
-
-                    var stillRunning = (stagingJobs[i].IsCompleted == false);
-                    if (stillRunning)
-                    {
-                        jobsRunning = true;
-                        continue;
-                    }
-
-                    var indexPosStaging = i * 2 + 0;
-                    var indexNrmStaging = i * 2 + 1;
-                    var indexTanStaging = i;
-                
-                    var indexPosPins = i * 3 + 0;
-                    var indexNrmPins = i * 3 + 1;
-                    var indexTanPins = i * 3 + 2;
-
-                    bool alreadyApplied = stagingPins[indexPosPins].IsAllocated == false;
-
-                    if (alreadyApplied)
-                        continue;
-
-                    bool resolvedTangents = subject.meshInstance && subject.meshInstance.HasVertexAttribute(VertexAttribute.Tangent);
-                    
-                    stagingPins[indexPosPins].Free();
-                    stagingPins[indexNrmPins].Free();
-                    if (resolvedTangents)
-                    {
-                        stagingPins[indexTanPins].Free();
-                    }
-
-                    Profiler.BeginSample("gather-subj");
-                    switch (subject.attachmentType)
-                    {
-                        case SkinAttachment.AttachmentType.Transform:
-                        {
-                            subject.transform.position = stagingDataVec3[indexPosStaging][0];
-                        }
-                            break;
-
-                        case SkinAttachment.AttachmentType.Mesh:
-                        case SkinAttachment.AttachmentType.MeshRoots:
-                        {
-                            if (subject.meshInstance == null)
-                                break;
-
-                            if (subject.meshInstance.vertexCount != stagingDataVec3[indexPosStaging].Length)
-                            {
-                                Debug.LogError("mismatching vertex- and attachment count", subject);
-                                break;
-                            }
-
-                            subject.meshInstance.SilentlySetVertices(stagingDataVec3[indexPosStaging]);
-                            subject.meshInstance.SilentlySetNormals(stagingDataVec3[indexNrmStaging]);
-
-                            if (resolvedTangents)
-                            {
-                                subject.meshInstance.SilentlySetTangents(stagingDataVec4[indexTanStaging]);
-                            }
-
-                            Profiler.BeginSample("conservative-bounds");
-                            {
-                                //Debug.Log("targetMeshWorldBoundsCenter = " + targetMeshWorldBoundsCenter.ToString("G4") + " (from meshBakedOrAsset = " + meshBakedOrAsset.ToString() + ")");
-                                //Debug.Log("targetMeshWorldBoundsExtents = " + targetMeshWorldBoundsExtents.ToString("G4"));
-                                var worldToSubject = subject.transform.worldToLocalMatrix;
-                                var subjectBoundsCenter = worldToSubject.MultiplyPoint(targetMeshWorldBoundsCenter);
-                                var subjectBoundsRadius =
-                                    worldToSubject.MultiplyVector(targetMeshWorldBoundsExtent).magnitude +
-                                    subject.meshAssetRadius;
-                                var subjectBounds = subject.meshInstance.bounds;
-                                {
-                                    subjectBounds.center = subjectBoundsCenter;
-                                    subjectBounds.extents = subjectBoundsRadius * Vector3.one;
-                                }
-                                subject.meshInstance.bounds = subjectBounds;
-                            }
-                            Profiler.EndSample();
-                        }
-                            break;
-                    }
-
-                    Profiler.EndSample();
-                }
-
-                if (jobsRunning == false)
-                    break;
-            }
-
-            for (int i = 0; i != stagingPinsSourceDataCount; i++)
-            {
-                stagingPins[stagingPinsSourceDataOffset + i].Free();
-            }
-
-            attachDataPosePin.Free();
-            attachDataItemPin.Free();
-
+            
             Profiler.EndSample();
         }
 
@@ -708,157 +640,10 @@ namespace Unity.DemoTeam.DigitalHuman
             subjectsNeedRefresh = true;
         }
 
-        public static float3x3 ConstructMatrix(float3 normal, float3 tangent, float tangentW)
-        {
-            float3 bitangent = math.cross(normal, tangent) * math.sign(tangentW);
-            return math.transpose(new float3x3(tangent, bitangent, normal));
-        }
-
-         public unsafe JobHandle ScheduleResolve(int attachmentIndex, int attachmentCount,
-            ref Matrix4x4 resolveTransform, MeshBuffers sourceMeshBuffers, Vector3* resolvedPositions,
-            Vector3* resolvedNormals, Vector4* resolvedTangents)
-        {
-            fixed (Vector3* meshPositions = sourceMeshBuffers.vertexPositions)
-            fixed (Vector3* meshNormals = sourceMeshBuffers.vertexNormals)
-            fixed (Vector4* meshTangents = sourceMeshBuffers.vertexTangents)
-            fixed (SkinAttachmentItem3* attachItem = attachData.ItemData)
-            fixed (SkinAttachmentPose* attachPose = attachData.pose)
-            {
-                var job = new ResolveJob()
-                {
-                    meshPositions = meshPositions,
-                    meshNormals = meshNormals,
-                    meshTangents = meshTangents,
-                    attachItem = attachItem,
-                    attachPose = attachPose,
-                    resolveTransform = resolveTransform,
-                    resolvedPositions = resolvedPositions,
-                    resolvedNormals = resolvedNormals,
-                    resolvedTangents = resolvedTangents,
-                    writeTangents = resolvedTangents != null,
-                    attachmentIndex = attachmentIndex,
-                    attachmentCount = attachmentCount,
-                };
-                return job.Schedule(attachmentCount, 64);
-            }
-        }
-
-        [BurstCompile(FloatMode = FloatMode.Fast)]
-        unsafe struct ResolveJob : IJobParallelFor
-        {
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector3* meshPositions;
-
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector3* meshNormals;
-
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector4* meshTangents;
-
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public SkinAttachmentItem3* attachItem;
-
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public SkinAttachmentPose* attachPose;
-
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector3* resolvedPositions;
-
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector3* resolvedNormals;
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public Vector4* resolvedTangents;
-
-            public Matrix4x4 resolveTransform;
-
-            public int attachmentIndex;
-            public int attachmentCount;
-
-            public bool writeTangents;
-
-            //TODO this needs optimization
-            public void Execute(int i)
-            {
-                var targetBlended = new Vector3(0.0f, 0.0f, 0.0f);
-                var targetWeights = 0.0f;
-
-                SkinAttachmentItem3 item = attachItem[attachmentIndex + i];
-
-                var poseIndex0 = item.poseIndex;
-                var poseIndexN = item.poseIndex + item.poseCount;
-
-                for (int poseIndex = poseIndex0; poseIndex != poseIndexN; poseIndex++)
-                {
-                    SkinAttachmentPose pose = attachPose[poseIndex];
-
-                    var p0 = meshPositions[pose.v0];
-                    var p1 = meshPositions[pose.v1];
-                    var p2 = meshPositions[pose.v2];
-
-                    var v0v1 = p1 - p0;
-                    var v0v2 = p2 - p0;
-
-                    var triangleNormal = Vector3.Cross(v0v1, v0v2);
-                    var triangleArea = Vector3.Magnitude(triangleNormal);
-
-                    triangleNormal /= triangleArea;
-                    triangleArea *= 0.5f;
-
-                    var targetProjected = pose.targetCoord.Resolve(ref p0, ref p1, ref p2);
-                    var target = targetProjected + triangleNormal * pose.targetDist;
-
-                    targetBlended += triangleArea * target;
-                    targetWeights += triangleArea; 
-                }
-
-                ref readonly var baseNormal = ref meshNormals[item.baseVertex];
-                ref readonly var baseTangent = ref meshTangents[item.baseVertex];
-                
-                var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3)baseTangent * baseTangent.w);
-
-                var targetFrame = baseFrame * item.targetFrameDelta;
-                var targetOffset = baseFrame * item.targetOffset;
-                var targetNormal = targetFrame * Vector3.forward;
-                var targetTangent = targetFrame * Vector3.up;
-
-                resolvedPositions[i] = resolveTransform.MultiplyPoint3x4(targetBlended / targetWeights + targetOffset);
-                resolvedNormals[i] = resolveTransform.MultiplyVector(targetNormal).normalized;
-
-                if (writeTangents)
-                {
-                    targetTangent = resolveTransform.MultiplyVector(targetTangent).normalized;
-                    resolvedTangents[i] = new Vector4(targetTangent.x, targetTangent.y, targetTangent.z, item.targetFrameW);
-                }
-            }
-        }
-
         #region GPUResolve
 
 #if UNITY_2021_2_OR_NEWER
-
-        [StructLayout(LayoutKind.Sequential, Pack = 4)]
-        struct SkinAttachmentPoseGPU
-        {
-            public float3 targetCoord;
-            public int v0;
-            public int v1;
-            public int v2;
-            public float area;
-            public float targetDist;
-        };
-
-        [StructLayout(LayoutKind.Sequential, Pack = 4)]
-        struct SkinAttachmentItemGPU
-        {
-            public float4 targetFrameDelta;
-            public float3 targetOffset;
-            public float targetFrameW;
-            public int baseVertex;
-            public int poseIndex;
-            public int poseCount;
-            public int pad0;
-        };
-
+        
         void AfterFrameDone(ScriptableRenderContext scriptableRenderContext, Camera[] cameras)
         {
             afterResolveFenceRequested = false;
@@ -876,8 +661,8 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             DestroyGPUResources();
 
-            int itemStructSize = UnsafeUtility.SizeOf<SkinAttachmentItemGPU>();
-            int poseStructSize = UnsafeUtility.SizeOf<SkinAttachmentPoseGPU>();
+            int itemStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentItemGPU>();
+            int poseStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentPoseGPU>();
 
             int itemsCount = attachData.itemCount;
             int posesCount = attachData.poseCount;
@@ -888,11 +673,11 @@ namespace Unity.DemoTeam.DigitalHuman
             attachmentItemsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, itemsCount, itemStructSize);
     
             //upload stuff that doesn't change
-            NativeArray<SkinAttachmentPoseGPU> posesBuffer =
-                new NativeArray<SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
+            NativeArray<SkinAttachmentSystem.SkinAttachmentPoseGPU> posesBuffer =
+                new NativeArray<SkinAttachmentSystem.SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
             for (int i = 0; i < posesCount; ++i)
             {
-                SkinAttachmentPoseGPU poseGPU;
+                SkinAttachmentSystem.SkinAttachmentPoseGPU poseGPU;
                 poseGPU.targetCoord.x = attachData.pose[i].targetCoord.u;
                 poseGPU.targetCoord.y = attachData.pose[i].targetCoord.v;
                 poseGPU.targetCoord.z = attachData.pose[i].targetCoord.w;
@@ -907,13 +692,13 @@ namespace Unity.DemoTeam.DigitalHuman
             attachmentPosesBuffer.SetData(posesBuffer);
             posesBuffer.Dispose();
 
-            NativeArray<SkinAttachmentItemGPU> itemsBuffer =
-                new NativeArray<SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
+            NativeArray<SkinAttachmentSystem.SkinAttachmentItemGPU> itemsBuffer =
+                new NativeArray<SkinAttachmentSystem.SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
             for (int i = 0; i < itemsCount; ++i)
             {
                 SkinAttachmentItem3 item = attachData.ItemData[i];
                 
-                SkinAttachmentItemGPU itemGPU;
+                SkinAttachmentSystem.SkinAttachmentItemGPU itemGPU;
                 itemGPU.targetFrameDelta = new float4(item.targetFrameDelta[0], item.targetFrameDelta[1], item.targetFrameDelta[2], item.targetFrameDelta[3]);
                 itemGPU.targetOffset = item.targetOffset;
                 itemGPU.targetFrameW = item.targetFrameW;
@@ -942,8 +727,8 @@ namespace Unity.DemoTeam.DigitalHuman
             if (transformAttachmentCount > 0)
             {
                 {
-                    NativeArray<SkinAttachmentItemGPU> transformItems =
-                        new NativeArray<SkinAttachmentItemGPU>(transformAttachmentCount, Allocator.Temp);
+                    NativeArray<SkinAttachmentSystem.SkinAttachmentItemGPU> transformItems =
+                        new NativeArray<SkinAttachmentSystem.SkinAttachmentItemGPU>(transformAttachmentCount, Allocator.Temp);
                     int transformPoseOffsetIndex = 0;
                     for (int i = 0; i < subjects.Count; ++i)
                     {
@@ -953,7 +738,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         }
                     }
 
-                    transformAttachmentItemBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured,transformAttachmentCount, UnsafeUtility.SizeOf<SkinAttachmentItemGPU>());
+                    transformAttachmentItemBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured,transformAttachmentCount, UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentItemGPU>());
                     transformAttachmentItemBuffer.SetData(transformItems);
                     transformItems.Dispose();
                 }
@@ -1227,29 +1012,38 @@ namespace Unity.DemoTeam.DigitalHuman
                     var attachmentIndex = 0;
                     var attachmentCount = attachData.itemCount;
 
-                    using (var resolvedPositions = new UnsafeArrayVector3(attachmentCount))
-                    using (var resolvedNormals = new UnsafeArrayVector3(attachmentCount))
-                    using (var resolvedTangents = new UnsafeArrayVector4(attachmentCount))
+                    SkinAttachmentSystem.SkinAttachmentTargetDescCPU attachmentTargetDesc;
+                    attachmentTargetDesc.positions = meshBuffers.vertexPositions;
+                    attachmentTargetDesc.normals = meshBuffers.vertexNormals;
+                    attachmentTargetDesc.tangents = meshBuffers.vertexTangents;
+
+                    Vector3[] resolvedPositions = new Vector3[attachmentCount];
+                    Vector3[] resolvedNormals = new Vector3[attachmentCount];
+                    Vector4[] resolvedTangents = new Vector4[attachmentCount];
+                    
+                    SkinAttachmentSystem.SkinAttachmentDescCPU attachmentDesc;
+                    attachmentDesc.skinAttachmentItems = attachData.ItemData;
+                    attachmentDesc.skinAttachmentPoses = attachData.pose;
+                    attachmentDesc.resolvedPositions = resolvedPositions;
+                    attachmentDesc.resolvedNormals = resolvedNormals;
+                    attachmentDesc.resolvedTangents = resolvedTangents;
+                    attachmentDesc.resolveTransform = Matrix4x4.identity;
+                    attachmentDesc.itemsOffset = attachmentIndex;
+                    attachmentDesc.itemsCount = attachmentCount;
+
                     {
-                        var resolveTransform = Matrix4x4.identity;
-                        var resolveJob = ScheduleResolve(attachmentIndex, attachmentCount, ref resolveTransform,
-                            meshBuffers,
-                            resolvedPositions.val, resolvedNormals.val, resolvedTangents.val);
-
-                        JobHandle.ScheduleBatchedJobs();
-
-                        resolveJob.Complete();
+                        SkinAttachmentSystem.ResolveSubjectsCPU(ref attachmentTargetDesc, new[] { attachmentDesc });
 
                         Vector3 size = 0.0002f * Vector3.one;
 
                         for (int i = 0; i != attachmentCount; i++)
                         {
                             Gizmos.color = Color.yellow;
-                            Gizmos.DrawCube(resolvedPositions.val[i], size);
+                            Gizmos.DrawCube(resolvedPositions[i], size);
                             Gizmos.color = Color.green;
-                            Gizmos.DrawRay(resolvedPositions.val[i], 0.1f * resolvedNormals.val[i]);
+                            Gizmos.DrawRay(resolvedPositions[i], 0.1f * resolvedNormals[i]);
                             Gizmos.color = Color.red;
-                            Gizmos.DrawRay(resolvedPositions.val[i], 0.1f * resolvedTangents.val[i] * resolvedTangents.val[i].w);
+                            Gizmos.DrawRay(resolvedPositions[i], 0.1f * resolvedTangents[i] * resolvedTangents[i].w);
                         }
                     }
                 }
