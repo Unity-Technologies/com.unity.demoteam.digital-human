@@ -2,12 +2,16 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
+    using SkinAttachmentItem = SkinAttachmentItem3;
+    
     public static partial class SkinAttachmentSystem
     {
         
@@ -359,6 +363,72 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             desc.positionsNormalsTangentsBuffer?.Dispose();
             desc.movecsBuffer?.Dispose();
+        }
+        
+        
+        public static void UploadAttachmentPoseDataToGPU(in SkinAttachmentItem[] bakedAttachmentItems, in SkinAttachmentPose[] bakedAttachmentPoses,
+            ref GraphicsBuffer bakedAttachmentItemsGPU, ref GraphicsBuffer bakedAttachmentPosesGPU)
+        {
+            int itemsCount = bakedAttachmentPoses.Length;
+            int posesCount = bakedAttachmentItems.Length;
+            
+            int itemStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentItemGPU>();
+            int poseStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentPoseGPU>();
+
+            if (bakedAttachmentPosesGPU == null || bakedAttachmentPosesGPU.count != posesCount)
+            {
+                if (bakedAttachmentPosesGPU != null)
+                {
+                    bakedAttachmentPosesGPU.Release();
+                }
+                bakedAttachmentPosesGPU = new GraphicsBuffer(GraphicsBuffer.Target.Structured, posesCount, poseStructSize);
+            }
+            
+            if (bakedAttachmentItemsGPU == null || bakedAttachmentItemsGPU.count != itemsCount)
+            {
+                if (bakedAttachmentItemsGPU != null)
+                {
+                    bakedAttachmentItemsGPU.Release();
+                }
+                bakedAttachmentItemsGPU = new GraphicsBuffer(GraphicsBuffer.Target.Structured, itemsCount, itemStructSize);
+            }
+            
+
+            NativeArray<SkinAttachmentPoseGPU> posesBuffer = new NativeArray<SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
+            for (int i = 0; i < posesCount; ++i)
+            {
+                SkinAttachmentPoseGPU poseGPU;
+                poseGPU.targetCoord.x = bakedAttachmentPoses[i].targetCoord.u;
+                poseGPU.targetCoord.y = bakedAttachmentPoses[i].targetCoord.v;
+                poseGPU.targetCoord.z = bakedAttachmentPoses[i].targetCoord.w;
+                poseGPU.v0 = bakedAttachmentPoses[i].v0;
+                poseGPU.v1 = bakedAttachmentPoses[i].v1;
+                poseGPU.v2 = bakedAttachmentPoses[i].v2;
+                poseGPU.area = bakedAttachmentPoses[i].area;
+                poseGPU.targetDist = bakedAttachmentPoses[i].targetDist;
+                posesBuffer[i] = poseGPU;
+            }
+            bakedAttachmentPosesGPU.SetData(posesBuffer);
+            posesBuffer.Dispose();
+
+            NativeArray<SkinAttachmentItemGPU> itemsBuffer = new NativeArray<SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
+            for (int i = 0; i < itemsCount; ++i)
+            {
+                SkinAttachmentItem item = bakedAttachmentItems[i];
+                
+                SkinAttachmentItemGPU itemGPU;
+                itemGPU.targetFrameDelta = new float4(item.targetFrameDelta[0], item.targetFrameDelta[1], item.targetFrameDelta[2], item.targetFrameDelta[3]);
+                itemGPU.targetOffset = item.targetOffset;
+                itemGPU.targetFrameW = item.targetFrameW;
+                itemGPU.baseVertex = item.baseVertex;
+                itemGPU.poseIndex = item.poseIndex;
+                itemGPU.poseCount = item.poseCount;
+                itemGPU.pad0 = 0;
+                itemsBuffer[i] = itemGPU;
+            }
+
+            bakedAttachmentItemsGPU.SetData(itemsBuffer);
+            itemsBuffer.Dispose();
         }
 
         #endregion UtilityGPU
