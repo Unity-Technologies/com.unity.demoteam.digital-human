@@ -369,8 +369,8 @@ namespace Unity.DemoTeam.DigitalHuman
         public static void UploadAttachmentPoseDataToGPU(in SkinAttachmentItem[] bakedAttachmentItems, in SkinAttachmentPose[] bakedAttachmentPoses,
             ref GraphicsBuffer bakedAttachmentItemsGPU, ref GraphicsBuffer bakedAttachmentPosesGPU)
         {
-            int itemsCount = bakedAttachmentPoses.Length;
-            int posesCount = bakedAttachmentItems.Length;
+            int itemsCount = bakedAttachmentItems.Length;
+            int posesCount = bakedAttachmentPoses.Length;
             
             int itemStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentItemGPU>();
             int poseStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentPoseGPU>();

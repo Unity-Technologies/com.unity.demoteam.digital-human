@@ -26,19 +26,16 @@ namespace Unity.DemoTeam.DigitalHuman
             External
         }
 
-
         public Renderer attachmentTarget;
         public SchedulingMode schedulingMode;
-
-        [EditableIf("attached", false)] public MeshAttachmentType attachmentType = MeshAttachmentType.Mesh;
-
-        [EditableIf("attachmentType", MeshAttachmentType.MeshRoots)]
+        public MeshAttachmentType attachmentType = MeshAttachmentType.Mesh;
         public bool allowOnlyOneRoot = false;
-
         public bool GeneratePrecalculatedMotionVectors = false;
 
         public event Action<CommandBuffer> onSkinAttachmentMeshModified;
 
+        public bool IsAttached => attached;
+        
         private struct BakeData
         {
             public MeshBuffers meshBuffers;
@@ -46,11 +43,10 @@ namespace Unity.DemoTeam.DigitalHuman
             public MeshIslands meshIslands;
         }
 
-        [SerializeField] private bool attached;
-        [SerializeField] private Vector3 attachedLocalPosition;
-        [SerializeField] private Quaternion attachedLocalRotation;
-        [SerializeField] private ulong checksum0 = 0;
-        [SerializeField] private ulong checksum1 = 0;
+        [SerializeField][HideInInspector] private bool attached = false;
+        [SerializeField][HideInInspector] private Vector3 attachedLocalPosition;
+        [SerializeField][HideInInspector] private Quaternion attachedLocalRotation;
+        [SerializeField][HideInInspector] private Hash128 checkSum;
 
         private float meshAssetRadius;
         private Transform skinningBone;
@@ -95,6 +91,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
             attached = false;
+            currentTarget = null;
         }
 
         void OnEnable()
@@ -124,7 +121,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public Hash128 Checksum()
         {
-            return new Hash128(checksum0, checksum1);
+            return checkSum;
         }
 
         public Renderer GetTargetRenderer()
@@ -135,21 +132,37 @@ namespace Unity.DemoTeam.DigitalHuman
         public void NotifyAttachmentUpdated(CommandBuffer cmd)
         {
             //update mesh bounds
-            var targetMeshWorldBounds = currentTarget.bounds;
-            var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
-            var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
-
-            var worldToSubject = transform.worldToLocalMatrix;
-            var subjectBoundsCenter = worldToSubject.MultiplyPoint(targetMeshWorldBoundsCenter);
-            var subjectBoundsRadius =
-                worldToSubject.MultiplyVector(targetMeshWorldBoundsExtent).magnitude +
-                meshAssetRadius;
-            var subjectBounds = meshInstance.bounds;
             {
-                subjectBounds.center = subjectBoundsCenter;
-                subjectBounds.extents = subjectBoundsRadius * Vector3.one;
+                //update mesh bounds
+                var targetMeshWorldBounds = currentTarget.bounds;
+                var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
+                var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
+
+                var worldToSubject = transform.worldToLocalMatrix;
+                var subjectBoundsCenter = worldToSubject.MultiplyPoint(targetMeshWorldBoundsCenter);
+                var subjectBoundsRadius =
+                    worldToSubject.MultiplyVector(targetMeshWorldBoundsExtent).magnitude +
+                    meshAssetRadius;
+                var subjectBounds = meshInstance.bounds;
+                {
+                    subjectBounds.center = subjectBoundsCenter;
+                    subjectBounds.extents = subjectBoundsRadius * Vector3.one;
+                }
+                meshInstance.bounds = subjectBounds;
             }
-            meshInstance.bounds = subjectBounds;
+            
+            //if cpu resolved, replicate data to mesh
+            if(cmd == null)
+            {
+                bool resolveTangents = meshInstance.HasVertexAttribute(VertexAttribute.Tangent);
+                meshInstance.SilentlySetVertices(stagingPositions);
+                meshInstance.SilentlySetNormals(stagingNormals);
+
+                if (resolveTangents)
+                {
+                    meshInstance.SilentlySetTangents(stagingTangents);
+                }
+            }
 
 
             if (onSkinAttachmentMeshModified != null)
@@ -158,18 +171,35 @@ namespace Unity.DemoTeam.DigitalHuman
 
         bool ValidateBakedData()
         {
-            //TODO properly
-            return bakedAttachmentItems != null && bakedAttachmentPoses != null;
+
+            bool dataExists =  bakedAttachmentItems != null && bakedAttachmentPoses != null;
+            if (dataExists)
+            {
+                bool meshInstanceVertexCountMatches = bakedAttachmentItems.Length == meshInstance.vertexCount;
+                return meshInstanceVertexCountMatches;
+            }
+
+            return false;
         }
 
         void UpdateAttachedState()
         {
             hasValidState = false;
+            if (attachmentTarget == null) return;
+
             //make sure target is a supported renderer (meshrenderer or skinnedMeshRenderer)
-            if (!(attachmentTarget is SkinnedMeshRenderer) || !(attachmentTarget is MeshRenderer))
+            if (!(attachmentTarget is SkinnedMeshRenderer || attachmentTarget is MeshRenderer))
             {
                 attachmentTarget = null;
                 currentTarget = null;
+                Detach();
+                return;
+            }
+
+            //target changed, detach
+            if (currentTarget != attachmentTarget && currentTarget != null)
+            {
+                Detach();
                 return;
             }
 
@@ -182,16 +212,9 @@ namespace Unity.DemoTeam.DigitalHuman
                     RemoveMeshInstance();
                 }
 
-                if (currentTarget != attachmentTarget)
+                if (currentTarget == null)
                 {
-                    if (currentTarget)
-                    {
-                        hasValidState = BakeAttachmentPoses();
-                        if (hasValidState)
-                        {
-                            currentTarget = attachmentTarget;
-                        }
-                    }
+                    hasValidState = BakeAttachmentPoses();
                 }
                 else
                 {
@@ -250,19 +273,19 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             if (!GetBakeData(out BakeData attachmentBakeData))
                 return false;
-            if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(currentTarget,
+            if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(attachmentTarget,
                     out MeshInfo attachmentTargetBakeData))
                 return false;
 
             Matrix4x4 subjectToTarget;
             if (skinningBone != null)
             {
-                subjectToTarget = currentTarget.transform.worldToLocalMatrix * skinningBone.localToWorldMatrix *
+                subjectToTarget = attachmentTarget.transform.worldToLocalMatrix * skinningBone.localToWorldMatrix *
                                   skinningBoneBindPose;
             }
             else
             {
-                subjectToTarget = currentTarget.transform.worldToLocalMatrix * transform.localToWorldMatrix;
+                subjectToTarget = attachmentTarget.transform.worldToLocalMatrix * transform.localToWorldMatrix;
             }
 
             //for now deactive this path as it's not yet stable
@@ -299,6 +322,10 @@ namespace Unity.DemoTeam.DigitalHuman
 
 
             GPUDataValid = false;
+            currentTarget = attachmentTarget;
+
+            checkSum = SkinAttachmentDataStorage.CalculateHash(bakedAttachmentPoses, bakedAttachmentItems);
+            
             return true;
         }
 
@@ -546,15 +573,16 @@ namespace Unity.DemoTeam.DigitalHuman
                     ArrayUtils.ResizeChecked(ref stagingTangents, vertexCount);
                 }
 
-                SkinAttachmentSystem.SkinAttachmentDescCPU attachmentDesc;
-                attachmentDesc.skinAttachmentItems = itemsBuffer;
-                attachmentDesc.skinAttachmentPoses = posesBuffer;
-                attachmentDesc.resolvedPositions = stagingPositions;
-                attachmentDesc.resolvedNormals = stagingNormals;
-                attachmentDesc.resolvedTangents = resolveTangents ? stagingTangents : null;
-                attachmentDesc.resolveTransform = GetTargetToAttachmentTransform();
-                attachmentDesc.itemsOffset = itemOffset;
-                attachmentDesc.itemsCount = itemsCount;
+
+                desc.skinAttachmentItems = itemsBuffer;
+                desc.skinAttachmentPoses = posesBuffer;
+                desc.resolvedPositions = stagingPositions;
+                desc.resolvedNormals = stagingNormals;
+                desc.resolvedTangents = resolveTangents ? stagingTangents : null;
+                desc.resolveTransform = GetTargetToAttachmentTransform();
+                desc.itemsOffset = itemOffset;
+                desc.itemsCount = itemsCount;
+                return true;
             }
 
             return false;

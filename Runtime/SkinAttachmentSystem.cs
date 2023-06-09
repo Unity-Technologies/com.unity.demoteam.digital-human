@@ -116,7 +116,7 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 //TODO: should only resolve gpu here, for now also cpu
                 ResolveAttachmentsCPU(attachmentResolveQueueCPU);
-                ResolveAttachmentsGPU(attachmentResolveQueueCPU);
+                ResolveAttachmentsGPU(attachmentResolveQueueGPU);
                 PruneUnusedAttachmentTargets();
             }
 
@@ -197,18 +197,30 @@ namespace Unity.DemoTeam.DigitalHuman
                             data.meshInfo.meshVertexBSP.BuildFrom(data.meshInfo.meshBuffers.vertexPositions, data.meshInfo.meshBuffers.vertexCount);
 
                         data.lastBakeDataUpdatedFrame = currentFrame;
-                        
-                        info = data.meshInfo;
                     }
-                    
+                    info = data.meshInfo;
                 }
                 
-                return false;
+                return true;
             }
 
             void PruneUnusedAttachmentTargets()
             {
-                //TODO: we might have lingering attachment targets that are now longer used. Lazily prune them after x frames
+                const int framesToDelete = 120;
+                int frameCount = Time.frameCount;
+                List<Renderer> entriesToRemove = new List<Renderer>();
+                foreach (var entry in attachmentTargetDict)
+                {
+                    if ((frameCount - entry.Value.lastTargetUsedFrame) > framesToDelete)
+                    {
+                        entriesToRemove.Add(entry.Key);
+                    }
+                }
+
+                foreach (var removeEntry in entriesToRemove)
+                {
+                    attachmentTargetDict.Remove(removeEntry);
+                }
             }
             
             Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh = null)
@@ -261,7 +273,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 Mesh runtimeMesh = attachmentTargetData.lastSeenRuntimeMesh;
                 int currentFrame = Time.frameCount;
                 //TODO: is it valid to assume that the mesh cannot have changed in the middle of the frame?
-                if (attachmentTargetData.lastMeshBuffersUpdatedFrame == currentFrame)
+                if (attachmentTargetData.lastMeshBuffersUpdatedFrame == currentFrame && runtimeMesh != null)
                 {
                     return true;
                 }
@@ -299,6 +311,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
                 attachmentTargetData.lastSeenRuntimeMesh = runtimeMesh;
                 attachmentTargetData.lastMeshBuffersUpdatedFrame = currentFrame;
+                if (attachmentTargetData.meshBuffers == null)
+                    attachmentTargetData.meshBuffers = new MeshBuffers(runtimeMesh);
+                else
+                    attachmentTargetData.meshBuffers.LoadFrom(runtimeMesh);
+                    
                 return true;
             }
             
