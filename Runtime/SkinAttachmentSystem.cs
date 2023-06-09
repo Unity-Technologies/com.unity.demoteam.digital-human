@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
 namespace Unity.DemoTeam.DigitalHuman
@@ -68,20 +69,39 @@ namespace Unity.DemoTeam.DigitalHuman
                     s_resolveAttachmentsCS.FindKernel("ResolveAttachmentPositionsNormals");
                 s_resolveAttachmentsPosNormalMovecKernel =
                     s_resolveAttachmentsCS.FindKernel("ResolveAttachmentPositionsNormalsMovecs");
+                
 
+                RenderPipelineManager.beginContextRendering += AfterGPUSkinning;
                 s_initialized = true;
             }
         }
 
 
-        public class Instance
+        static void AfterGPUSkinning(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            IScheduleAttachmentHooks hooks = Inst;
+            hooks.OnAfterGPUSkinning();
+        }
+
+        private interface IScheduleAttachmentHooks
+        {
+            void OnAfterGPUSkinning();
+            void OnAfterLateUpdate();
+        }
+        
+        public class Instance : IScheduleAttachmentHooks
         {
             internal class AttachmentTargetData
             {
-                public MeshInfo meshInfo;
+                //runtime (cpu) dependencies
+                public Mesh lastSeenRuntimeMesh;
                 public MeshBuffers meshBuffers;
                 public int lastTargetUsedFrame;
                 public int lastMeshBuffersUpdatedFrame;
+                
+                //bake dependencies 
+                public Mesh lastSeenBakeMesh;
+                public MeshInfo meshInfo;
                 public int lastBakeDataUpdatedFrame;
             }
 
@@ -90,18 +110,32 @@ namespace Unity.DemoTeam.DigitalHuman
 
             private AttachmentResolveQueue attachmentResolveQueueGPU = new AttachmentResolveQueue();
             private AttachmentResolveQueue attachmentResolveQueueCPU = new AttachmentResolveQueue();
+            
 
+            void IScheduleAttachmentHooks.OnAfterGPUSkinning()
+            {
+                //TODO: should only resolve gpu here, for now also cpu
+                ResolveAttachmentsCPU(attachmentResolveQueueCPU);
+                ResolveAttachmentsGPU(attachmentResolveQueueCPU);
+                PruneUnusedAttachmentTargets();
+            }
 
+            void IScheduleAttachmentHooks.OnAfterLateUpdate()
+            {
+                
+            }
+            
+            
             public static bool IsValidAttachmentTarget(Renderer r)
             {
                 return r is SkinnedMeshRenderer || r is MeshRenderer;
             }
             
-            public void ResolveMeshAttachmentExternalGPU(CommandBuffer cmd, SkinAttachmentMesh attachment)
+            public void ResolveMeshAttachmentExplicitGPU(CommandBuffer cmd, SkinAttachmentMesh attachment)
             {
             }
 
-            public void ResolveMeshAttachmentExternalCPU(SkinAttachmentMesh attachment)
+            public void ResolveMeshAttachmentExplicitCPU(SkinAttachmentMesh attachment)
             {
             }
 
@@ -127,7 +161,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 }
             }
 
-            public bool GetAttachmentTargetMeshInfo(Renderer r, out MeshInfo info)
+            public bool GetAttachmentTargetMeshInfo(Renderer r, out MeshInfo info, Mesh explicitBakeMesh = null)
             {
                 info = new MeshInfo();
                 if (IsValidAttachmentTarget(r))
@@ -136,25 +170,26 @@ namespace Unity.DemoTeam.DigitalHuman
 
                     int currentFrame = Time.frameCount;
                     
-                    //are meshbuffers up to date?
-                    if (data.lastMeshBuffersUpdatedFrame != currentFrame)
-                    {
-                        Mesh m = GetPoseBakeMesh(r, data);
-                        if (m == null) return false;
-                        data.meshBuffers.LoadFrom(m);
-                        data.lastMeshBuffersUpdatedFrame = currentFrame;
-                    }
+                    Mesh m = GetPoseBakeMesh(r, explicitBakeMesh);
+                    if (m == null) return false;
+                    //TODO: is it valid to assume that the mesh cannot have changed in the middle of the frame?
+                    bool oldBakeDataValid = data.lastBakeDataUpdatedFrame == currentFrame && m == data.lastSeenBakeMesh;
+                    data.lastSeenBakeMesh = m;
 
                     //is bakedata up to date?
-                    if (data.lastBakeDataUpdatedFrame != currentFrame)
+                    if (!oldBakeDataValid)
                     {
                         const bool weldedAdjacency = false;
+
+                        if (data.meshInfo.meshBuffers == null)
+                            data.meshInfo.meshBuffers = new MeshBuffers(m);
+                        else
+                            data.meshInfo.meshBuffers.LoadFrom(m);
                         
-                        data.meshInfo.meshBuffers = data.meshBuffers;
                         if (data.meshInfo.meshAdjacency == null)
-                            data.meshInfo.meshAdjacency = new MeshAdjacency(data.meshBuffers, weldedAdjacency);
+                            data.meshInfo.meshAdjacency = new MeshAdjacency(data.meshInfo.meshBuffers, weldedAdjacency);
                         else 
-                            data.meshInfo.meshAdjacency.LoadFrom(data.meshBuffers, weldedAdjacency);
+                            data.meshInfo.meshAdjacency.LoadFrom(data.meshInfo.meshBuffers, weldedAdjacency);
                         
                         if (data.meshInfo.meshVertexBSP == null)
                             data.meshInfo.meshVertexBSP = new KdTree3(data.meshInfo.meshBuffers.vertexPositions, data.meshInfo.meshBuffers.vertexCount);
@@ -171,15 +206,108 @@ namespace Unity.DemoTeam.DigitalHuman
                 return false;
             }
 
-            Mesh GetPoseBakeMesh(Renderer r, AttachmentTargetData data)
+            void PruneUnusedAttachmentTargets()
             {
-                
+                //TODO: we might have lingering attachment targets that are now longer used. Lazily prune them after x frames
             }
             
-            void ResolveAttachmentsCPU()
+            Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh = null)
             {
+                if (!IsValidAttachmentTarget(r)) return null;
+                
+                Mesh bakeMesh = explicitBakeMesh;
+
+                if (bakeMesh == null)
+                {
+                    if (r is MeshRenderer mr)
+                    {
+                        if (!mr.TryGetComponent(out MeshFilter mf)) return null;
+                        if (mf.sharedMesh != null)
+                        {
+                            bakeMesh = mf.sharedMesh;
+                        }
+                    }
+                
+                    if(r is SkinnedMeshRenderer smr)
+                    {
+                        if (smr != null)
+                        {
+
+                            bakeMesh = Object.Instantiate(smr.sharedMesh);
+                            bakeMesh.name = "SkinAttachmentTarget(BakeMesh)";
+                            bakeMesh.hideFlags = HideFlags.HideAndDontSave & ~HideFlags.DontUnloadUnusedAsset;
+                            bakeMesh.MarkDynamic();
+                            
+                            Profiler.BeginSample("smr.BakeMesh");
+                            {
+                                smr.BakeMesh(bakeMesh);
+                                {
+                                    bakeMesh.bounds = smr.bounds;
+                                }
+                            }
+                            Profiler.EndSample();
+                        }
+                    }
+                }
+
+                return bakeMesh;
+
+            }
+
+            bool EnsureRuntimeMeshBuffers(Renderer renderer, AttachmentTargetData attachmentTargetData)
+            {
+                if (!IsValidAttachmentTarget(renderer)) return false;
+
+                Mesh runtimeMesh = attachmentTargetData.lastSeenRuntimeMesh;
+                int currentFrame = Time.frameCount;
+                //TODO: is it valid to assume that the mesh cannot have changed in the middle of the frame?
+                if (attachmentTargetData.lastMeshBuffersUpdatedFrame == currentFrame)
+                {
+                    return true;
+                }
+                
+                if (renderer is MeshRenderer mr)
+                {
+                    if (!mr.TryGetComponent(out MeshFilter mf)) return false;
+                    if (mf.sharedMesh != null)
+                    {
+                        runtimeMesh = mf.sharedMesh;
+                    }
+                }
+                
+                if(renderer is SkinnedMeshRenderer smr)
+                {
+                    if (smr != null)
+                    {
+                        if (runtimeMesh == null)
+                        {
+                            runtimeMesh = Object.Instantiate(smr.sharedMesh);
+                            runtimeMesh.name = "SkinAttachmentTarget(BakeMeshRuntime)";
+                            runtimeMesh.hideFlags = HideFlags.HideAndDontSave & ~HideFlags.DontUnloadUnusedAsset;
+                            runtimeMesh.MarkDynamic();
+                        }
+                        Profiler.BeginSample("smr.BakeMesh");
+                        {
+                            smr.BakeMesh(runtimeMesh);
+                            {
+                                runtimeMesh.bounds = smr.bounds;
+                            }
+                        }
+                        Profiler.EndSample();
+                    }
+                }
+
+                attachmentTargetData.lastSeenRuntimeMesh = runtimeMesh;
+                attachmentTargetData.lastMeshBuffersUpdatedFrame = currentFrame;
+                return true;
+            }
+            
+            void ResolveAttachmentsCPU(AttachmentResolveQueue queue)
+            {
+                if (queue.Empty()) return;
+                
                 KeyValuePair<Renderer, List<ISkinAttachment>>[] attachmentsPerRenderer =
-                    attachmentResolveQueueGPU.GetAttachmentsPerRenderer();
+                    queue.GetAttachmentsPerRenderer();
 
                 List<SkinAttachmentDescCPU> attachmentDescs = new List<SkinAttachmentDescCPU>();
                 List<ISkinAttachmentMesh> meshAttachments = new List<ISkinAttachmentMesh>();
@@ -193,10 +321,16 @@ namespace Unity.DemoTeam.DigitalHuman
                     meshAttachments.Clear();
                     pointsAttachments.Clear();
 
-                    SkinAttachmentTargetDescCPU attachmentTargetDesc = default;
-
                     //fill skin attachment target desc
-
+                    AttachmentTargetData attachmentTargetData = GetAttachmentTargetData(renderer);
+                    if (!EnsureRuntimeMeshBuffers(renderer, attachmentTargetData))
+                        continue;
+                    
+                    SkinAttachmentTargetDescCPU attachmentTargetDesc = default;
+                    attachmentTargetDesc.positions = attachmentTargetData.meshBuffers.vertexPositions;
+                    attachmentTargetDesc.normals = attachmentTargetData.meshBuffers.vertexNormals;
+                    attachmentTargetDesc.tangents = attachmentTargetData.meshBuffers.vertexTangents;
+                    
                     //separate mesh and point attachments
                     foreach (var skinAttachment in attachments)
                     {
@@ -239,13 +373,15 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
                 }
 
-                attachmentResolveQueueCPU.Clear();
+                queue.Clear();
             }
 
-            private void ResolveAttachmentGPU()
+            private void ResolveAttachmentsGPU(AttachmentResolveQueue queue)
             {
+                if (queue.Empty()) return;
+                
                 KeyValuePair<Renderer, List<ISkinAttachment>>[] attachmentsPerRenderer =
-                    attachmentResolveQueueGPU.GetAttachmentsPerRenderer();
+                    queue.GetAttachmentsPerRenderer();
 
                 List<SkinAttachmentDescGPU> attachmentDescs = new List<SkinAttachmentDescGPU>();
                 List<ISkinAttachmentMesh> meshAttachments = new List<ISkinAttachmentMesh>();
@@ -320,7 +456,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 Graphics.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
 
-                attachmentResolveQueueGPU.Clear();
+                queue.Clear();
             }
 
             private AttachmentTargetData GetAttachmentTargetData(Renderer target)
@@ -380,6 +516,11 @@ namespace Unity.DemoTeam.DigitalHuman
                 }
             }
 
+            public bool Empty()
+            {
+                return meshAttachmentsQueue.Count == 0;
+            }
+            
             public KeyValuePair<Renderer, List<ISkinAttachment>>[] GetAttachmentsPerRenderer()
             {
                 return meshAttachmentsQueue.ToArray();

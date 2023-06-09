@@ -19,7 +19,16 @@ namespace Unity.DemoTeam.DigitalHuman
             MeshRoots,
         }
 
+        public enum SchedulingMode
+        {
+            CPU,
+            GPU,
+            External
+        }
+
+
         public Renderer attachmentTarget;
+        public SchedulingMode schedulingMode;
 
         [EditableIf("attached", false)] public MeshAttachmentType attachmentType = MeshAttachmentType.Mesh;
 
@@ -60,6 +69,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private GraphicsBuffer bakedAttachmentItemsGPU;
 
         private bool GPUDataValid = false;
+        private bool hasValidState = false;
 
         public void Attach(bool storePositionRotation = true)
         {
@@ -97,9 +107,13 @@ namespace Unity.DemoTeam.DigitalHuman
             ReleaseGPUResources();
         }
 
-        void Update()
+        void LateUpdate()
         {
             UpdateAttachedState();
+            if (hasValidState && schedulingMode != SchedulingMode.External)
+            {
+                SkinAttachmentSystem.Inst.QueueAttachmentResolve(this, schedulingMode == SchedulingMode.GPU);
+            }
         }
 
 
@@ -142,13 +156,20 @@ namespace Unity.DemoTeam.DigitalHuman
                 onSkinAttachmentMeshModified(cmd);
         }
 
+        bool ValidateBakedData()
+        {
+            //TODO properly
+            return bakedAttachmentItems != null && bakedAttachmentPoses != null;
+        }
+
         void UpdateAttachedState()
         {
+            hasValidState = false;
             //make sure target is a supported renderer (meshrenderer or skinnedMeshRenderer)
             if (!(attachmentTarget is SkinnedMeshRenderer) || !(attachmentTarget is MeshRenderer))
             {
                 attachmentTarget = null;
-                UpdateRegisteredAttachmentTarget();
+                currentTarget = null;
                 return;
             }
 
@@ -163,11 +184,18 @@ namespace Unity.DemoTeam.DigitalHuman
 
                 if (currentTarget != attachmentTarget)
                 {
-                    UpdateRegisteredAttachmentTarget();
                     if (currentTarget)
                     {
-                        BakeAttachmentPoses();
+                        hasValidState = BakeAttachmentPoses();
+                        if (hasValidState)
+                        {
+                            currentTarget = attachmentTarget;
+                        }
                     }
+                }
+                else
+                {
+                    hasValidState = currentTarget != null && ValidateBakedData();
                 }
 
                 EnsureMeshInstance();
@@ -178,10 +206,6 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        void UpdateRegisteredAttachmentTarget()
-        {
-            currentTarget = attachmentTarget;
-        }
 
         static void BuildDataAttachSubject(in SkinAttachmentPose[] posesArray, in SkinAttachmentItem[] itemsArray,
             in BakeData attachmentBakeData, Matrix4x4 subjectToTarget,
@@ -222,13 +246,13 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        void BakeAttachmentPoses()
+        bool BakeAttachmentPoses()
         {
             if (!GetBakeData(out BakeData attachmentBakeData))
-                return;
+                return false;
             if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(currentTarget,
                     out MeshInfo attachmentTargetBakeData))
-                return;
+                return false;
 
             Matrix4x4 subjectToTarget;
             if (skinningBone != null)
@@ -275,6 +299,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 
             GPUDataValid = false;
+            return true;
         }
 
         void DiscoverSkinningBone()
@@ -451,16 +476,14 @@ namespace Unity.DemoTeam.DigitalHuman
             out int itemOffset,
             out int itemCount)
         {
-            itemsBuffer = null;
-            posesBuffer = null;
+            itemsBuffer = bakedAttachmentItems;
+            posesBuffer = bakedAttachmentPoses;
             itemOffset = 0;
-            itemCount = 0;
-            
-            if (bakedAttachmentPoses == null || bakedAttachmentItems == null || bakedAttachmentPoses.Length == 0 ||
-                bakedAttachmentItems.Length == 0)
-            {
-                
-            }
+            itemCount = bakedAttachmentItems != null ? bakedAttachmentItems.Length : 0;
+
+            if (itemCount == 0) return false;
+
+            return true;
         }
 
         private Matrix4x4 GetTargetToAttachmentTransform()
