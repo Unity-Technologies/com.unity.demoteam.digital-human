@@ -366,12 +366,10 @@ namespace Unity.DemoTeam.DigitalHuman
         }
         
         
-        public static void UploadAttachmentPoseDataToGPU(in SkinAttachmentItem[] bakedAttachmentItems, in SkinAttachmentPose[] bakedAttachmentPoses,
+        public static void UploadAttachmentPoseDataToGPU(in SkinAttachmentItem[] bakedAttachmentItems, in SkinAttachmentPose[] bakedAttachmentPoses, int itemsOffset, int itemsCount, int posesOffset, int posesCount,
             ref GraphicsBuffer bakedAttachmentItemsGPU, ref GraphicsBuffer bakedAttachmentPosesGPU)
         {
-            int itemsCount = bakedAttachmentItems.Length;
-            int posesCount = bakedAttachmentPoses.Length;
-            
+
             int itemStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentItemGPU>();
             int poseStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentPoseGPU>();
 
@@ -395,7 +393,7 @@ namespace Unity.DemoTeam.DigitalHuman
             
 
             NativeArray<SkinAttachmentPoseGPU> posesBuffer = new NativeArray<SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
-            for (int i = 0; i < posesCount; ++i)
+            for (int i = posesOffset; i < (posesOffset + posesCount); ++i)
             {
                 SkinAttachmentPoseGPU poseGPU;
                 poseGPU.targetCoord.x = bakedAttachmentPoses[i].targetCoord.u;
@@ -412,7 +410,7 @@ namespace Unity.DemoTeam.DigitalHuman
             posesBuffer.Dispose();
 
             NativeArray<SkinAttachmentItemGPU> itemsBuffer = new NativeArray<SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
-            for (int i = 0; i < itemsCount; ++i)
+            for (int i = itemsOffset; i < (itemsOffset + itemsCount); ++i)
             {
                 SkinAttachmentItem item = bakedAttachmentItems[i];
                 

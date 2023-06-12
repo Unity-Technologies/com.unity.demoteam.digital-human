@@ -26,31 +26,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			ResizeCheckedIfLessThan(ref arrayDst, length);
 			System.Array.Copy(arraySrc, arrayDst, length);
 		}
-
-		public static void RemoveRange<T>(ref T[] array, int offset, int count)
-		{
-			if (array == null || array.Length <= count)
-			{
-				array = null;
-				return;
-			}
-				
-			T[] newArray = new T[array.Length - count];
-			if (offset > 0)
-			{
-				System.Array.Copy(array, 0, newArray, 0, offset);
-			}
-
-			int tail = offset + count - array.Length;
-
-			if (tail > 0)
-			{
-				System.Array.Copy(array, offset + count, newArray, offset, tail);
-			}
-			
-			
-		}
-
+		
 		public static void ClearChecked<T>(T[] array)
 		{
 			if (array != null)

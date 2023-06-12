@@ -27,6 +27,7 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 
         public Renderer attachmentTarget;
+        public SkinAttachmentDataStorage dataStorage;
         public SchedulingMode schedulingMode;
         public MeshAttachmentType attachmentType = MeshAttachmentType.Mesh;
         public bool allowOnlyOneRoot = false;
@@ -47,6 +48,7 @@ namespace Unity.DemoTeam.DigitalHuman
         [SerializeField][HideInInspector] private Vector3 attachedLocalPosition;
         [SerializeField][HideInInspector] private Quaternion attachedLocalRotation;
         [SerializeField][HideInInspector] private Hash128 checkSum;
+        [SerializeField][HideInInspector] private SkinAttachmentDataStorage currentStorage;
 
         private float meshAssetRadius;
         private Transform skinningBone;
@@ -58,11 +60,11 @@ namespace Unity.DemoTeam.DigitalHuman
         private Vector3[] stagingPositions;
         private Vector3[] stagingNormals;
         private Vector4[] stagingTangents;
-
-        private SkinAttachmentPose[] bakedAttachmentPoses;
-        private SkinAttachmentItem[] bakedAttachmentItems;
+        
         private GraphicsBuffer bakedAttachmentPosesGPU;
         private GraphicsBuffer bakedAttachmentItemsGPU;
+        private SkinAttachmentPose[] bakedPoses;
+        private SkinAttachmentItem[] bakedItems;
 
         private bool GPUDataValid = false;
         private bool hasValidState = false;
@@ -96,6 +98,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void OnEnable()
         {
+            LoadBakedData();
             UpdateAttachedState();
         }
 
@@ -169,17 +172,62 @@ namespace Unity.DemoTeam.DigitalHuman
                 onSkinAttachmentMeshModified(cmd);
         }
 
-        bool ValidateBakedData()
+        public bool ValidateBakedData()
         {
 
-            bool dataExists =  bakedAttachmentItems != null && bakedAttachmentPoses != null;
-            if (dataExists)
+            bool dataExists = currentStorage != null && bakedPoses != null && bakedItems != null;
+            if (dataExists && meshInstance != null)
             {
-                bool meshInstanceVertexCountMatches = bakedAttachmentItems.Length == meshInstance.vertexCount;
+                bool meshInstanceVertexCountMatches = bakedItems.Length == meshInstance.vertexCount;
                 return meshInstanceVertexCountMatches;
             }
 
             return false;
+        }
+
+        public void EnsureBakedData()
+        {
+            bool newDataBaked = false;
+            SkinAttachmentItem[] tempItems = default;
+            SkinAttachmentPose[] tempPoses = default;
+            
+            if (currentTarget == null)
+            {
+                bool bakeSuccessfull = BakeAttachmentPoses(ref tempItems, ref tempPoses);
+                if (bakeSuccessfull)
+                {
+                    currentTarget = attachmentTarget;
+                    newDataBaked = true;
+                }
+            } 
+            else if (!ValidateBakedData())
+            {
+                bool bakeSuccessfull = BakeAttachmentPoses(ref tempItems, ref tempPoses);
+                if (bakeSuccessfull)
+                {
+                    newDataBaked = true;
+                }
+            }
+
+            if (newDataBaked)
+            {
+                StoreBakedData(tempItems, tempPoses);
+            }
+        }
+
+        public bool CanAttach()
+        {
+            return IsAttachmentTargetValid() && IsAttachmentMeshValid() && dataStorage != null && !IsAttached;
+        }
+
+        public bool IsAttachmentTargetValid()
+        {
+            return SkinAttachmentSystem.IsValidAttachmentTarget(attachmentTarget);
+        }
+
+        public bool IsAttachmentMeshValid()
+        {
+            return meshAsset != null && meshAsset.isReadable;
         }
 
         void UpdateAttachedState()
@@ -205,6 +253,12 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (attached)
             {
+                if (!IsAttachmentMeshValid() || !IsAttachmentTargetValid())
+                {
+                    hasValidState = false;
+                    return;
+                }
+                
                 //if we need to generate motion vectors and the meshInstance doesn't have proper streams setup, reset the meshinstance (so it gets recreated)
                 if (GeneratePrecalculatedMotionVectors && meshInstance &&
                     !meshInstance.HasVertexAttribute(VertexAttribute.TexCoord5))
@@ -212,15 +266,11 @@ namespace Unity.DemoTeam.DigitalHuman
                     RemoveMeshInstance();
                 }
 
-                if (currentTarget == null)
-                {
-                    hasValidState = BakeAttachmentPoses();
-                }
-                else
-                {
-                    hasValidState = currentTarget != null && ValidateBakedData();
-                }
+                ValidateDataStorage();
+                EnsureBakedData();
 
+                hasValidState = currentTarget != null && ValidateBakedData();
+                
                 EnsureMeshInstance();
             }
             else
@@ -229,6 +279,47 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
+        public void ValidateDataStorage()
+        {
+            if (currentStorage != null && currentStorage != dataStorage)
+            {
+                if (checkSum.isValid)
+                {
+                    currentStorage.RemoveAttachmentData(checkSum);
+                    checkSum = default;
+                }
+                currentStorage = null;
+            }
+            
+            currentStorage = dataStorage;
+        }
+
+        void StoreBakedData(SkinAttachmentItem[] items, SkinAttachmentPose[] poses)
+        {
+            if (currentStorage != null)
+            {
+                if (checkSum.isValid)
+                {
+                    checkSum = currentStorage.UpdateAttachmentData(poses, items, checkSum);
+                }
+                else
+                {
+                    checkSum = currentStorage.StoreAttachmentData(poses, items);
+                }
+
+                LoadBakedData();
+            }
+            
+        }
+
+        void LoadBakedData()
+        {
+            if (checkSum.isValid && currentStorage != null)
+            {
+                currentStorage.LoadAttachmentData(checkSum, out bakedPoses, out bakedItems);
+            }
+        }
+        
 
         static void BuildDataAttachSubject(in SkinAttachmentPose[] posesArray, in SkinAttachmentItem[] itemsArray,
             in BakeData attachmentBakeData, Matrix4x4 subjectToTarget,
@@ -269,7 +360,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        bool BakeAttachmentPoses()
+        bool BakeAttachmentPoses(ref SkinAttachmentItem[] items, ref SkinAttachmentPose[] poses)
         {
             if (!GetBakeData(out BakeData attachmentBakeData))
                 return false;
@@ -301,7 +392,7 @@ namespace Unity.DemoTeam.DigitalHuman
             int poseOffsetDummy = 0;
             int itemOffsetDummy = 0;
 
-            BuildDataAttachSubject(bakedAttachmentPoses, bakedAttachmentItems, attachmentBakeData, subjectToTarget,
+            BuildDataAttachSubject(poses, items, attachmentBakeData, subjectToTarget,
                 attachmentTargetBakeData, poseBuildParams,
                 attachmentType, allowOnlyOneRoot, true, ref dryRunPoseCount, ref dryRunItemCount, ref itemOffsetDummy,
                 ref poseOffsetDummy);
@@ -309,23 +400,19 @@ namespace Unity.DemoTeam.DigitalHuman
             //int dryRunPoseCountNextPowerOfTwo = Mathf.NextPowerOfTwo(dryRunPoseCount);
             //int dryRunItemCountNextPowerOfTwo = Mathf.NextPowerOfTwo(dryRunItemCount);
 
-            ArrayUtils.ResizeCheckedIfLessThan(ref bakedAttachmentPoses, dryRunPoseCount);
-            ArrayUtils.ResizeCheckedIfLessThan(ref bakedAttachmentItems, dryRunItemCount);
+            ArrayUtils.ResizeCheckedIfLessThan(ref poses, dryRunPoseCount);
+            ArrayUtils.ResizeCheckedIfLessThan(ref items, dryRunItemCount);
 
             int currentPoseOffset = 0;
             int currentItemOffset = 0;
 
-            BuildDataAttachSubject(bakedAttachmentPoses, bakedAttachmentItems, attachmentBakeData, subjectToTarget,
+            BuildDataAttachSubject(poses, items, attachmentBakeData, subjectToTarget,
                 attachmentTargetBakeData, poseBuildParams,
                 attachmentType, allowOnlyOneRoot, false, ref dryRunPoseCount, ref dryRunItemCount,
                 ref currentItemOffset, ref currentPoseOffset);
 
 
             GPUDataValid = false;
-            currentTarget = attachmentTarget;
-
-            checkSum = SkinAttachmentDataStorage.CalculateHash(bakedAttachmentPoses, bakedAttachmentItems);
-            
             return true;
         }
 
@@ -476,7 +563,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private bool GetPoseData(out GraphicsBuffer itemsBuffer, out GraphicsBuffer posesBuffer, out int itemOffset,
             out int itemCount)
         {
-            if (bakedAttachmentPoses == null || bakedAttachmentItems == null || bakedAttachmentPoses.Length == 0 || bakedAttachmentItems.Length == 0)
+            if (!ValidateBakedData())
             {
                 itemsBuffer = null;
                 posesBuffer = null;
@@ -487,14 +574,14 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (!GPUDataValid)
             {
-                SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(bakedAttachmentItems, bakedAttachmentPoses, ref bakedAttachmentItemsGPU, ref bakedAttachmentPosesGPU);
+                SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(bakedItems, bakedPoses, 0, bakedItems.Length, 0, bakedPoses.Length, ref bakedAttachmentItemsGPU, ref bakedAttachmentPosesGPU);
                 GPUDataValid = true;
             }
 
             itemsBuffer = bakedAttachmentItemsGPU;
             posesBuffer = bakedAttachmentPosesGPU;
             itemOffset = 0;
-            itemCount = bakedAttachmentItems.Length;
+            itemCount = bakedItems.Length;
 
             return true;
         }
@@ -503,10 +590,10 @@ namespace Unity.DemoTeam.DigitalHuman
             out int itemOffset,
             out int itemCount)
         {
-            itemsBuffer = bakedAttachmentItems;
-            posesBuffer = bakedAttachmentPoses;
+            itemsBuffer = bakedItems;
+            posesBuffer = bakedPoses;
             itemOffset = 0;
-            itemCount = bakedAttachmentItems != null ? bakedAttachmentItems.Length : 0;
+            itemCount = bakedItems?.Length ?? 0;
 
             if (itemCount == 0) return false;
 

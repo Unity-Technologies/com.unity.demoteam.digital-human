@@ -12,21 +12,26 @@ namespace Unity.DemoTeam.DigitalHuman
 	[PreferBinarySerialization]
 	public class SkinAttachmentDataStorage : ScriptableObject
 	{
+
 		[Serializable]
 		private class DataStorageEntry
 		{
 			public Hash128 hashKey;
-			public int itemOffset;
-			public int itemCount;
-			public int poseOffset;
-			public int poseCount;
+			public int dataStorageIndex;
 		}
+
+		[Serializable]
+		private struct SkinAttachmentData
+		{
+			public Hash128 hashKey;
+			public SkinAttachmentPose[] poses;
+			public SkinAttachmentItem[] items;
+		}
+		
 		[SerializeField][HideInInspector]
-		private SkinAttachmentPose[] posesDatabase;
-		[SerializeField][HideInInspector]
-		private SkinAttachmentItem[] itemsDatabase;
+		private SkinAttachmentData[] dataStorage;
 		[SerializeField][ReadOnlyPropertyAttribute]
-		private DataStorageEntry[] databaseEntries;
+		private DataStorageEntry[] databaseEntries ;
 
 		[NonSerialized] private Dictionary<Hash128, DataStorageEntry> dataStorageLookup;
 
@@ -39,7 +44,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		public void RemoveAttachmentData(Hash128 hash)
 		{
-			RemoveAttachmentData(hash);
+			RemoveAttachmentDataInternal(hash);
 			Persist();
 		}
 		
@@ -51,64 +56,92 @@ namespace Unity.DemoTeam.DigitalHuman
 			return h;
 		}
 
+		public bool LoadAttachmentData(Hash128 hash, out SkinAttachmentPose[] poses, out SkinAttachmentItem[] items)
+		{
+			EnsureEntryLookup();
+			if (dataStorageLookup.TryGetValue(hash, out DataStorageEntry storageEntry))
+			{
+				items = dataStorage[storageEntry.dataStorageIndex].items;
+				poses = dataStorage[storageEntry.dataStorageIndex].poses;
+				return true;
+			}
+			else
+			{
+				poses = null;
+				items = null;
+				return false;
+			}
+		}
+		
 		private Hash128 StoreAttachmentDataInternal(SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
 		{
+			EnsureEntryLookup();
+			
+			ArrayUtils.ResizeChecked(ref databaseEntries, (databaseEntries?.Length ?? 0) + 1);
+			ArrayUtils.ResizeChecked(ref dataStorage, (dataStorage?.Length ?? 0) + 1);
+			
 			Hash128 newHash = CalculateHash(poses, items);
+			
+			DataStorageEntry entry = databaseEntries[^1];
+			SkinAttachmentData data = new SkinAttachmentData
+			{
+				hashKey = newHash
+			};
+			ArrayUtils.CopyChecked(poses, ref data.poses, poses.Length);
+			ArrayUtils.CopyChecked(items, ref data.items, items.Length);
+			dataStorage[^1] = data;
+			
+			
 			DataStorageEntry newEntry = new DataStorageEntry()
 			{
 				hashKey = newHash,
-				itemOffset = itemsDatabase.Length,
-				poseOffset = posesDatabase.Length,
-				itemCount = items.Length,
-				poseCount = poses.Length
+				dataStorageIndex = dataStorage.Length - 1
 			};
-			ArrayUtils.ResizeChecked(ref databaseEntries, databaseEntries.Length + 1);
-			ArrayUtils.CopyChecked(poses, ref posesDatabase, poses.Length);
-			ArrayUtils.CopyChecked(items, ref itemsDatabase, items.Length);
 
-			databaseEntries[^1] = newEntry;
+
+			dataStorageLookup[newHash] = newEntry;
 
 			return newHash;
 		}
 
 		private void RemoveAttachmentDataInternal(Hash128 hash)
 		{
+			EnsureEntryLookup();
 			if (dataStorageLookup.TryGetValue(hash, out DataStorageEntry removeStorageEntry))
 			{
-				ArrayUtils.RemoveRange(ref itemsDatabase, removeStorageEntry.itemOffset, removeStorageEntry.itemCount);
-				ArrayUtils.RemoveRange(ref posesDatabase, removeStorageEntry.poseOffset, removeStorageEntry.poseCount);
-
+				//swap removed entry with last one and fixup the datastorage index
+				if (dataStorage.Length > 1)
+				{
+					Hash128 lastEntryHash = dataStorage[^1].hashKey;
+					if (dataStorageLookup.TryGetValue(hash, out DataStorageEntry lastEntry))
+					{
+						lastEntry.dataStorageIndex = removeStorageEntry.dataStorageIndex;
+					}
+					dataStorage[removeStorageEntry.dataStorageIndex] = dataStorage[^1];
+				}
+				
 				//remove this entry
 				dataStorageLookup.Remove(hash);
-				
-				//correct offset for entries after this, since the slice/range has been removed from data
-				foreach (var lookup in dataStorageLookup)
+				if (dataStorage.Length > 1)
 				{
-					if (lookup.Value.itemOffset > removeStorageEntry.itemOffset)
-					{
-						lookup.Value.itemOffset -= removeStorageEntry.itemCount;
-					}
-					
-					if (lookup.Value.poseOffset > removeStorageEntry.poseOffset)
-					{
-						lookup.Value.poseOffset -= removeStorageEntry.poseCount;
-					}
+					ArrayUtils.ResizeChecked(ref dataStorage, dataStorage.Length - 1);
+				}
+				else
+				{
+					dataStorage = null;
 				}
 				
 			}
 			else
 			{
-				Debug.LogError("Tried to remove storage data entry which doesn't exists, ignoring.");
+				Debug.LogWarning("Tried to remove storage data entry which doesn't exists, ignoring.");
 			}
 		}
 
 		private void Awake()
 		{
-			dataStorageLookup = new Dictionary<Hash128, DataStorageEntry>();
-			foreach (var val in databaseEntries)
-			{
-				dataStorageLookup.Add(val.hashKey, val);
-			}
+			EnsureEntryLookup();
+			
 		}
 
 		private void Persist()
@@ -119,6 +152,22 @@ namespace Unity.DemoTeam.DigitalHuman
 			UnityEditor.AssetDatabase.SaveAssets();
 			UnityEditor.Undo.ClearUndo(this);
 #endif
+		}
+
+		private void EnsureEntryLookup()
+		{
+			if (dataStorageLookup == null)
+			{
+				dataStorageLookup = new Dictionary<Hash128, DataStorageEntry>();
+				if (databaseEntries != null)
+				{
+					foreach (var val in databaseEntries)
+					{
+						dataStorageLookup.Add(val.hashKey, val);
+					}
+				}
+			}
+
 		}
 
 		public static Hash128 CalculateHash(SkinAttachmentPose[] poses, SkinAttachmentItem[] items)

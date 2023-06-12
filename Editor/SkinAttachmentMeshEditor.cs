@@ -17,11 +17,23 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (attachment == null)
 				return;
 
-			EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.attachmentTarget : "Currently detached.", MessageType.Info);
-			DrawGUIAttachDetach(attachment);
-			EditorGUILayout.Separator();
-			DrawGUIAttachmentTarget(attachment);
-			DrawGuiSettings(attachment);
+			//we always need data storage before anything else
+			if (attachment.dataStorage == null)
+			{
+				DrawGUIAttachmentDataStorage(attachment);
+			}
+			else
+			{
+				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.attachmentTarget : "Currently detached.", MessageType.Info);
+				DrawGUIAttachDetach(attachment);
+				EditorGUILayout.Separator();
+				DrawGUIAttachmentDataStorage(attachment);
+				EditorGUILayout.Separator();
+				DrawGUIAttachmentTarget(attachment);
+				DrawGuiSettings(attachment);
+			}
+			
+			
 
 
 		}
@@ -36,15 +48,16 @@ namespace Unity.DemoTeam.DigitalHuman
 				attachment.Detach(false);
 			}
 		}
-
-		public static void DrawGUIAttachDetach(SkinAttachmentMesh attachment)
-		{
-			EditorGUILayout.BeginHorizontal();
-			DrawGUIAttach(attachment);
-			DrawGUIDetach(attachment);
-			EditorGUILayout.EndHorizontal();
-		}
 		
+		public static void DrawGUIAttachmentDataStorage(SkinAttachmentMesh attachment)
+		{
+			attachment.dataStorage = (SkinAttachmentDataStorage)EditorGUILayout.ObjectField(attachment.dataStorage, typeof(SkinAttachmentDataStorage));
+			if (attachment.dataStorage == null)
+			{
+				EditorGUILayout.HelpBox("SkinAttachmentDataStorage needs to be assigned before attaching!", MessageType.Error);
+			}
+		}
+
 		public static void DrawGuiSettings(SkinAttachmentMesh attachment)
 		{
 			EditorGUILayout.BeginVertical();
@@ -52,10 +65,18 @@ namespace Unity.DemoTeam.DigitalHuman
 			attachment.schedulingMode = (SkinAttachmentMesh.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.schedulingMode);
 			EditorGUILayout.EndVertical();
 		}
+		
+		public static void DrawGUIAttachDetach(SkinAttachmentMesh attachment)
+        		{
+        			EditorGUILayout.BeginHorizontal();
+        			DrawGUIAttach(attachment);
+        			DrawGUIDetach(attachment);
+        			EditorGUILayout.EndHorizontal();
+        		}
 
 		public static void DrawGUIAttach(SkinAttachmentMesh attachment)
 		{
-			EditorGUI.BeginDisabledGroup(attachment.IsAttached);
+			EditorGUI.BeginDisabledGroup(!attachment.CanAttach());
 			{
 				if (GUILayout.Button("Attach"))
 				{

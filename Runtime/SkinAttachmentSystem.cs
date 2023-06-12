@@ -71,9 +71,16 @@ namespace Unity.DemoTeam.DigitalHuman
                     s_resolveAttachmentsCS.FindKernel("ResolveAttachmentPositionsNormalsMovecs");
                 
 
+
                 RenderPipelineManager.beginContextRendering += AfterGPUSkinning;
                 s_initialized = true;
             }
+        }
+        
+        public static bool IsValidAttachmentTarget(Renderer r)
+        {
+            if (r == null) return false;
+            return r is SkinnedMeshRenderer || r is MeshRenderer;
         }
 
 
@@ -123,12 +130,6 @@ namespace Unity.DemoTeam.DigitalHuman
             void IScheduleAttachmentHooks.OnAfterLateUpdate()
             {
                 
-            }
-            
-            
-            public static bool IsValidAttachmentTarget(Renderer r)
-            {
-                return r is SkinnedMeshRenderer || r is MeshRenderer;
             }
             
             public void ResolveMeshAttachmentExplicitGPU(CommandBuffer cmd, SkinAttachmentMesh attachment)
