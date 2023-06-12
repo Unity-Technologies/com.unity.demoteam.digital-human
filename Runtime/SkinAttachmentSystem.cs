@@ -9,11 +9,12 @@ using UnityEngine.Rendering;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
+    using SkinAttachmentItem = SkinAttachmentItem3;
     public interface ISkinAttachment
     {
         public Renderer GetTargetRenderer();
 
-        //called when subject has been updated (if update was on cpu, cmd is null, if on gpu, cmd is commandbuffer that contains the commands to update the mesh on gpu)
+        //called when subject has been updated (if update was on cpu, cmd is null, if on gpu, cmd is commandbuffer that contains the commands to update the subject on gpu)
         public void NotifyAttachmentUpdated(CommandBuffer cmd);
     }
 
@@ -23,8 +24,12 @@ namespace Unity.DemoTeam.DigitalHuman
         bool FillSkinAttachmentDesc(ref SkinAttachmentSystem.SkinAttachmentDescCPU desc);
     };
 
-    public interface ISkinAttachmentPoints : ISkinAttachment
+    public interface ISkinAttachmentTransform : ISkinAttachment
     {
+        bool GetSkinAttachmentPosesAndItem(out SkinAttachmentPose[] poses, out SkinAttachmentItem item);
+        Matrix4x4 GetResolveTransform();
+        Vector3[] GetPositionResolveBufferCPU();
+        Vector3[] GetNormalResolveBufferCPU();
     };
 
     public static partial class SkinAttachmentSystem
@@ -42,6 +47,8 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
+        public static int TransformAttachmentBufferStride => c_transformAttachmentBufferStride;
+        
         private static ComputeShader s_resolveAttachmentsCS;
         private static int s_resolveAttachmentsPosKernel = 0;
         private static int s_resolveAttachmentsPosNormalKernel = 0;
@@ -49,7 +56,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
         private static bool s_initialized = false;
         private static Instance s_instance;
-
+        private const int c_transformAttachmentBufferStride = 3 * sizeof(float);
+        
 #if UNITY_EDITOR
         [UnityEditor.InitializeOnLoadMethod]
 #else
@@ -117,7 +125,17 @@ namespace Unity.DemoTeam.DigitalHuman
 
             private AttachmentResolveQueue attachmentResolveQueueGPU = new AttachmentResolveQueue();
             private AttachmentResolveQueue attachmentResolveQueueCPU = new AttachmentResolveQueue();
-            
+            private int requestedGPUTransformResolvesForFrame = 0;
+            private GraphicsBuffer transformResolveGraphicsBuffer;
+
+            ~Instance()
+            {
+                if (transformResolveGraphicsBuffer != null && transformResolveGraphicsBuffer.IsValid())
+                {
+                    transformResolveGraphicsBuffer.Release();
+                    transformResolveGraphicsBuffer = null;
+                }
+            }
 
             void IScheduleAttachmentHooks.OnAfterGPUSkinning()
             {
@@ -125,19 +143,12 @@ namespace Unity.DemoTeam.DigitalHuman
                 ResolveAttachmentsCPU(attachmentResolveQueueCPU);
                 ResolveAttachmentsGPU(attachmentResolveQueueGPU);
                 PruneUnusedAttachmentTargets();
+                requestedGPUTransformResolvesForFrame = 0;
             }
 
             void IScheduleAttachmentHooks.OnAfterLateUpdate()
             {
                 
-            }
-            
-            public void ResolveMeshAttachmentExplicitGPU(CommandBuffer cmd, SkinAttachmentMesh attachment)
-            {
-            }
-
-            public void ResolveMeshAttachmentExplicitCPU(SkinAttachmentMesh attachment)
-            {
             }
 
             public void QueueAttachmentResolve(ISkinAttachment sam, bool resolveOnGPU)
@@ -160,6 +171,11 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     attachmentResolveQueueCPU.Add(sam);
                 }
+            }
+
+            public int requestGPUTransformResolveForFrame()
+            {
+                return requestedGPUTransformResolvesForFrame++;
             }
 
             public bool GetAttachmentTargetMeshInfo(Renderer r, out MeshInfo info, Mesh explicitBakeMesh = null)
@@ -205,6 +221,21 @@ namespace Unity.DemoTeam.DigitalHuman
                 return true;
             }
 
+            void EnsureTransformGPUResources()
+            {
+                if (transformResolveGraphicsBuffer.count < requestedGPUTransformResolvesForFrame)
+                {
+                    transformResolveGraphicsBuffer.Release();
+                    transformResolveGraphicsBuffer = null;
+                }
+
+                if (transformResolveGraphicsBuffer == null)
+                {
+                    transformResolveGraphicsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Raw,
+                        requestedGPUTransformResolvesForFrame, TransformAttachmentBufferStride);
+                }
+            }
+            
             void PruneUnusedAttachmentTargets()
             {
                 const int framesToDelete = 120;
@@ -329,7 +360,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
                 List<SkinAttachmentDescCPU> attachmentDescs = new List<SkinAttachmentDescCPU>();
                 List<ISkinAttachmentMesh> meshAttachments = new List<ISkinAttachmentMesh>();
-                List<ISkinAttachmentPoints> pointsAttachments = new List<ISkinAttachmentPoints>();
+                List<ISkinAttachmentTransform> pointsAttachments = new List<ISkinAttachmentTransform>();
 
                 foreach (var rendererEntry in attachmentsPerRenderer)
                 {
@@ -357,7 +388,7 @@ namespace Unity.DemoTeam.DigitalHuman
                             meshAttachments.Add(meshAttachment);
                         }
 
-                        if (skinAttachment is ISkinAttachmentPoints pointsAttachment)
+                        if (skinAttachment is ISkinAttachmentTransform pointsAttachment)
                         {
                             pointsAttachments.Add(pointsAttachment);
                         }
@@ -376,7 +407,17 @@ namespace Unity.DemoTeam.DigitalHuman
                     //gather transform Attachments
                     foreach (var pointAttach in pointsAttachments)
                     {
-                        //TODO
+                        SkinAttachmentDescCPU descCPU = default;
+
+                        pointAttach.GetSkinAttachmentPosesAndItem(out descCPU.skinAttachmentPoses, out SkinAttachmentItem item);
+                        descCPU.skinAttachmentItems = new SkinAttachmentItem[]{item};
+                        descCPU.itemsOffset = 0;
+                        descCPU.itemsCount = 1;
+                        descCPU.resolveTransform = pointAttach.GetResolveTransform();
+                        descCPU.resolvedPositions = pointAttach.GetNormalResolveBufferCPU();
+                        descCPU.resolvedNormals = pointAttach.GetPositionResolveBufferCPU();
+                        descCPU.resolvedTangents = null;
+                        attachmentDescs.Add(descCPU);
                     }
 
                     if (attachmentDescs.Count > 0)
@@ -403,7 +444,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
                 List<SkinAttachmentDescGPU> attachmentDescs = new List<SkinAttachmentDescGPU>();
                 List<ISkinAttachmentMesh> meshAttachments = new List<ISkinAttachmentMesh>();
-                List<ISkinAttachmentPoints> pointsAttachments = new List<ISkinAttachmentPoints>();
+                List<ISkinAttachmentTransform> pointsAttachments = new List<ISkinAttachmentTransform>();
 
                 CommandBuffer cmd = CommandBufferPool.Get("Resolve SkinAttachments");
 
@@ -428,7 +469,7 @@ namespace Unity.DemoTeam.DigitalHuman
                             meshAttachments.Add(meshAttachment);
                         }
 
-                        if (skinAttachment is ISkinAttachmentPoints pointsAttachment)
+                        if (skinAttachment is ISkinAttachmentTransform pointsAttachment)
                         {
                             pointsAttachments.Add(pointsAttachment);
                         }

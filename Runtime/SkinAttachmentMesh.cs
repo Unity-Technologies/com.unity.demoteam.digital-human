@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 namespace Unity.DemoTeam.DigitalHuman
 {
     using SkinAttachmentItem = SkinAttachmentItem3;
-
+    using BakeData = SkinAttachmentComponentCommon.BakeData;
     [ExecuteAlways]
     public class SkinAttachmentMesh : MeshInstanceBehaviour, ISkinAttachmentMesh
     {
@@ -19,43 +19,19 @@ namespace Unity.DemoTeam.DigitalHuman
             MeshRoots,
         }
 
-        public enum SchedulingMode
-        {
-            CPU,
-            GPU,
-            External
-        }
-
-        public Renderer attachmentTarget;
-        public SkinAttachmentDataStorage dataStorage;
-        public SchedulingMode schedulingMode;
+        public SkinAttachmentComponentCommon common;
         public MeshAttachmentType attachmentType = MeshAttachmentType.Mesh;
         public bool allowOnlyOneRoot = false;
         public bool GeneratePrecalculatedMotionVectors = false;
 
         public event Action<CommandBuffer> onSkinAttachmentMeshModified;
 
-        public bool IsAttached => attached;
-        
-        private struct BakeData
-        {
-            public MeshBuffers meshBuffers;
-            public MeshAdjacency meshAdjacency;
-            public MeshIslands meshIslands;
-        }
-
-        [SerializeField][HideInInspector] private bool attached = false;
-        [SerializeField][HideInInspector] private Vector3 attachedLocalPosition;
-        [SerializeField][HideInInspector] private Quaternion attachedLocalRotation;
-        [SerializeField][HideInInspector] private Hash128 checkSum;
-        [SerializeField][HideInInspector] private SkinAttachmentDataStorage currentStorage;
+        public bool IsAttached => common.attached;
 
         private float meshAssetRadius;
         private Transform skinningBone;
         private Matrix4x4 skinningBoneBindPose;
         private Matrix4x4 skinningBoneBindPoseInverse;
-
-        private Renderer currentTarget;
 
         private Vector3[] stagingPositions;
         private Vector3[] stagingNormals;
@@ -63,22 +39,12 @@ namespace Unity.DemoTeam.DigitalHuman
         
         private GraphicsBuffer bakedAttachmentPosesGPU;
         private GraphicsBuffer bakedAttachmentItemsGPU;
-        private SkinAttachmentPose[] bakedPoses;
-        private SkinAttachmentItem[] bakedItems;
-
+        
         private bool GPUDataValid = false;
-        private bool hasValidState = false;
 
         public void Attach(bool storePositionRotation = true)
         {
-            if (storePositionRotation)
-            {
-                attachedLocalPosition = transform.localPosition;
-                attachedLocalRotation = transform.localRotation;
-            }
-
-            attached = true;
-
+            common.Attach( storePositionRotation);
             UpdateAttachedState();
         }
 
@@ -86,19 +52,15 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             RemoveMeshInstance();
 
-            if (revertPositionRotation)
-            {
-                transform.localPosition = attachedLocalPosition;
-                transform.localRotation = attachedLocalRotation;
-            }
-
-            attached = false;
-            currentTarget = null;
+            common.Detach(revertPositionRotation);
         }
 
         void OnEnable()
         {
-            LoadBakedData();
+            EnsureMeshInstance();
+            GPUDataValid = false;
+            common.Init(transform, BakeAttachmentPoses);
+            common.LoadBakedData();
             UpdateAttachedState();
         }
 
@@ -110,9 +72,9 @@ namespace Unity.DemoTeam.DigitalHuman
         void LateUpdate()
         {
             UpdateAttachedState();
-            if (hasValidState && schedulingMode != SchedulingMode.External)
+            if (common.hasValidState)
             {
-                SkinAttachmentSystem.Inst.QueueAttachmentResolve(this, schedulingMode == SchedulingMode.GPU);
+                SkinAttachmentSystem.Inst.QueueAttachmentResolve(this, common.schedulingMode == SkinAttachmentComponentCommon.SchedulingMode.GPU);
             }
         }
 
@@ -122,14 +84,9 @@ namespace Unity.DemoTeam.DigitalHuman
             RemoveMeshInstance();
         }
 
-        public Hash128 Checksum()
-        {
-            return checkSum;
-        }
-
         public Renderer GetTargetRenderer()
         {
-            return currentTarget;
+            return common.currentTarget;
         }
 
         public void NotifyAttachmentUpdated(CommandBuffer cmd)
@@ -137,7 +94,7 @@ namespace Unity.DemoTeam.DigitalHuman
             //update mesh bounds
             {
                 //update mesh bounds
-                var targetMeshWorldBounds = currentTarget.bounds;
+                var targetMeshWorldBounds = common.currentTarget.bounds;
                 var targetMeshWorldBoundsCenter = targetMeshWorldBounds.center;
                 var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
 
@@ -174,11 +131,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public bool ValidateBakedData()
         {
+            bool validData = common.ValidateBakedData();
 
-            bool dataExists = currentStorage != null && bakedPoses != null && bakedItems != null;
-            if (dataExists && meshInstance != null)
+            if (validData && meshInstance != null)
             {
-                bool meshInstanceVertexCountMatches = bakedItems.Length == meshInstance.vertexCount;
+                bool meshInstanceVertexCountMatches = common.bakedItems.Length == meshInstance.vertexCount;
                 return meshInstanceVertexCountMatches;
             }
 
@@ -187,42 +144,12 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public void EnsureBakedData()
         {
-            bool newDataBaked = false;
-            SkinAttachmentItem[] tempItems = default;
-            SkinAttachmentPose[] tempPoses = default;
-            
-            if (currentTarget == null)
-            {
-                bool bakeSuccessfull = BakeAttachmentPoses(ref tempItems, ref tempPoses);
-                if (bakeSuccessfull)
-                {
-                    currentTarget = attachmentTarget;
-                    newDataBaked = true;
-                }
-            } 
-            else if (!ValidateBakedData())
-            {
-                bool bakeSuccessfull = BakeAttachmentPoses(ref tempItems, ref tempPoses);
-                if (bakeSuccessfull)
-                {
-                    newDataBaked = true;
-                }
-            }
-
-            if (newDataBaked)
-            {
-                StoreBakedData(tempItems, tempPoses);
-            }
+            common.EnsureBakedData();
         }
 
         public bool CanAttach()
         {
-            return IsAttachmentTargetValid() && IsAttachmentMeshValid() && dataStorage != null && !IsAttached;
-        }
-
-        public bool IsAttachmentTargetValid()
-        {
-            return SkinAttachmentSystem.IsValidAttachmentTarget(attachmentTarget);
+            return common.IsAttachmentTargetValid() && IsAttachmentMeshValid() && common.dataStorage != null && !IsAttached;
         }
 
         public bool IsAttachmentMeshValid()
@@ -232,32 +159,17 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void UpdateAttachedState()
         {
-            hasValidState = false;
-            if (attachmentTarget == null) return;
-
-            //make sure target is a supported renderer (meshrenderer or skinnedMeshRenderer)
-            if (!(attachmentTarget is SkinnedMeshRenderer || attachmentTarget is MeshRenderer))
+            common.UpdateAttachedState();
+            
+            if (IsAttached)
             {
-                attachmentTarget = null;
-                currentTarget = null;
-                Detach();
-                return;
-            }
-
-            //target changed, detach
-            if (currentTarget != attachmentTarget && currentTarget != null)
-            {
-                Detach();
-                return;
-            }
-
-            if (attached)
-            {
-                if (!IsAttachmentMeshValid() || !IsAttachmentTargetValid())
+                common.hasValidState = common.hasValidState && IsAttachmentMeshValid();
+                
+                if (!common.hasValidState)
                 {
-                    hasValidState = false;
                     return;
                 }
+
                 
                 //if we need to generate motion vectors and the meshInstance doesn't have proper streams setup, reset the meshinstance (so it gets recreated)
                 if (GeneratePrecalculatedMotionVectors && meshInstance &&
@@ -266,11 +178,6 @@ namespace Unity.DemoTeam.DigitalHuman
                     RemoveMeshInstance();
                 }
 
-                ValidateDataStorage();
-                EnsureBakedData();
-
-                hasValidState = currentTarget != null && ValidateBakedData();
-                
                 EnsureMeshInstance();
             }
             else
@@ -278,49 +185,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 RemoveMeshInstance();
             }
         }
-
-        public void ValidateDataStorage()
-        {
-            if (currentStorage != null && currentStorage != dataStorage)
-            {
-                if (checkSum.isValid)
-                {
-                    currentStorage.RemoveAttachmentData(checkSum);
-                    checkSum = default;
-                }
-                currentStorage = null;
-            }
-            
-            currentStorage = dataStorage;
-        }
-
-        void StoreBakedData(SkinAttachmentItem[] items, SkinAttachmentPose[] poses)
-        {
-            if (currentStorage != null)
-            {
-                if (checkSum.isValid)
-                {
-                    checkSum = currentStorage.UpdateAttachmentData(poses, items, checkSum);
-                }
-                else
-                {
-                    checkSum = currentStorage.StoreAttachmentData(poses, items);
-                }
-
-                LoadBakedData();
-            }
-            
-        }
-
-        void LoadBakedData()
-        {
-            if (checkSum.isValid && currentStorage != null)
-            {
-                currentStorage.LoadAttachmentData(checkSum, out bakedPoses, out bakedItems);
-            }
-        }
         
-
         static void BuildDataAttachSubject(in SkinAttachmentPose[] posesArray, in SkinAttachmentItem[] itemsArray,
             in BakeData attachmentBakeData, Matrix4x4 subjectToTarget,
             in MeshInfo targetBakeData, in PoseBuildSettings settings, MeshAttachmentType attachmentType,
@@ -360,23 +225,28 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
+        bool BakeAttachmentPoses(SkinAttachmentComponentCommon.PoseBakeOutput bakeOutput)
+        {
+            return BakeAttachmentPoses(ref bakeOutput.items, ref bakeOutput.poses);
+        }
+
         bool BakeAttachmentPoses(ref SkinAttachmentItem[] items, ref SkinAttachmentPose[] poses)
         {
             if (!GetBakeData(out BakeData attachmentBakeData))
                 return false;
-            if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(attachmentTarget,
+            if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(common.attachmentTarget,
                     out MeshInfo attachmentTargetBakeData))
                 return false;
 
             Matrix4x4 subjectToTarget;
             if (skinningBone != null)
             {
-                subjectToTarget = attachmentTarget.transform.worldToLocalMatrix * skinningBone.localToWorldMatrix *
+                subjectToTarget = common.attachmentTarget.transform.worldToLocalMatrix * skinningBone.localToWorldMatrix *
                                   skinningBoneBindPose;
             }
             else
             {
-                subjectToTarget = attachmentTarget.transform.worldToLocalMatrix * transform.localToWorldMatrix;
+                subjectToTarget = common.attachmentTarget.transform.worldToLocalMatrix * transform.localToWorldMatrix;
             }
 
             //for now deactive this path as it's not yet stable
@@ -557,7 +427,8 @@ namespace Unity.DemoTeam.DigitalHuman
                 bakedAttachmentItemsGPU.Release();
                 bakedAttachmentItemsGPU = null;
             }
-            
+
+            GPUDataValid = false;
         }
         
         private bool GetPoseData(out GraphicsBuffer itemsBuffer, out GraphicsBuffer posesBuffer, out int itemOffset,
@@ -574,14 +445,14 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (!GPUDataValid)
             {
-                SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(bakedItems, bakedPoses, 0, bakedItems.Length, 0, bakedPoses.Length, ref bakedAttachmentItemsGPU, ref bakedAttachmentPosesGPU);
+                SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(common.bakedItems, common.bakedPoses, 0, common.bakedItems.Length, 0, common.bakedPoses.Length, ref bakedAttachmentItemsGPU, ref bakedAttachmentPosesGPU);
                 GPUDataValid = true;
             }
 
             itemsBuffer = bakedAttachmentItemsGPU;
             posesBuffer = bakedAttachmentPosesGPU;
             itemOffset = 0;
-            itemCount = bakedItems.Length;
+            itemCount = common.bakedItems.Length;
 
             return true;
         }
@@ -590,10 +461,10 @@ namespace Unity.DemoTeam.DigitalHuman
             out int itemOffset,
             out int itemCount)
         {
-            itemsBuffer = bakedItems;
-            posesBuffer = bakedPoses;
+            itemsBuffer = common.bakedItems;
+            posesBuffer = common.bakedPoses;
             itemOffset = 0;
-            itemCount = bakedItems?.Length ?? 0;
+            itemCount = common.bakedItems?.Length ?? 0;
 
             if (itemCount == 0) return false;
 
@@ -603,15 +474,15 @@ namespace Unity.DemoTeam.DigitalHuman
         private Matrix4x4 GetTargetToAttachmentTransform()
         {
             Matrix4x4 targetToWorld;
-            if (currentTarget is SkinnedMeshRenderer)
+            if (common.currentTarget is SkinnedMeshRenderer)
             {
-                targetToWorld = currentTarget.transform.parent.localToWorldMatrix * Matrix4x4.TRS(
-                    currentTarget.transform.localPosition,
-                    currentTarget.transform.localRotation, Vector3.one);
+                targetToWorld = common.currentTarget.transform.parent.localToWorldMatrix * Matrix4x4.TRS(
+                    common.currentTarget.transform.localPosition,
+                    common.currentTarget.transform.localRotation, Vector3.one);
             }
             else
             {
-                targetToWorld = currentTarget.transform.localToWorldMatrix;
+                targetToWorld = common.currentTarget.transform.localToWorldMatrix;
             }
 
             Matrix4x4 targetToSubject;
@@ -659,8 +530,6 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     ArrayUtils.ResizeChecked(ref stagingTangents, vertexCount);
                 }
-
-
                 desc.skinAttachmentItems = itemsBuffer;
                 desc.skinAttachmentPoses = posesBuffer;
                 desc.resolvedPositions = stagingPositions;

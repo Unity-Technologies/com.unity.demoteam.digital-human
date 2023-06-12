@@ -18,13 +18,13 @@ namespace Unity.DemoTeam.DigitalHuman
 				return;
 
 			//we always need data storage before anything else
-			if (attachment.dataStorage == null)
+			if (attachment.common.dataStorage == null)
 			{
 				DrawGUIAttachmentDataStorage(attachment);
 			}
 			else
 			{
-				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.attachmentTarget : "Currently detached.", MessageType.Info);
+				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget : "Currently detached.", MessageType.Info);
 				DrawGUIAttachDetach(attachment);
 				EditorGUILayout.Separator();
 				DrawGUIAttachmentDataStorage(attachment);
@@ -41,9 +41,9 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		public static void DrawGUIAttachmentTarget(SkinAttachmentMesh attachment)
 		{
-			var oldAttachment = attachment.attachmentTarget;
-			attachment.attachmentTarget = (Renderer)EditorGUILayout.ObjectField(attachment.attachmentTarget, typeof(Renderer));
-			if (oldAttachment != attachment.attachmentTarget && oldAttachment != null)
+			var oldAttachment = attachment.common.attachmentTarget;
+			attachment.common.attachmentTarget = (Renderer)EditorGUILayout.ObjectField(attachment.common.attachmentTarget, typeof(Renderer));
+			if (oldAttachment != attachment.common.attachmentTarget && oldAttachment != null)
 			{
 				attachment.Detach(false);
 			}
@@ -51,8 +51,8 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		public static void DrawGUIAttachmentDataStorage(SkinAttachmentMesh attachment)
 		{
-			attachment.dataStorage = (SkinAttachmentDataStorage)EditorGUILayout.ObjectField(attachment.dataStorage, typeof(SkinAttachmentDataStorage));
-			if (attachment.dataStorage == null)
+			attachment.common.dataStorage = (SkinAttachmentDataStorage)EditorGUILayout.ObjectField(attachment.common.dataStorage, typeof(SkinAttachmentDataStorage));
+			if (attachment.common.dataStorage == null)
 			{
 				EditorGUILayout.HelpBox("SkinAttachmentDataStorage needs to be assigned before attaching!", MessageType.Error);
 			}
@@ -62,7 +62,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			EditorGUILayout.BeginVertical();
 			attachment.attachmentType = (SkinAttachmentMesh.MeshAttachmentType)EditorGUILayout.EnumPopup("AttachmentType: ", attachment.attachmentType);
-			attachment.schedulingMode = (SkinAttachmentMesh.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.schedulingMode);
+			attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
 			EditorGUILayout.EndVertical();
 		}
 		
