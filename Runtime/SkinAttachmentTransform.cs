@@ -9,15 +9,22 @@ using UnityEngine.Rendering;
 namespace Unity.DemoTeam.DigitalHuman
 {
     using SkinAttachmentItem = SkinAttachmentItem3;
-    using BakeData = SkinAttachmentComponentCommon.BakeData;
+
     [ExecuteAlways]
-    public class SkinAttachmentTransform : MonoBehaviour, ISkinAttachmentTransform
+    public class SkinAttachmentTransform : MonoBehaviour
     {
-        public SkinAttachmentComponentCommon common;
+        public static int TransformAttachmentBufferStride => c_transformAttachmentBufferStride;
+        public int CurrentOffsetIntoGPUPositionsBuffer => currentOffsetToTransformGroup;
+        public GraphicsBuffer CurrentGPUPositionsBuffer => currentPositionsBufferGPU;
+        
+        public SkinAttachmentComponentCommon common = new SkinAttachmentComponentCommon();
         public bool IsAttached => common.attached;
 
-        private Vector3[] normalResolveBuffer = new Vector3[1];
-        private Vector3[] positionResolveBuffer = new Vector3[1];
+        public event Action<CommandBuffer> onSkinAttachmentTransformResolved;
+        
+        private int currentOffsetToTransformGroup = 0;
+        private GraphicsBuffer currentPositionsBufferGPU;
+        private const int c_transformAttachmentBufferStride = 3 * sizeof(float);
         
         public void Attach(bool storePositionRotation = true)
         {
@@ -36,30 +43,19 @@ namespace Unity.DemoTeam.DigitalHuman
             common.LoadBakedData();
             UpdateAttachedState();
         }
-
-        private void OnDisable()
-        {
-            
-        }
-
+        
         void LateUpdate()
         {
             UpdateAttachedState();
             if (common.hasValidState)
             {
-                SkinAttachmentSystem.Inst.QueueAttachmentResolve(this, common.schedulingMode == SkinAttachmentComponentCommon.SchedulingMode.GPU);
+                SkinAttachmentTransformGroupHandler.Inst.AddTransformAttachmentForResolve(this);
             }
         }
 
         public Renderer GetTargetRenderer()
         {
             return common.currentTarget;
-        }
-        
-        public bool ValidateBakedData()
-        {
-            bool validData = common.ValidateBakedData();
-            return validData;
         }
 
         public void EnsureBakedData()
@@ -132,24 +128,26 @@ namespace Unity.DemoTeam.DigitalHuman
             currentItemOffset = 0;
             
 
-            BuildDataAttachSubject(poses, items, subjectToTarget, attachmentTargetBakeData, poseBuildParams, true, ref dryRunPoseCount, ref dryRunItemCount, ref currentItemOffset,
+            BuildDataAttachSubject(poses, items, subjectToTarget, attachmentTargetBakeData, poseBuildParams, false, ref dryRunPoseCount, ref dryRunItemCount, ref currentItemOffset,
                 ref currentPoseOffset);
 
             return true;
         }
 
-        public void NotifyAttachmentUpdated(CommandBuffer cmd)
+        public void AfterSkinAttachmentGroupResolve(CommandBuffer cmd, Vector3[] positionsCPU, GraphicsBuffer positionsGPU,
+            int indexInGroup)
         {
+            currentOffsetToTransformGroup = indexInGroup;
+            currentPositionsBufferGPU = positionsGPU;
+            
             if (common.schedulingMode == SkinAttachmentComponentCommon.SchedulingMode.CPU)
             {
-                transform.position = positionResolveBuffer[0];
-                transform.localRotation = Quaternion.FromToRotation(Vector3.up, normalResolveBuffer[0]);
+                transform.position = positionsCPU[indexInGroup];
             }
-            else
-            {
-                //TODO
-            }
+
+            onSkinAttachmentTransformResolved?.Invoke(cmd);
         }
+
 
         public bool GetSkinAttachmentPosesAndItem(out SkinAttachmentPose[] poses, out SkinAttachmentItem item)
         {
@@ -165,27 +163,5 @@ namespace Unity.DemoTeam.DigitalHuman
             return true;
         }
 
-        public Matrix4x4 GetResolveTransform()
-        {
-            Matrix4x4 targetToWorld;
-            {
-                if (common.currentTarget is SkinnedMeshRenderer)
-                    targetToWorld = Matrix4x4.TRS(transform.position, transform.rotation, Vector3.one);
-                else
-                    targetToWorld = transform.localToWorldMatrix;
-            }
-
-            return targetToWorld;
-        }
-
-        public Vector3[] GetPositionResolveBufferCPU()
-        {
-            return positionResolveBuffer;
-        }
-
-        public Vector3[] GetNormalResolveBufferCPU()
-        {
-            return normalResolveBuffer;
-        }
     }
 }

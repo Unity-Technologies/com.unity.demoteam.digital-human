@@ -32,10 +32,6 @@ namespace Unity.DemoTeam.DigitalHuman
 				DrawGUIAttachmentTarget(attachment);
 				DrawGuiSettings(attachment);
 			}
-			
-			
-
-
 		}
 
 		

@@ -11,7 +11,7 @@ namespace Unity.DemoTeam.DigitalHuman
     using SkinAttachmentItem = SkinAttachmentItem3;
     using BakeData = SkinAttachmentComponentCommon.BakeData;
     [ExecuteAlways]
-    public class SkinAttachmentMesh : MeshInstanceBehaviour, ISkinAttachmentMesh
+    public class SkinAttachmentMesh : MeshInstanceBehaviour, ISkinAttachment
     {
         public enum MeshAttachmentType
         {
@@ -19,12 +19,12 @@ namespace Unity.DemoTeam.DigitalHuman
             MeshRoots,
         }
 
-        public SkinAttachmentComponentCommon common;
+        public SkinAttachmentComponentCommon common = new SkinAttachmentComponentCommon();
         public MeshAttachmentType attachmentType = MeshAttachmentType.Mesh;
         public bool allowOnlyOneRoot = false;
         public bool GeneratePrecalculatedMotionVectors = false;
 
-        public event Action<CommandBuffer> onSkinAttachmentMeshModified;
+        public event Action<CommandBuffer> onSkinAttachmentMeshResolved;
 
         public bool IsAttached => common.attached;
 
@@ -125,8 +125,8 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
 
-            if (onSkinAttachmentMeshModified != null)
-                onSkinAttachmentMeshModified(cmd);
+            if (onSkinAttachmentMeshResolved != null)
+                onSkinAttachmentMeshResolved(cmd);
         }
 
         public bool ValidateBakedData()
@@ -476,9 +476,10 @@ namespace Unity.DemoTeam.DigitalHuman
             Matrix4x4 targetToWorld;
             if (common.currentTarget is SkinnedMeshRenderer)
             {
-                targetToWorld = common.currentTarget.transform.parent.localToWorldMatrix * Matrix4x4.TRS(
-                    common.currentTarget.transform.localPosition,
-                    common.currentTarget.transform.localRotation, Vector3.one);
+                var tr = common.currentTarget.transform;
+                targetToWorld = tr.parent.localToWorldMatrix * Matrix4x4.TRS(
+                    tr.localPosition,
+                    tr.localRotation, Vector3.one);
             }
             else
             {
