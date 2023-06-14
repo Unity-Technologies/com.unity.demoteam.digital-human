@@ -8,6 +8,8 @@ namespace Unity.DemoTeam.DigitalHuman
 	[CustomEditor(typeof(SkinAttachmentTransform))]
 	public class SkinAttachmentTransformEditor : Editor
 	{
+		private bool settingsToggled = false;
+		private bool debugToggled = false;
 		public override void OnInspectorGUI()
 		{
 			if (target == null)
@@ -24,18 +26,18 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 			else
 			{
-				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget : "Currently detached.", MessageType.Info);
+				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum : "Currently detached.", MessageType.Info);
 				DrawGUIAttachDetach(attachment);
-				EditorGUILayout.Separator();
 				DrawGUIAttachmentDataStorage(attachment);
-				EditorGUILayout.Separator();
 				DrawGUIAttachmentTarget(attachment);
 				DrawGuiSettings(attachment);
+				DrawGuiDebug(attachment);
+				
 			}
 		}
 
 		
-		public static void DrawGUIAttachmentTarget(SkinAttachmentTransform attachment)
+		public void DrawGUIAttachmentTarget(SkinAttachmentTransform attachment)
 		{
 			var oldAttachment = attachment.common.attachmentTarget;
 			attachment.common.attachmentTarget = (Renderer)EditorGUILayout.ObjectField(attachment.common.attachmentTarget, typeof(Renderer));
@@ -45,7 +47,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 		
-		public static void DrawGUIAttachmentDataStorage(SkinAttachmentTransform attachment)
+		public void DrawGUIAttachmentDataStorage(SkinAttachmentTransform attachment)
 		{
 			attachment.common.dataStorage = (SkinAttachmentDataStorage)EditorGUILayout.ObjectField(attachment.common.dataStorage, typeof(SkinAttachmentDataStorage));
 			if (attachment.common.dataStorage == null)
@@ -54,22 +56,41 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		public static void DrawGuiSettings(SkinAttachmentTransform attachment)
+		public void DrawGuiSettings(SkinAttachmentTransform attachment)
 		{
-			EditorGUILayout.BeginVertical();
-			attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
-			EditorGUILayout.EndVertical();
+			settingsToggled = EditorGUILayout.BeginFoldoutHeaderGroup(settingsToggled, "Settings");
+			if (settingsToggled)
+			{
+				EditorGUILayout.BeginVertical();
+				attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
+				EditorGUILayout.EndVertical();
+				
+			}
+			EditorGUILayout.EndFoldoutHeaderGroup();
 		}
 		
-		public static void DrawGUIAttachDetach(SkinAttachmentTransform attachment)
-        		{
-        			EditorGUILayout.BeginHorizontal();
-        			DrawGUIAttach(attachment);
-        			DrawGUIDetach(attachment);
-        			EditorGUILayout.EndHorizontal();
-        		}
+		public void DrawGuiDebug(SkinAttachmentTransform attachment)
+		{
+			debugToggled = EditorGUILayout.BeginFoldoutHeaderGroup(debugToggled, "Debug");
+			if (debugToggled)
+			{
+				EditorGUILayout.BeginVertical();
+				attachment.readbackTransformFromGPU = EditorGUILayout.Toggle("Readback positions from GPU: ", attachment.readbackTransformFromGPU);
+				EditorGUILayout.EndVertical();
+				
+			}
+			EditorGUILayout.EndFoldoutHeaderGroup();
+		}
+		
+		public void DrawGUIAttachDetach(SkinAttachmentTransform attachment)
+        {
+        	EditorGUILayout.BeginHorizontal();
+        	DrawGUIAttach(attachment);
+        	DrawGUIDetach(attachment);
+        	EditorGUILayout.EndHorizontal();
+        }
 
-		public static void DrawGUIAttach(SkinAttachmentTransform attachment)
+		public void DrawGUIAttach(SkinAttachmentTransform attachment)
 		{
 			EditorGUI.BeginDisabledGroup(!attachment.CanAttach());
 			{
@@ -82,7 +103,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			EditorGUI.EndDisabledGroup();
 		}
 
-		public static void DrawGUIDetach(SkinAttachmentTransform attachment)
+		public void DrawGUIDetach(SkinAttachmentTransform attachment)
 		{
 			EditorGUI.BeginDisabledGroup(!attachment.IsAttached);
 			{

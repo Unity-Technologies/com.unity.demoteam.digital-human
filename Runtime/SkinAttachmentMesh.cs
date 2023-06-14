@@ -59,7 +59,7 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             EnsureMeshInstance();
             GPUDataValid = false;
-            common.Init(transform, BakeAttachmentPoses);
+            common.Init(this, BakeAttachmentPoses);
             common.LoadBakedData();
             UpdateAttachedState();
         }
@@ -89,7 +89,7 @@ namespace Unity.DemoTeam.DigitalHuman
             return common.currentTarget;
         }
 
-        public void NotifyAttachmentUpdated(CommandBuffer cmd)
+        public void NotifyAttachmentResolved(CommandBuffer cmd)
         {
             //update mesh bounds
             {
@@ -127,6 +127,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (onSkinAttachmentMeshResolved != null)
                 onSkinAttachmentMeshResolved(cmd);
+        }
+
+        public void NotifyAllAttachmentsFromQueueResolved()
+        {
+            
         }
 
         public bool ValidateBakedData()
@@ -506,7 +511,7 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 //calculate resolve matrix
                 return SkinAttachmentSystem.FillSkinAttachmentDesc(meshInstance, GetTargetToAttachmentTransform(),
-                    posesBuffer, itemsBuffer, itemOffset, itemsCount, ref desc);
+                    posesBuffer, itemsBuffer, itemOffset, itemsCount, true, ref desc);
             }
 
             return false;
@@ -539,6 +544,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 desc.resolveTransform = GetTargetToAttachmentTransform();
                 desc.itemsOffset = itemOffset;
                 desc.itemsCount = itemsCount;
+                
                 return true;
             }
 

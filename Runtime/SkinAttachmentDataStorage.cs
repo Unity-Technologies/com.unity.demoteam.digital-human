@@ -14,9 +14,10 @@ namespace Unity.DemoTeam.DigitalHuman
 	{
 
 		[Serializable]
-		private class DataStorageEntry
+		public class DataStorageEntry
 		{
 			public Hash128 hashKey;
+			public string entryName;
 			public int dataStorageIndex;
 		}
 
@@ -30,14 +31,21 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		[SerializeField][HideInInspector]
 		private SkinAttachmentData[] dataStorage;
-		[SerializeField][ReadOnlyPropertyAttribute]
+		[SerializeField][HideInInspector]
 		private DataStorageEntry[] databaseEntries ;
 
 		[NonSerialized] private Dictionary<Hash128, DataStorageEntry> dataStorageLookup;
 
-		public Hash128 StoreAttachmentData(SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
+		public DataStorageEntry[] GetAllEntries()
 		{
-			Hash128 h = StoreAttachmentDataInternal(poses, items);
+			DataStorageEntry[] copy = null;
+			ArrayUtils.CopyChecked(databaseEntries, ref copy, databaseEntries.Length);
+			return copy;
+		}
+		
+		public Hash128 StoreAttachmentData(string entryName, SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
+		{
+			Hash128 h = StoreAttachmentDataInternal(entryName, poses, items);
 			Persist();
 			return h;
 		}
@@ -48,10 +56,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			Persist();
 		}
 		
-		public Hash128 UpdateAttachmentData(SkinAttachmentPose[] poses, SkinAttachmentItem[] items, Hash128 oldHash)
+		public Hash128 UpdateAttachmentData(string entryName, SkinAttachmentPose[] poses, SkinAttachmentItem[] items, Hash128 oldHash)
 		{
 			RemoveAttachmentData(oldHash);
-			Hash128 h = StoreAttachmentDataInternal(poses, items);
+			Hash128 h = StoreAttachmentDataInternal(entryName, poses, items);
 			Persist();
 			return h;
 		}
@@ -73,7 +81,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 		
-		private Hash128 StoreAttachmentDataInternal(SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
+		private Hash128 StoreAttachmentDataInternal(string entryName, SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
 		{
 			EnsureEntryLookup();
 			
@@ -95,7 +103,8 @@ namespace Unity.DemoTeam.DigitalHuman
 			DataStorageEntry newEntry = new DataStorageEntry()
 			{
 				hashKey = newHash,
-				dataStorageIndex = dataStorage.Length - 1
+				dataStorageIndex = dataStorage.Length - 1,
+				entryName = entryName
 			};
 
 
@@ -113,7 +122,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (dataStorage.Length > 1)
 				{
 					Hash128 lastEntryHash = dataStorage[^1].hashKey;
-					if (dataStorageLookup.TryGetValue(hash, out DataStorageEntry lastEntry))
+					if (dataStorageLookup.TryGetValue(lastEntryHash, out DataStorageEntry lastEntry))
 					{
 						lastEntry.dataStorageIndex = removeStorageEntry.dataStorageIndex;
 					}

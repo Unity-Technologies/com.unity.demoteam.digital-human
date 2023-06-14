@@ -160,6 +160,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
+
         static void EnsureGraphicsBuffer(ref GraphicsBuffer buf, GraphicsBuffer.Target t, int count, int stride)
         {
             if (buf != null && buf.count < count)
@@ -168,21 +169,26 @@ namespace Unity.DemoTeam.DigitalHuman
                 buf = null;
             }
 
+            if (buf != null && !buf.IsValid())
+            {
+                buf = null;
+            }
+
             if (buf == null)
             {
                 buf = new GraphicsBuffer(t, count, stride);
             }
         }
-        
-        void CreateGPUResources()
+
+
+        void PrepareGPUResources()
         {
-            EnsureGraphicsBuffer(ref combinedItemsGPU, GraphicsBuffer.Target.Structured, combinedItems.Length,
-                UnsafeUtility.SizeOf<SkinAttachmentItem>());
-            EnsureGraphicsBuffer(ref combinedPosesGPU, GraphicsBuffer.Target.Structured, combinedPoses.Length,
-                UnsafeUtility.SizeOf<SkinAttachmentPose>());
+            SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(combinedItems, combinedPoses, 0, combinedItems.Length, 0,
+                combinedPoses.Length, ref combinedItemsGPU, ref combinedPosesGPU);
             EnsureGraphicsBuffer(ref outputPositionsGPU, GraphicsBuffer.Target.Raw, attachments.Count,
                 SkinAttachmentTransform.TransformAttachmentBufferStride);
         }
+
         
         void CreateCPUResources()
         {
@@ -191,7 +197,7 @@ namespace Unity.DemoTeam.DigitalHuman
             ArrayUtils.ResizeChecked(ref outputNormals, attachments.Count);
         }
 
-        void ReleaseGPUResources()
+        public void ReleaseGPUResources()
         {
             combinedItemsGPU?.Release();
             combinedItemsGPU = null;
@@ -208,11 +214,6 @@ namespace Unity.DemoTeam.DigitalHuman
             attachments.Clear();
         }
 
-        ~SkinAttachmentTransformGroup()
-        {
-            ReleaseGPUResources();
-        }
-        
         Matrix4x4 GetResolveTransform()
         {
             Matrix4x4 targetToWorld;
@@ -233,12 +234,20 @@ namespace Unity.DemoTeam.DigitalHuman
             return targetRenderer;
         }
 
-        public void NotifyAttachmentUpdated(CommandBuffer cmd)
+        public void NotifyAttachmentResolved(CommandBuffer cmd)
         {
             int offset = 0;
             foreach (var att in attachments)
             {
                 att.AfterSkinAttachmentGroupResolve(cmd, outputPositions, outputPositionsGPU, offset++);
+            }
+        }
+        
+        public void NotifyAllAttachmentsFromQueueResolved()
+        {
+            foreach (var att in attachments)
+            {
+                att.AfterAllAttachmentsInQueueResolved();
             }
             
             //were done, clear attachments (keep buffers alive for reuse)
@@ -248,7 +257,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public bool FillSkinAttachmentDesc(ref SkinAttachmentSystem.SkinAttachmentDescGPU desc)
         {
             CombineBakedData();
-            CreateGPUResources();
+            PrepareGPUResources();
             desc.itemsBuffer = combinedItemsGPU;
             desc.posesBuffer = combinedPosesGPU;
             desc.itemsCount = combinedItems.Length;
@@ -259,6 +268,7 @@ namespace Unity.DemoTeam.DigitalHuman
             desc.resolveNormalsAndTangents = false;
             desc.movecsBuffer = null;
             desc.movecsOffsetStride = default;
+            desc.releaseOutputBuffersAfterResolve = false;
             return true;
         }
 

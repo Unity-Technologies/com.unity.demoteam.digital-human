@@ -11,10 +11,9 @@ using UnityEngine.Rendering;
 namespace Unity.DemoTeam.DigitalHuman
 {
     using SkinAttachmentItem = SkinAttachmentItem3;
-    
+
     public static partial class SkinAttachmentSystem
     {
-        
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
         public struct SkinAttachmentPoseGPU
         {
@@ -55,7 +54,10 @@ namespace Unity.DemoTeam.DigitalHuman
             internal static int _SkinTangentStrideOffset = Shader.PropertyToID("_SkinTangentStrideOffset");
             internal static int _AttachmentPosNormTanBuffer = Shader.PropertyToID("_AttachmentPosNormTanBuffer");
             internal static int _AttachmentMovecsBuffer = Shader.PropertyToID("_AttachmentMovecsBuffer");
-            internal static int _StrideOffsetPosNormTanAttachment = Shader.PropertyToID("_StrideOffsetPosNormTanAttachment");
+
+            internal static int _StrideOffsetPosNormTanAttachment =
+                Shader.PropertyToID("_StrideOffsetPosNormTanAttachment");
+
             internal static int _StrideOffsetMovecsAttachment = Shader.PropertyToID("_StrideOffsetMovecsAttachment");
             internal static int _ResolveTransform = Shader.PropertyToID("_ResolveTransform");
 
@@ -71,10 +73,11 @@ namespace Unity.DemoTeam.DigitalHuman
             public GraphicsBuffer positionsBuffer;
             public GraphicsBuffer normalsBuffer;
             public GraphicsBuffer tangentsBuffer;
-            public ValueTuple<int, int>  positionsOffsetStride;
+            public ValueTuple<int, int> positionsOffsetStride;
             public ValueTuple<int, int> normalsOffsetStride;
             public ValueTuple<int, int> tangentsOffsetStride;
             public Matrix4x4 postSkinningTransform;
+            public bool releaseGPUBuffersAfterResolve;
         }
 
         public struct SkinAttachmentDescGPU
@@ -89,6 +92,7 @@ namespace Unity.DemoTeam.DigitalHuman
             public ValueTuple<int, int> movecsOffsetStride;
             public Matrix4x4 targetToAttachment;
             public bool resolveNormalsAndTangents;
+            public bool releaseOutputBuffersAfterResolve;
         }
 
         public static void ResolveSubjectsGPU(CommandBuffer cmd, ref SkinAttachmentTargetDescGPU targetDescGPU,
@@ -134,12 +138,13 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     continue;
                 }
-                
+
                 int resolveKernel = s_resolveAttachmentsPosKernel;
                 if (skinAttachment.resolveNormalsAndTangents)
                 {
                     resolveKernel = s_resolveAttachmentsPosNormalKernel;
                 }
+
                 if (skinAttachment.movecsBuffer != null)
                 {
                     resolveKernel = s_resolveAttachmentsPosNormalMovecKernel;
@@ -153,7 +158,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     skinAttachment.positionsNormalsTangentsOffsetStride.Item3);
                 cmd.SetComputeBufferParam(s_resolveAttachmentsCS, resolveKernel,
                     UniformsResolve._AttachmentPosNormTanBuffer, skinAttachment.positionsNormalsTangentsBuffer);
-                
+
 
                 //movecs TODO: currently assumes also normals and tangents, no real reason for that
                 if (skinAttachment.movecsBuffer != null)
@@ -265,7 +270,7 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 
         public static bool FillSkinAttachmentTargetDesc(MeshRenderer mr, MeshFilter mf,
-            ref SkinAttachmentTargetDescGPU desc)
+            ref SkinAttachmentTargetDescGPU desc, bool releaseOutputBuffersAfterResolve = true)
         {
             if (!mr || !mf || !mf.sharedMesh) return false;
             Mesh skinMesh = mf.sharedMesh;
@@ -305,16 +310,17 @@ namespace Unity.DemoTeam.DigitalHuman
 
             Matrix4x4 postSkinningToAttachment = Matrix4x4.identity;
             desc.postSkinningTransform = postSkinningToAttachment;
-
+            desc.releaseGPUBuffersAfterResolve = true;
             return true;
         }
-        
-        
-        public static bool FillSkinAttachmentDesc(Mesh attachmentMesh, Matrix4x4 targetToAttachments, GraphicsBuffer posesBuffer, GraphicsBuffer itemsBuffer, 
-            int itemsOffset, int itemsCount, ref SkinAttachmentDescGPU desc)
+
+
+        public static bool FillSkinAttachmentDesc(Mesh attachmentMesh, Matrix4x4 targetToAttachments,
+            GraphicsBuffer posesBuffer, GraphicsBuffer itemsBuffer,
+            int itemsOffset, int itemsCount, bool releaseOutputBuffersAfterResolve, ref SkinAttachmentDescGPU desc)
         {
             if (!attachmentMesh || posesBuffer == null || itemsBuffer == null) return false;
-            
+
             int posStream = attachmentMesh.GetVertexAttributeStream(VertexAttribute.Position);
             int normStream = attachmentMesh.GetVertexAttributeStream(VertexAttribute.Normal);
             int tanStream = attachmentMesh.GetVertexAttributeStream(VertexAttribute.Tangent);
@@ -332,9 +338,12 @@ namespace Unity.DemoTeam.DigitalHuman
             desc.itemsCount = itemsCount;
 
             desc.positionsNormalsTangentsBuffer = attachmentMesh.GetVertexBuffer(posStream);
-            desc.positionsNormalsTangentsOffsetStride.Item1 = attachmentMesh.GetVertexAttributeOffset(VertexAttribute.Position);
-            desc.positionsNormalsTangentsOffsetStride.Item2 = attachmentMesh.GetVertexAttributeOffset(VertexAttribute.Normal);
-            desc.positionsNormalsTangentsOffsetStride.Item3 = attachmentMesh.GetVertexAttributeOffset(VertexAttribute.Tangent);
+            desc.positionsNormalsTangentsOffsetStride.Item1 =
+                attachmentMesh.GetVertexAttributeOffset(VertexAttribute.Position);
+            desc.positionsNormalsTangentsOffsetStride.Item2 =
+                attachmentMesh.GetVertexAttributeOffset(VertexAttribute.Normal);
+            desc.positionsNormalsTangentsOffsetStride.Item3 =
+                attachmentMesh.GetVertexAttributeOffset(VertexAttribute.Tangent);
             desc.positionsNormalsTangentsOffsetStride.Item4 = attachmentMesh.GetVertexBufferStride(posStream);
 
             if (attachmentMesh.HasVertexAttribute(VertexAttribute.TexCoord5))
@@ -348,28 +357,36 @@ namespace Unity.DemoTeam.DigitalHuman
 
             desc.targetToAttachment = targetToAttachments;
             desc.resolveNormalsAndTangents = true;
+            desc.releaseOutputBuffersAfterResolve = releaseOutputBuffersAfterResolve;
             return true;
         }
-        
+
 
         public static void FreeSkinAttachmentTargetDesc(in SkinAttachmentTargetDescGPU desc)
         {
-            desc.positionsBuffer?.Dispose();
-            desc.normalsBuffer?.Dispose();
-            desc.tangentsBuffer?.Dispose();
+            if (desc.releaseGPUBuffersAfterResolve)
+            {
+                desc.positionsBuffer?.Dispose();
+                desc.normalsBuffer?.Dispose();
+                desc.tangentsBuffer?.Dispose();
+            }
         }
-        
+
         public static void FreeSkinAttachmentDesc(in SkinAttachmentDescGPU desc)
         {
-            desc.positionsNormalsTangentsBuffer?.Dispose();
-            desc.movecsBuffer?.Dispose();
+            if (desc.releaseOutputBuffersAfterResolve)
+            {
+                desc.positionsNormalsTangentsBuffer?.Dispose();
+                desc.movecsBuffer?.Dispose();
+            }
         }
-        
-        
-        public static void UploadAttachmentPoseDataToGPU(in SkinAttachmentItem[] bakedAttachmentItems, in SkinAttachmentPose[] bakedAttachmentPoses, int itemsOffset, int itemsCount, int posesOffset, int posesCount,
+
+
+        public static void UploadAttachmentPoseDataToGPU(in SkinAttachmentItem[] bakedAttachmentItems,
+            in SkinAttachmentPose[] bakedAttachmentPoses, int itemsOffset, int itemsCount, int posesOffset,
+            int posesCount,
             ref GraphicsBuffer bakedAttachmentItemsGPU, ref GraphicsBuffer bakedAttachmentPosesGPU)
         {
-
             int itemStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentItemGPU>();
             int poseStructSize = UnsafeUtility.SizeOf<SkinAttachmentSystem.SkinAttachmentPoseGPU>();
 
@@ -379,20 +396,25 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     bakedAttachmentPosesGPU.Release();
                 }
-                bakedAttachmentPosesGPU = new GraphicsBuffer(GraphicsBuffer.Target.Structured, posesCount, poseStructSize);
+
+                bakedAttachmentPosesGPU =
+                    new GraphicsBuffer(GraphicsBuffer.Target.Structured, posesCount, poseStructSize);
             }
-            
+
             if (bakedAttachmentItemsGPU == null || bakedAttachmentItemsGPU.count != itemsCount)
             {
                 if (bakedAttachmentItemsGPU != null)
                 {
                     bakedAttachmentItemsGPU.Release();
                 }
-                bakedAttachmentItemsGPU = new GraphicsBuffer(GraphicsBuffer.Target.Structured, itemsCount, itemStructSize);
-            }
-            
 
-            NativeArray<SkinAttachmentPoseGPU> posesBuffer = new NativeArray<SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
+                bakedAttachmentItemsGPU =
+                    new GraphicsBuffer(GraphicsBuffer.Target.Structured, itemsCount, itemStructSize);
+            }
+
+
+            NativeArray<SkinAttachmentPoseGPU> posesBuffer =
+                new NativeArray<SkinAttachmentPoseGPU>(posesCount, Allocator.Temp);
             for (int i = posesOffset; i < (posesOffset + posesCount); ++i)
             {
                 SkinAttachmentPoseGPU poseGPU;
@@ -406,16 +428,19 @@ namespace Unity.DemoTeam.DigitalHuman
                 poseGPU.targetDist = bakedAttachmentPoses[i].targetDist;
                 posesBuffer[i] = poseGPU;
             }
+
             bakedAttachmentPosesGPU.SetData(posesBuffer);
             posesBuffer.Dispose();
 
-            NativeArray<SkinAttachmentItemGPU> itemsBuffer = new NativeArray<SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
+            NativeArray<SkinAttachmentItemGPU> itemsBuffer =
+                new NativeArray<SkinAttachmentItemGPU>(itemsCount, Allocator.Temp);
             for (int i = itemsOffset; i < (itemsOffset + itemsCount); ++i)
             {
                 SkinAttachmentItem item = bakedAttachmentItems[i];
-                
+
                 SkinAttachmentItemGPU itemGPU;
-                itemGPU.targetFrameDelta = new float4(item.targetFrameDelta[0], item.targetFrameDelta[1], item.targetFrameDelta[2], item.targetFrameDelta[3]);
+                itemGPU.targetFrameDelta = new float4(item.targetFrameDelta[0], item.targetFrameDelta[1],
+                    item.targetFrameDelta[2], item.targetFrameDelta[3]);
                 itemGPU.targetOffset = item.targetOffset;
                 itemGPU.targetFrameW = item.targetFrameW;
                 itemGPU.baseVertex = item.baseVertex;
@@ -431,5 +456,4 @@ namespace Unity.DemoTeam.DigitalHuman
 
         #endregion UtilityGPU
     }
-
 }

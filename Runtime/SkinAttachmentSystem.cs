@@ -14,7 +14,8 @@ namespace Unity.DemoTeam.DigitalHuman
     {
         public Renderer GetTargetRenderer();
         //called when subject has been updated (if update was on cpu, cmd is null, if on gpu, cmd is commandbuffer that contains the commands to update the subject on gpu)
-        public void NotifyAttachmentUpdated(CommandBuffer cmd);
+        public void NotifyAttachmentResolved(CommandBuffer cmd);
+        public void NotifyAllAttachmentsFromQueueResolved();
         
         bool FillSkinAttachmentDesc(ref SkinAttachmentSystem.SkinAttachmentDescGPU desc);
         bool FillSkinAttachmentDesc(ref SkinAttachmentSystem.SkinAttachmentDescCPU desc);
@@ -352,10 +353,20 @@ namespace Unity.DemoTeam.DigitalHuman
                     //notify attachments about being updated (this potentially will also notify attachments that failed to produce desc, should these be filtered out(?)
                     foreach (var attachment in attachments)
                     {
-                        attachment.NotifyAttachmentUpdated(null);
+                        attachment.NotifyAttachmentResolved(null);
                     }
                 }
 
+                //notify when all attachments resolved and commands are actually submitted
+                foreach (var attPerRenderer in attachmentsPerRenderer)
+                {
+                    foreach (var att in attPerRenderer.Value)
+                    {
+                        att.NotifyAllAttachmentsFromQueueResolved();
+                    }
+                    
+                }
+                
                 queue.Clear();
             }
 
@@ -409,13 +420,23 @@ namespace Unity.DemoTeam.DigitalHuman
                     //notify attachments about being updated (this potentially will also notify attachments that failed to produce desc, should these be filtered out(?)
                     foreach (var attachment in attachments)
                     {
-                        attachment.NotifyAttachmentUpdated(cmd);
+                        attachment.NotifyAttachmentResolved(cmd);
                     }
                 }
 
                 Graphics.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
 
+                //notify when all attachments resolved and commands are actually submitted
+                foreach (var attPerRenderer in attachmentsPerRenderer)
+                {
+                    foreach (var att in attPerRenderer.Value)
+                    {
+                        att.NotifyAllAttachmentsFromQueueResolved();
+                    }
+                    
+                }
+                
                 queue.Clear();
             }
 

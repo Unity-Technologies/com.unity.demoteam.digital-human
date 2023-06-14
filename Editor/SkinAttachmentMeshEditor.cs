@@ -24,7 +24,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 			else
 			{
-				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget : "Currently detached.", MessageType.Info);
+				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum: "Currently detached.", MessageType.Info);
 				DrawGUIAttachDetach(attachment);
 				EditorGUILayout.Separator();
 				DrawGUIAttachmentDataStorage(attachment);

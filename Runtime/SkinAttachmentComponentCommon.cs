@@ -33,10 +33,11 @@ namespace Unity.DemoTeam.DigitalHuman
         public Renderer attachmentTarget;
         public SkinAttachmentDataStorage dataStorage;
         public SchedulingMode schedulingMode;
-        
+        public bool allowAutomaticRebake = false;        
 
         public bool IsAttached => attached;
-
+        public Hash128 CheckSum => checkSum;
+        
         [SerializeField] [HideInInspector] internal bool attached = false;
         [SerializeField] [HideInInspector] internal Vector3 attachedLocalPosition;
         [SerializeField] [HideInInspector] internal Quaternion attachedLocalRotation;
@@ -49,12 +50,12 @@ namespace Unity.DemoTeam.DigitalHuman
         internal Renderer currentTarget;
         
         internal bool hasValidState = false;
-        private Transform transform;
+        private MonoBehaviour attachment;
         private Func<PoseBakeOutput, bool> bakeAttachmentsFunc;
 
-        internal void Init(Transform t, Func<PoseBakeOutput, bool> bakeAttachmentPosesFunc)
+        internal void Init(MonoBehaviour att, Func<PoseBakeOutput, bool> bakeAttachmentPosesFunc)
         {
-            transform = t;
+            attachment = att;
             bakeAttachmentsFunc = bakeAttachmentPosesFunc;
         }
 
@@ -62,8 +63,8 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             if (storePositionRotation)
             {
-                attachedLocalPosition = transform.localPosition;
-                attachedLocalRotation = transform.localRotation;
+                attachedLocalPosition = attachment.transform.localPosition;
+                attachedLocalRotation = attachment.transform.localRotation;
             }
 
             attached = true;
@@ -73,8 +74,8 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             if (revertPositionRotation)
             {
-                transform.localPosition = attachedLocalPosition;
-                transform.localRotation = attachedLocalRotation;
+                attachment.transform.localPosition = attachedLocalPosition;
+                attachment.transform.localRotation = attachedLocalRotation;
             }
 
             attached = false;
@@ -117,44 +118,48 @@ namespace Unity.DemoTeam.DigitalHuman
 
 
                 ValidateDataStorage();
-                EnsureBakedData();
+                if (currentStorage != null)
+                {
+                    EnsureBakedData();
+                }
+                
 
                 hasValidState = currentTarget != null && ValidateBakedData();
             }
         }
 
-        public void EnsureBakedData()
+        public void EnsureBakedData(bool forceRebake = false)
         {
-            bool newDataBaked = false;
-
-            PoseBakeOutput bakeOutput = new PoseBakeOutput();
-            
-            bakeOutput.items = default;
-            bakeOutput.poses = default;
-            
-            if (currentTarget == null)
+            if (allowAutomaticRebake || forceRebake)
             {
-                bool bakeSuccessfull = bakeAttachmentsFunc(bakeOutput);
-                if (bakeSuccessfull)
+                if (currentTarget == null || forceRebake)
                 {
-                    currentTarget = attachmentTarget;
-                    newDataBaked = true;
+                    bool bakeSuccessfull = BakeAndStoreData();
+                    if (bakeSuccessfull)
+                    {
+                        currentTarget = attachmentTarget;
+                    }
+                }
+                else if (!ValidateBakedData())
+                {
+                    bool bakeSuccessfull = BakeAndStoreData();
                 }
             }
-            else if (!ValidateBakedData())
-            {
-                bool bakeSuccessfull = bakeAttachmentsFunc(bakeOutput);
-                if (bakeSuccessfull)
-                {
-                    newDataBaked = true;
-                }
-            }
-
-            if (newDataBaked)
-            {
-                StoreBakedData(bakeOutput.items, bakeOutput.poses);
-            }
+            
         }
+
+		private bool BakeAndStoreData()
+		{
+			PoseBakeOutput bakeOutput = new PoseBakeOutput();
+			bakeOutput.items = default;
+            bakeOutput.poses = default;
+            bool bakeSuccessfull = bakeAttachmentsFunc(bakeOutput);
+			if (bakeSuccessfull)
+            {
+                StoreBakedData( bakeOutput.items, bakeOutput.poses);
+            }
+			return bakeSuccessfull;
+		}
 
         internal void ValidateDataStorage()
         {
@@ -178,13 +183,18 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 if (checkSum.isValid)
                 {
-                    checkSum = currentStorage.UpdateAttachmentData(poses, items, checkSum);
+                    checkSum = currentStorage.UpdateAttachmentData(attachment.name, poses, items, checkSum);
                 }
                 else
                 {
-                    checkSum = currentStorage.StoreAttachmentData(poses, items);
+                    checkSum = currentStorage.StoreAttachmentData(attachment.name, poses, items);
                 }
 
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(attachment);
+                UnityEditor.Undo.ClearUndo(attachment);
+#endif
+                
                 LoadBakedData();
             }
         }

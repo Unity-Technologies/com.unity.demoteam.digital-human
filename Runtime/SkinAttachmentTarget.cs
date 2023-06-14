@@ -912,7 +912,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 SkinAttachmentSystem.SkinAttachmentDescGPU attachmentDesc = default;
                 if (SkinAttachmentSystem.FillSkinAttachmentDesc(subject.meshInstance, targetToSubject,
                         attachmentPosesBuffer,
-                        attachmentItemsBuffer, subject.attachmentIndex, subject.attachmentCount, ref attachmentDesc))
+                        attachmentItemsBuffer, subject.attachmentIndex, subject.attachmentCount, true, ref attachmentDesc))
                 {
                     attachmentDescs.Add(attachmentDesc);
                 }
