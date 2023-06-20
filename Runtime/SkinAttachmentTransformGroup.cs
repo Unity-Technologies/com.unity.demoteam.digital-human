@@ -31,26 +31,95 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 
         private static Instance s_instance;
+        private static bool s_initialized;
+        private const int c_framesToReleaseResources = 5;
+#if UNITY_EDITOR
+        [UnityEditor.InitializeOnLoadMethod]
+#else
+        [RuntimeInitializeOnLoadMethod]
+#endif
+        static void StaticInitialize()
+        {
+            if (s_initialized == false)
+            {
+                RenderPipelineManager.endContextRendering += EndContextRendering;
+                Camera.onPostRender += OnPostRender;
+                s_initialized = true;
+            }
+        }
 
+        static void EndContextRendering(ScriptableRenderContext context, List<Camera> cameras)
+        {
+            AfterFrameDone();
+        }
+
+        static void OnPostRender(Camera cam)
+        {
+            AfterFrameDone();
+        }
+        
+        static void AfterFrameDone()
+        {
+            Inst.ReleaseUnusedResources(c_framesToReleaseResources);
+        }
+        
         public class Instance
         {
             private Dictionary<Renderer, SkinAttachmentTransformGroup> cpuGroups = new Dictionary<Renderer, SkinAttachmentTransformGroup>();
             private Dictionary<Renderer, SkinAttachmentTransformGroup> gpuGroups = new Dictionary<Renderer, SkinAttachmentTransformGroup>();
+            private Dictionary<Renderer, SkinAttachmentTransformGroup> explicitCpuGroups = new Dictionary<Renderer, SkinAttachmentTransformGroup>();
+            private Dictionary<Renderer, SkinAttachmentTransformGroup> explicitGpuGroups = new Dictionary<Renderer, SkinAttachmentTransformGroup>();
 
             public void AddTransformAttachmentForResolve(SkinAttachmentTransform attachment)
             {
                 Renderer rend = attachment.GetTargetRenderer();
-                
-                switch (attachment.common.schedulingMode)
+                if (attachment.ScheduleExplicitly)
                 {
-                    case SkinAttachmentComponentCommon.SchedulingMode.CPU:
-                        AddAttachment(attachment, cpuGroups);
-                        break;
-                    case SkinAttachmentComponentCommon.SchedulingMode.GPU:
-                        AddAttachment(attachment, gpuGroups);
-                        break;
+                    switch (attachment.common.schedulingMode)
+                    {
+                        case SkinAttachmentComponentCommon.SchedulingMode.CPU:
+                            AddAttachment(attachment, explicitCpuGroups);
+                            break;
+                        case SkinAttachmentComponentCommon.SchedulingMode.GPU:
+                            AddAttachment(attachment, explicitGpuGroups);
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (attachment.common.schedulingMode)
+                    {
+                        case SkinAttachmentComponentCommon.SchedulingMode.CPU:
+                            AddAttachment(attachment, cpuGroups);
+                            break;
+                        case SkinAttachmentComponentCommon.SchedulingMode.GPU:
+                            AddAttachment(attachment, gpuGroups);
+                            break;
+                    }
+                }
+            }
+
+            public void ReleaseUnusedResources(int frameCount)
+            {
+                foreach (var group in cpuGroups)
+                {
+                    group.Value.ReleaseGPUResourcesIfNotUsed(frameCount);
+                }
+
+                foreach (var group in gpuGroups)
+                {
+                    group.Value.ReleaseGPUResourcesIfNotUsed(frameCount);
                 }
                 
+                foreach (var group in explicitCpuGroups)
+                {
+                    group.Value.ReleaseGPUResourcesIfNotUsed(frameCount);
+                }
+                
+                foreach (var group in explicitGpuGroups)
+                {
+                    group.Value.ReleaseGPUResourcesIfNotUsed(frameCount);
+                }
             }
 
             private static void AddAttachment(SkinAttachmentTransform attachment,
@@ -85,9 +154,12 @@ namespace Unity.DemoTeam.DigitalHuman
         private SkinAttachmentPose[] combinedPoses;
         private Vector3[] outputPositions;
         private Vector3[] outputNormals;
+        private int lastUsedFrame;
 
         public void AddAttachment(SkinAttachmentTransform attachment)
         {
+            lastUsedFrame = Time.frameCount;
+            
             if (attachments.Count == 0)
             {
                 targetRenderer = attachment.GetTargetRenderer();
@@ -183,8 +255,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void PrepareGPUResources()
         {
-            SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(combinedItems, combinedPoses, 0, combinedItems.Length, 0,
-                combinedPoses.Length, ref combinedItemsGPU, ref combinedPosesGPU);
+            SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(combinedItems, combinedPoses,combinedItems.Length,
+                combinedPoses.Length, ref combinedItemsGPU, ref combinedPosesGPU, false);
             EnsureGraphicsBuffer(ref outputPositionsGPU, GraphicsBuffer.Target.Raw, attachments.Count,
                 SkinAttachmentTransform.TransformAttachmentBufferStride);
         }
@@ -197,6 +269,14 @@ namespace Unity.DemoTeam.DigitalHuman
             ArrayUtils.ResizeChecked(ref outputNormals, attachments.Count);
         }
 
+        public void ReleaseGPUResourcesIfNotUsed(int framesUnused)
+        {
+            if (Time.frameCount - lastUsedFrame > framesUnused)
+            {
+                ReleaseGPUResources();
+            }
+        }
+        
         public void ReleaseGPUResources()
         {
             combinedItemsGPU?.Release();

@@ -19,6 +19,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public SkinAttachmentComponentCommon common = new SkinAttachmentComponentCommon();
         public bool IsAttached => common.attached;
+        public bool ScheduleExplicitly => common.explicitScheduling;
 
         public bool readbackTransformFromGPU = false;
 
@@ -49,11 +50,26 @@ namespace Unity.DemoTeam.DigitalHuman
         void LateUpdate()
         {
             UpdateAttachedState();
+            if (common.hasValidState && !common.explicitScheduling)
+            {
+                SkinAttachmentTransformGroupHandler.Inst.AddTransformAttachmentForResolve(this);
+            }
+        }
+        
+        public void QueueForResolve()
+        {
+            if (!common.explicitScheduling)
+            {
+                Debug.LogErrorFormat("Tried to call QueueForResolve for SkinAttachmentTransform {0} but explicit scheduling not enabled. Skipping", name);
+                return;
+            }
+            UpdateAttachedState();
             if (common.hasValidState)
             {
                 SkinAttachmentTransformGroupHandler.Inst.AddTransformAttachmentForResolve(this);
             }
         }
+
 
         public Renderer GetTargetRenderer()
         {

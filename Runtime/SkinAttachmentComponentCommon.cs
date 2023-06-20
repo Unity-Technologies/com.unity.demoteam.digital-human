@@ -33,6 +33,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public Renderer attachmentTarget;
         public SkinAttachmentDataStorage dataStorage;
         public SchedulingMode schedulingMode;
+        public bool explicitScheduling = false;
         public bool allowAutomaticRebake = false;        
 
         public bool IsAttached => attached;
@@ -43,11 +44,12 @@ namespace Unity.DemoTeam.DigitalHuman
         [SerializeField] [HideInInspector] internal Quaternion attachedLocalRotation;
         [SerializeField] [HideInInspector] internal Hash128 checkSum;
         [SerializeField] [HideInInspector] internal SkinAttachmentDataStorage currentStorage;
-
+        [SerializeField] [HideInInspector] internal Renderer currentTarget;
+        
         internal SkinAttachmentPose[] bakedPoses;
         internal SkinAttachmentItem[] bakedItems;
 
-        internal Renderer currentTarget;
+        
         
         internal bool hasValidState = false;
         private MonoBehaviour attachment;

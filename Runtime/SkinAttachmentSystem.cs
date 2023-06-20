@@ -88,7 +88,6 @@ namespace Unity.DemoTeam.DigitalHuman
         private interface IScheduleAttachmentHooks
         {
             void OnAfterGPUSkinning();
-            void OnAfterLateUpdate();
         }
         
         public class Instance : IScheduleAttachmentHooks
@@ -112,32 +111,47 @@ namespace Unity.DemoTeam.DigitalHuman
 
             private AttachmentResolveQueue attachmentResolveQueueGPU = new AttachmentResolveQueue();
             private AttachmentResolveQueue attachmentResolveQueueCPU = new AttachmentResolveQueue();
+            private AttachmentResolveQueue explicitAttachmentResolveQueueGPU = new AttachmentResolveQueue();
+            private AttachmentResolveQueue explicitAttachmentResolveQueueCPU = new AttachmentResolveQueue();
 
 
             void IScheduleAttachmentHooks.OnAfterGPUSkinning()
             {
-                //TODO: should only resolve gpu here, for now also cpu
+                //TODO: should cpu resolve be moved somewhere else? This ensures that any changes done in late update is taken into account
                 ResolveAttachmentsCPU(attachmentResolveQueueCPU);
                 ResolveAttachmentsGPU(attachmentResolveQueueGPU);
                 PruneUnusedAttachmentTargets();
             }
 
-            void IScheduleAttachmentHooks.OnAfterLateUpdate()
+            
+            
+            public void QueueExplicitAttachmentResolve(ISkinAttachment sam, bool resolveOnGPU)
             {
+                if (!MarkRendererUsed(sam.GetTargetRenderer())) return;
                 
+                if (resolveOnGPU)
+                {
+                    explicitAttachmentResolveQueueGPU.Add(sam);
+                }
+                else
+                {
+                    explicitAttachmentResolveQueueCPU.Add(sam);
+                }
+            }
+
+            public void ExecuteExplicitAttachmentResolveCPU()
+            {
+                ResolveAttachmentsCPU(explicitAttachmentResolveQueueCPU);
+            }
+            
+            public void ExecuteExplicitAttachmentResolveGPU()
+            {
+                ResolveAttachmentsGPU(explicitAttachmentResolveQueueGPU);
             }
 
             public void QueueAttachmentResolve(ISkinAttachment sam, bool resolveOnGPU)
             {
-                Renderer r = sam.GetTargetRenderer();
-
-                if (!IsValidAttachmentTarget(r))
-                {
-                    return;
-                }
-
-                //we don't really use the data here but call this to mark the renderer being used 
-                GetAttachmentTargetData(r);
+                if (!MarkRendererUsed(sam.GetTargetRenderer())) return;
 
                 if (resolveOnGPU)
                 {
@@ -189,6 +203,19 @@ namespace Unity.DemoTeam.DigitalHuman
                     info = data.meshInfo;
                 }
                 
+                return true;
+            }
+
+            bool MarkRendererUsed(Renderer r)
+            {
+                if (!IsValidAttachmentTarget(r))
+                {
+                    return false;
+                }
+
+                //we don't really use the data here but call this to mark the renderer being used 
+                GetAttachmentTargetData(r);
+
                 return true;
             }
             

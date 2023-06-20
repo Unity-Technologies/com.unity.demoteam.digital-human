@@ -27,6 +27,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public event Action<CommandBuffer> onSkinAttachmentMeshResolved;
 
         public bool IsAttached => common.attached;
+        public bool ScheduleExplicitly => common.explicitScheduling;
 
         private float meshAssetRadius;
         private Transform skinningBone;
@@ -55,6 +56,20 @@ namespace Unity.DemoTeam.DigitalHuman
             common.Detach(revertPositionRotation);
         }
 
+        public void QueueForResolve()
+        {
+            if (!common.explicitScheduling)
+            {
+                Debug.LogErrorFormat("Tried to call QueueForResolve for SkinAttachmentMesh {0} but explicit scheduling not enabled. Skipping", name);
+                return;
+            }
+            UpdateAttachedState();
+            if (common.hasValidState)
+            {
+                SkinAttachmentSystem.Inst.QueueExplicitAttachmentResolve(this, common.schedulingMode == SkinAttachmentComponentCommon.SchedulingMode.GPU);
+            }
+        }
+
         void OnEnable()
         {
             EnsureMeshInstance();
@@ -72,7 +87,7 @@ namespace Unity.DemoTeam.DigitalHuman
         void LateUpdate()
         {
             UpdateAttachedState();
-            if (common.hasValidState)
+            if (common.hasValidState && !common.explicitScheduling)
             {
                 SkinAttachmentSystem.Inst.QueueAttachmentResolve(this, common.schedulingMode == SkinAttachmentComponentCommon.SchedulingMode.GPU);
             }
@@ -450,7 +465,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (!GPUDataValid)
             {
-                SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(common.bakedItems, common.bakedPoses, 0, common.bakedItems.Length, 0, common.bakedPoses.Length, ref bakedAttachmentItemsGPU, ref bakedAttachmentPosesGPU);
+                SkinAttachmentSystem.UploadAttachmentPoseDataToGPU(common.bakedItems, common.bakedPoses, common.bakedItems.Length, common.bakedPoses.Length, ref bakedAttachmentItemsGPU, ref bakedAttachmentPosesGPU);
                 GPUDataValid = true;
             }
 
