@@ -185,9 +185,7 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         // convert to the same space as the attachment vertices
         targetBlended = mul(_PostSkinningToAttachmentTransform, float4(targetBlended, 1.f) ).xyz;
         baseNormal = mul(_PostSkinningToAttachmentTransform, float4(baseNormal, 0.f) ).xyz;
-        baseNormal = normalize(baseNormal);
         baseTangent = mul(_PostSkinningToAttachmentTransform, float4(baseTangent, 0.f) ).xyz;
-        baseTangent = normalize(baseTangent);
 
         float4 baseFrame = MakeQuaternionLookAt(baseNormal, baseTangent);
 
