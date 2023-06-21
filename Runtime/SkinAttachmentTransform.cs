@@ -5,13 +5,16 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace Unity.DemoTeam.DigitalHuman
 {
     using SkinAttachmentItem = SkinAttachmentItem3;
 
     [ExecuteAlways]
-    public class SkinAttachmentTransform : MonoBehaviour
+    public class SkinAttachmentTransform : MonoBehaviour, SkinAttachmentComponentCommon.ISkinAttachmentComponent
     {
         public static int TransformAttachmentBufferStride => c_transformAttachmentBufferStride;
         public int CurrentOffsetIntoGPUPositionsBuffer => currentOffsetToTransformGroup;
@@ -31,18 +34,17 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public void Attach(bool storePositionRotation = true)
         {
-            common.Attach(storePositionRotation);
+            common.Attach(this, storePositionRotation);
             UpdateAttachedState();
         }
 
         public void Detach(bool revertPositionRotation = true)
         {
-            common.Detach(revertPositionRotation);
+            common.Detach(this, revertPositionRotation);
         }
 
         void OnEnable()
         {
-            common.Init(this, BakeAttachmentPoses);
             common.LoadBakedData();
             UpdateAttachedState();
         }
@@ -75,12 +77,7 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             return common.currentTarget;
         }
-
-        public void EnsureBakedData()
-        {
-            common.EnsureBakedData();
-        }
-
+        
         public bool CanAttach()
         {
             return common.IsAttachmentTargetValid() && common.dataStorage != null && !IsAttached;
@@ -89,7 +86,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void UpdateAttachedState()
         {
-            common.UpdateAttachedState();
+            common.UpdateAttachedState(this);
         }
 
         static void BuildDataAttachSubject(in SkinAttachmentPose[] posesArray, in SkinAttachmentItem[] itemsArray,
@@ -262,5 +259,27 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 #endif
+        public SkinAttachmentComponentCommon GetCommonComponent()
+        {
+            return common;
+        }
+        
+        public bool BakeAttachmentData(SkinAttachmentComponentCommon.PoseBakeOutput output)
+        {
+            return BakeAttachmentPoses(output);
+        }
+
+        public void RevertPropertyOverrides()
+        {
+#if UNITY_EDITOR
+            var serializedObject = new UnityEditor.SerializedObject(this);
+            {
+                var checksumProperty = serializedObject.FindProperty(nameof(common)).FindPropertyRelative(nameof(common.checkSum));
+                PrefabUtility.RevertPropertyOverride(checksumProperty, UnityEditor.InteractionMode.AutomatedAction);
+            }
+
+            serializedObject.ApplyModifiedProperties();
+#endif
+        }
     }
 }

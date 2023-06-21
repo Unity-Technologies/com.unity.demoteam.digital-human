@@ -239,7 +239,10 @@ namespace Unity.DemoTeam.DigitalHuman
                     Debug.LogError(
                         "SkinAttachmentTarget unable to fetch vertex attribute buffers, unable to drive attachments");
                 }
-
+                
+                skinPositionsBuffer?.Release();
+                skinNormalsBuffer?.Release();
+                skinTangentsBuffer?.Release();
                 return false;
             }
 
@@ -265,7 +268,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
             desc.postSkinningTransform = postSkinningToAttachment;
-
+            desc.releaseGPUBuffersAfterResolve = true;
             return true;
         }
 
@@ -291,6 +294,10 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (skinPositionsBuffer == null || skinNormalsBuffer == null || skinTangentsBuffer == null)
             {
+                skinPositionsBuffer?.Release();
+                skinNormalsBuffer?.Release();
+                skinTangentsBuffer?.Release();
+                
                 Debug.LogError(
                     "SkinAttachmentTarget unable to fetch vertex attribute buffers, unable to drive attachments");
                 return false;

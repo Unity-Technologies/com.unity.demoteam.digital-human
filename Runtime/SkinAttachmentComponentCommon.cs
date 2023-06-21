@@ -4,10 +4,16 @@ using System.Collections.Generic;
 using Unity.DemoTeam.DigitalHuman;
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 namespace Unity.DemoTeam.DigitalHuman
 {
     using SkinAttachmentItem = SkinAttachmentItem3;
 
+    
+    
     [Serializable]
     public class SkinAttachmentComponentCommon
     {
@@ -15,6 +21,25 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             CPU,
             GPU
+        }
+
+        public enum BakedAttachmentDataRefreshMode
+        {
+            Automatic,
+            Manual
+        }
+        
+        public  class PoseBakeOutput
+        { 
+            public SkinAttachmentPose[] poses;
+            public SkinAttachmentItem[] items;
+        }
+        
+        public interface ISkinAttachmentComponent
+        {
+            SkinAttachmentComponentCommon GetCommonComponent();
+            bool BakeAttachmentData(PoseBakeOutput output);
+            void RevertPropertyOverrides();
         }
         
         internal struct BakeData
@@ -24,17 +49,13 @@ namespace Unity.DemoTeam.DigitalHuman
             public MeshIslands meshIslands;
         }
 
-        internal class PoseBakeOutput
-        { 
-            public SkinAttachmentPose[] poses;
-            public SkinAttachmentItem[] items;
-        }
+        
 
         public Renderer attachmentTarget;
         public SkinAttachmentDataStorage dataStorage;
         public SchedulingMode schedulingMode;
         public bool explicitScheduling = false;
-        public bool allowAutomaticRebake = false;        
+        public BakedAttachmentDataRefreshMode bakeRefreshMode = BakedAttachmentDataRefreshMode.Manual;     
 
         public bool IsAttached => attached;
         public Hash128 CheckSum => checkSum;
@@ -52,16 +73,9 @@ namespace Unity.DemoTeam.DigitalHuman
         
         
         internal bool hasValidState = false;
-        private MonoBehaviour attachment;
-        private Func<PoseBakeOutput, bool> bakeAttachmentsFunc;
 
-        internal void Init(MonoBehaviour att, Func<PoseBakeOutput, bool> bakeAttachmentPosesFunc)
-        {
-            attachment = att;
-            bakeAttachmentsFunc = bakeAttachmentPosesFunc;
-        }
 
-        internal void Attach(bool storePositionRotation = true)
+        internal void Attach(MonoBehaviour attachment, bool storePositionRotation = true)
         {
             if (storePositionRotation)
             {
@@ -70,9 +84,11 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
             attached = true;
+
+            UpdateAttachedState(attachment, true);
         }
 
-        internal void Detach(bool revertPositionRotation = true)
+        internal void Detach(MonoBehaviour attachment, bool revertPositionRotation = true)
         {
             if (revertPositionRotation)
             {
@@ -89,7 +105,7 @@ namespace Unity.DemoTeam.DigitalHuman
             return SkinAttachmentSystem.IsValidAttachmentTarget(attachmentTarget);
         }
 
-        internal void UpdateAttachedState()
+        internal void UpdateAttachedState(MonoBehaviour attachment, bool allowBakeRefresh = false)
         {
             hasValidState = false;
             if (attachmentTarget == null) return;
@@ -99,14 +115,14 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 attachmentTarget = null;
                 currentTarget = null;
-                Detach();
+                Detach(attachment);
                 return;
             }
 
             //target changed, detach
             if (currentTarget != attachmentTarget && currentTarget != null)
             {
-                Detach();
+                Detach(attachment);
                 return;
             }
 
@@ -122,43 +138,99 @@ namespace Unity.DemoTeam.DigitalHuman
                 ValidateDataStorage();
                 if (currentStorage != null)
                 {
-                    EnsureBakedData();
+                    if (bakeRefreshMode == BakedAttachmentDataRefreshMode.Automatic || allowBakeRefresh)
+                    {
+                        if (currentTarget == null)
+                        {
+                            BakeAttachmentDataToSceneOrPrefab(attachment);
+                        }
+                    }
                 }
-                
-
                 hasValidState = currentTarget != null && ValidateBakedData();
             }
         }
 
-        public void EnsureBakedData(bool forceRebake = false)
+        public bool BakeAttachmentDataToSceneOrPrefab(MonoBehaviour attachment)
         {
-            if (allowAutomaticRebake || forceRebake)
-            {
-                if (currentTarget == null || forceRebake)
-                {
-                    bool bakeSuccessfull = BakeAndStoreData();
-                    if (bakeSuccessfull)
-                    {
-                        currentTarget = attachmentTarget;
-                    }
-                }
-                else if (!ValidateBakedData())
-                {
-                    bool bakeSuccessfull = BakeAndStoreData();
-                }
-            }
+            bool succesfull = true;
+#if UNITY_EDITOR
+            var isPrefabInstance = UnityEditor.PrefabUtility.IsPartOfPrefabInstance(attachment);
             
+            if (isPrefabInstance)
+            {  
+                succesfull = BakeAttachmentDataToPrefab(attachment);
+            }
+            else
+            {
+                succesfull = BakeAttachmentData(attachment);
+            }
+#endif
+            return succesfull;
+        }
+        
+        private bool BakeAttachmentData(MonoBehaviour attachment)
+        {
+            bool bakeSuccessfull = BakeAndStoreData(attachment);
+            if (bakeSuccessfull)
+            {
+                currentTarget = attachmentTarget;
+            }
+
+            return bakeSuccessfull;
         }
 
-		private bool BakeAndStoreData()
+        private bool BakeAttachmentDataToPrefab(MonoBehaviour attachment)
+        {
+#if UNITY_EDITOR		
+            var prefabAttachment = PrefabUtility.GetCorrespondingObjectFromOriginalSource(attachment);
+                
+            var prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(prefabAttachment);
+#if UNITY_2021_2_OR_NEWER
+            var prefabStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+#else
+            var prefabStage = Experimental.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+#endif
+            GameObject prefabContainer = null;
+            
+            if (prefabStage == null || prefabStage.assetPath != prefabPath)
+            {
+                Debug.LogFormat(attachment, "{0}: rebaking attachment data for prefab '{1}'...", attachment.name, prefabPath);
+                prefabContainer = PrefabUtility.LoadPrefabContents(prefabPath);
+            }
+
+            ISkinAttachmentComponent attachmentComponentInterfacePrefab =
+                prefabAttachment as ISkinAttachmentComponent;
+            
+            if(attachmentComponentInterfacePrefab != null)
+            {
+                attachmentComponentInterfacePrefab.GetCommonComponent().BakeAttachmentData(prefabAttachment);
+            }
+            
+
+            if (prefabContainer != null)
+            {
+                PrefabUtility.SaveAsPrefabAsset(prefabContainer, prefabPath);
+                PrefabUtility.UnloadPrefabContents(prefabContainer);
+            }
+    
+            //revert the instances overrides
+            ISkinAttachmentComponent attachmentComponentInterfaceInstance =
+                prefabAttachment as ISkinAttachmentComponent;
+            attachmentComponentInterfaceInstance?.RevertPropertyOverrides();
+#endif
+            return true;
+        }
+
+		private bool BakeAndStoreData(MonoBehaviour attachment)
 		{
 			PoseBakeOutput bakeOutput = new PoseBakeOutput();
 			bakeOutput.items = default;
             bakeOutput.poses = default;
-            bool bakeSuccessfull = bakeAttachmentsFunc(bakeOutput);
+            ISkinAttachmentComponent attachmentComponent = attachment as ISkinAttachmentComponent;
+            bool bakeSuccessfull = attachmentComponent?.BakeAttachmentData(bakeOutput) ?? false;
 			if (bakeSuccessfull)
             {
-                StoreBakedData( bakeOutput.items, bakeOutput.poses);
+                StoreBakedData(attachment, bakeOutput.items, bakeOutput.poses);
             }
 			return bakeSuccessfull;
 		}
@@ -179,17 +251,18 @@ namespace Unity.DemoTeam.DigitalHuman
             currentStorage = dataStorage;
         }
 
-        internal void StoreBakedData(SkinAttachmentItem[] items, SkinAttachmentPose[] poses)
+        internal void StoreBakedData(MonoBehaviour attachment, SkinAttachmentItem[] items, SkinAttachmentPose[] poses)
         {
             if (currentStorage != null)
             {
+                string name = attachment != null ? attachment.name : "<unnamed>";
                 if (checkSum.isValid)
                 {
-                    checkSum = currentStorage.UpdateAttachmentData(attachment.name, poses, items, checkSum);
+                    checkSum = currentStorage.UpdateAttachmentData(name, poses, items, checkSum);
                 }
                 else
                 {
-                    checkSum = currentStorage.StoreAttachmentData(attachment.name, poses, items);
+                    checkSum = currentStorage.StoreAttachmentData(name, poses, items);
                 }
 
 #if UNITY_EDITOR

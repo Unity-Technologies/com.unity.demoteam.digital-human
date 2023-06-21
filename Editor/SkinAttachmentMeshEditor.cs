@@ -61,6 +61,13 @@ namespace Unity.DemoTeam.DigitalHuman
                 EditorGUILayout.HelpBox("SkinAttachmentDataStorage needs to be assigned before attaching!",
                     MessageType.Error);
             }
+            else
+            {
+                if (GUILayout.Button("Rebake"))
+                {
+                    attachment.common.BakeAttachmentDataToSceneOrPrefab(attachment);
+                }
+            }
         }
 
         public void DrawGuiSettings(SkinAttachmentMesh attachment)
@@ -72,6 +79,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 attachment.attachmentType = (SkinAttachmentMesh.MeshAttachmentType)EditorGUILayout.EnumPopup("AttachmentType: ", attachment.attachmentType);
                 attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
                 attachment.common.explicitScheduling = EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
+                attachment.common.bakeRefreshMode = (SkinAttachmentComponentCommon.BakedAttachmentDataRefreshMode)EditorGUILayout.EnumPopup("Rebake Mode: ", attachment.common.bakeRefreshMode);
                 EditorGUILayout.EndVertical();
             }
 

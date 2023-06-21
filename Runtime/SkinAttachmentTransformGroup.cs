@@ -45,6 +45,10 @@ namespace Unity.DemoTeam.DigitalHuman
                 RenderPipelineManager.endContextRendering += EndContextRendering;
                 Camera.onPostRender += OnPostRender;
                 s_initialized = true;
+                
+#if UNITY_EDITOR
+				UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += () => Inst.ReleaseUnusedResources(-1);
+#endif
             }
         }
 
