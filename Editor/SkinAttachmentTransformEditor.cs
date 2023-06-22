@@ -71,7 +71,6 @@ namespace Unity.DemoTeam.DigitalHuman
 				EditorGUILayout.BeginVertical();
 				attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
 				attachment.common.explicitScheduling = EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
-				attachment.common.bakeRefreshMode = (SkinAttachmentComponentCommon.BakedAttachmentDataRefreshMode)EditorGUILayout.EnumPopup("Rebake Mode: ", attachment.common.bakeRefreshMode);
 				EditorGUILayout.EndVertical();
 				
 			}

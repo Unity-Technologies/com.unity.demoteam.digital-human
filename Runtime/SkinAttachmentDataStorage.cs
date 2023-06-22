@@ -19,6 +19,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			public Hash128 hashKey;
 			public string entryName;
 			public int dataStorageIndex;
+			public DateTime timestamp;
 		}
 
 		[Serializable]
@@ -104,7 +105,8 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				hashKey = newHash,
 				dataStorageIndex = dataStorage.Length - 1,
-				entryName = entryName
+				entryName = entryName,
+				timestamp = DateTime.Now.ToUniversalTime()
 			};
 
 

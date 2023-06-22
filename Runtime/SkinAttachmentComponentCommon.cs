@@ -55,7 +55,6 @@ namespace Unity.DemoTeam.DigitalHuman
         public SkinAttachmentDataStorage dataStorage;
         public SchedulingMode schedulingMode;
         public bool explicitScheduling = false;
-        public BakedAttachmentDataRefreshMode bakeRefreshMode = BakedAttachmentDataRefreshMode.Manual;     
 
         public bool IsAttached => attached;
         public Hash128 CheckSum => checkSum;
@@ -133,19 +132,21 @@ namespace Unity.DemoTeam.DigitalHuman
                     hasValidState = false;
                     return;
                 }
-
-
+                
                 ValidateDataStorage();
+
                 if (currentStorage != null)
                 {
-                    if (bakeRefreshMode == BakedAttachmentDataRefreshMode.Automatic || allowBakeRefresh)
+                    if (allowBakeRefresh)
                     {
-                        if (currentTarget == null)
+                        bool needRebake = currentTarget == null;
+                        if (needRebake)
                         {
                             BakeAttachmentDataToSceneOrPrefab(attachment);
                         }
                     }
                 }
+
                 hasValidState = currentTarget != null && ValidateBakedData();
             }
         }
@@ -215,7 +216,7 @@ namespace Unity.DemoTeam.DigitalHuman
     
             //revert the instances overrides
             ISkinAttachmentComponent attachmentComponentInterfaceInstance =
-                prefabAttachment as ISkinAttachmentComponent;
+                attachment as ISkinAttachmentComponent;
             attachmentComponentInterfaceInstance?.RevertPropertyOverrides();
 #endif
             return true;
@@ -285,7 +286,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         internal bool ValidateBakedData()
         {
-            bool dataExists = currentStorage != null && bakedPoses != null && bakedItems != null;
+            bool dataExists = currentStorage != null && bakedPoses != null && bakedItems != null && bakedPoses.Length > 0 && bakedItems.Length > 0;
             return dataExists;
         }
     }

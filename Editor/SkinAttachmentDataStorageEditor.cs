@@ -44,6 +44,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			EditorGUILayout.HelpBox(
 				"hash: " + entry.hashKey
 				+ "\nname: " + entry.entryName 
+				+ "\nbaked: " + entry.timestamp
 				+ "\nitemCount:" + (items == null ? "0" : + items.Length)
 				+ "\nposeCount:" + (poses == null ? "0" : + poses.Length)
 				,MessageType.None);

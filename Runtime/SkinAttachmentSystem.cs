@@ -45,12 +45,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private static Instance s_instance;
         
         
-#if UNITY_EDITOR
-        [UnityEditor.InitializeOnLoadMethod]
-#else
-		[RuntimeInitializeOnLoadMethod]
-#endif
-        static void StaticInitialize()
+        static SkinAttachmentSystem()
         {
             if (s_initialized == false)
             {

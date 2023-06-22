@@ -36,6 +36,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 DrawGUIAttachmentDataStorage(attachment);
                 DrawGUIAttachmentTarget(attachment);
                 DrawGuiSettings(attachment);
+                DrawValidationInfo(attachment);
             }
         }
 
@@ -76,10 +77,15 @@ namespace Unity.DemoTeam.DigitalHuman
             if (settingsToggled)
             {
                 EditorGUILayout.BeginVertical();
-                attachment.attachmentType = (SkinAttachmentMesh.MeshAttachmentType)EditorGUILayout.EnumPopup("AttachmentType: ", attachment.attachmentType);
-                attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
-                attachment.common.explicitScheduling = EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
-                attachment.common.bakeRefreshMode = (SkinAttachmentComponentCommon.BakedAttachmentDataRefreshMode)EditorGUILayout.EnumPopup("Rebake Mode: ", attachment.common.bakeRefreshMode);
+                attachment.attachmentType =
+                    (SkinAttachmentMesh.MeshAttachmentType)EditorGUILayout.EnumPopup("AttachmentType: ",
+                        attachment.attachmentType);
+                attachment.common.schedulingMode =
+                    (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ",
+                        attachment.common.schedulingMode);
+                attachment.common.explicitScheduling =
+                    EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
+
                 EditorGUILayout.EndVertical();
             }
 
@@ -118,6 +124,29 @@ namespace Unity.DemoTeam.DigitalHuman
                 }
             }
             EditorGUI.EndDisabledGroup();
+        }
+
+        public void DrawValidationInfo(SkinAttachmentMesh attachment)
+        {
+            if (!attachment.IsAttachmentMeshValid())
+            {
+                if (attachment.meshAsset == null)
+                {
+                    EditorGUILayout.HelpBox("SkinAttachmentMesh is null!", MessageType.Error);
+                }
+                else
+                {
+                    if (!attachment.meshAsset.isReadable)
+                    {
+                        EditorGUILayout.HelpBox("SkinAttachmentMesh is not readable! Enable read/write from asset settings" , MessageType.Error);
+                    }
+                }
+            }
+
+            if (!attachment.ValidateBakedData())
+            {
+                EditorGUILayout.HelpBox("Baked data is invalid, rebake needed" , MessageType.Error);
+            }
         }
     }
 }
