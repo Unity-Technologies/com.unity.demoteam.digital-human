@@ -37,6 +37,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 DrawGUIAttachmentTarget(attachment);
                 DrawGuiSettings(attachment);
                 DrawValidationInfo(attachment);
+                DrawGuiDebug(attachment);
             }
         }
 
@@ -77,14 +78,10 @@ namespace Unity.DemoTeam.DigitalHuman
             if (settingsToggled)
             {
                 EditorGUILayout.BeginVertical();
-                attachment.attachmentType =
-                    (SkinAttachmentMesh.MeshAttachmentType)EditorGUILayout.EnumPopup("AttachmentType: ",
-                        attachment.attachmentType);
-                attachment.common.schedulingMode =
-                    (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ",
-                        attachment.common.schedulingMode);
-                attachment.common.explicitScheduling =
-                    EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
+                attachment.attachmentType = (SkinAttachmentMesh.MeshAttachmentType)EditorGUILayout.EnumPopup("AttachmentType: ", attachment.attachmentType);
+                attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
+                attachment.common.explicitScheduling = EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
+                attachment.common.explicitBakeMesh = (Mesh)EditorGUILayout.ObjectField("explicit mesh for baking (optional):",attachment.common.explicitBakeMesh, typeof(Mesh), false);
 
                 EditorGUILayout.EndVertical();
             }
@@ -124,6 +121,19 @@ namespace Unity.DemoTeam.DigitalHuman
                 }
             }
             EditorGUI.EndDisabledGroup();
+        }
+        
+        public void DrawGuiDebug(SkinAttachmentMesh attachment)
+        {
+            debugToggled = EditorGUILayout.BeginFoldoutHeaderGroup(debugToggled, "Debug");
+            if (debugToggled)
+            {
+                EditorGUILayout.BeginVertical();
+                attachment.common.showAttachmentTargetForBaking = EditorGUILayout.Toggle("Draw Bake target: ", attachment.common.showAttachmentTargetForBaking);
+                EditorGUILayout.EndVertical();
+				
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
         }
 
         public void DrawValidationInfo(SkinAttachmentMesh attachment)

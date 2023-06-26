@@ -199,15 +199,36 @@ namespace Unity.DemoTeam.DigitalHuman
             item = common.bakedItems[0];
             return true;
         }
+        
+        public SkinAttachmentComponentCommon GetCommonComponent()
+        {
+            return common;
+        }
+        
+        public bool BakeAttachmentData(SkinAttachmentComponentCommon.PoseBakeOutput output)
+        {
+            return BakeAttachmentPoses(output);
+        }
 
-
+        public void RevertPropertyOverrides()
+        {
 #if UNITY_EDITOR
+            var serializedObject = new UnityEditor.SerializedObject(this);
+            {
+                var checksumProperty = serializedObject.FindProperty(nameof(common)).FindPropertyRelative(nameof(common.checkSum));
+                PrefabUtility.RevertPropertyOverride(checksumProperty, UnityEditor.InteractionMode.AutomatedAction);
+            }
+
+            serializedObject.ApplyModifiedProperties();
+#endif
+        }
+        
+        #if UNITY_EDITOR
         public void OnDrawGizmosSelected()
         {
-            if (IsAttached)
-            {
-            }
-            else
+            common.DrawDebug(this);
+            
+            if (!IsAttached)
             {
                 DrawDistanceToClosestPointSphere();
             }
@@ -259,27 +280,6 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 #endif
-        public SkinAttachmentComponentCommon GetCommonComponent()
-        {
-            return common;
-        }
         
-        public bool BakeAttachmentData(SkinAttachmentComponentCommon.PoseBakeOutput output)
-        {
-            return BakeAttachmentPoses(output);
-        }
-
-        public void RevertPropertyOverrides()
-        {
-#if UNITY_EDITOR
-            var serializedObject = new UnityEditor.SerializedObject(this);
-            {
-                var checksumProperty = serializedObject.FindProperty(nameof(common)).FindPropertyRelative(nameof(common.checkSum));
-                PrefabUtility.RevertPropertyOverride(checksumProperty, UnityEditor.InteractionMode.AutomatedAction);
-            }
-
-            serializedObject.ApplyModifiedProperties();
-#endif
-        }
     }
 }

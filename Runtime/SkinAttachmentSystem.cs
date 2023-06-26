@@ -200,40 +200,8 @@ namespace Unity.DemoTeam.DigitalHuman
                 
                 return true;
             }
-
-            bool MarkRendererUsed(Renderer r)
-            {
-                if (!IsValidAttachmentTarget(r))
-                {
-                    return false;
-                }
-
-                //we don't really use the data here but call this to mark the renderer being used 
-                GetAttachmentTargetData(r);
-
-                return true;
-            }
             
-            void PruneUnusedAttachmentTargets()
-            {
-                const int framesToDelete = 120;
-                int frameCount = Time.frameCount;
-                List<Renderer> entriesToRemove = new List<Renderer>();
-                foreach (var entry in attachmentTargetDict)
-                {
-                    if ((frameCount - entry.Value.lastTargetUsedFrame) > framesToDelete)
-                    {
-                        entriesToRemove.Add(entry.Key);
-                    }
-                }
-
-                foreach (var removeEntry in entriesToRemove)
-                {
-                    attachmentTargetDict.Remove(removeEntry);
-                }
-            }
-            
-            Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh = null)
+            public Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh = null)
             {
                 if (!IsValidAttachmentTarget(r)) return null;
                 
@@ -275,6 +243,40 @@ namespace Unity.DemoTeam.DigitalHuman
                 return bakeMesh;
 
             }
+
+            bool MarkRendererUsed(Renderer r)
+            {
+                if (!IsValidAttachmentTarget(r))
+                {
+                    return false;
+                }
+
+                //we don't really use the data here but call this to mark the renderer being used 
+                GetAttachmentTargetData(r);
+
+                return true;
+            }
+            
+            void PruneUnusedAttachmentTargets()
+            {
+                const int framesToDelete = 120;
+                int frameCount = Time.frameCount;
+                List<Renderer> entriesToRemove = new List<Renderer>();
+                foreach (var entry in attachmentTargetDict)
+                {
+                    if ((frameCount - entry.Value.lastTargetUsedFrame) > framesToDelete)
+                    {
+                        entriesToRemove.Add(entry.Key);
+                    }
+                }
+
+                foreach (var removeEntry in entriesToRemove)
+                {
+                    attachmentTargetDict.Remove(removeEntry);
+                }
+            }
+            
+            
 
             bool EnsureRuntimeMeshBuffers(Renderer renderer, AttachmentTargetData attachmentTargetData)
             {

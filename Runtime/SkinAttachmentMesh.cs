@@ -585,5 +585,13 @@ namespace Unity.DemoTeam.DigitalHuman
             serializedObject.ApplyModifiedProperties();
             #endif
         }
+        
+#if UNITY_EDITOR
+        public void OnDrawGizmosSelected()
+        {
+            common.DrawDebug(this);
+        }
+#endif
+        
     }
 }

@@ -71,6 +71,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				EditorGUILayout.BeginVertical();
 				attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
 				attachment.common.explicitScheduling = EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
+				attachment.common.explicitBakeMesh = (Mesh)EditorGUILayout.ObjectField("explicit mesh for baking (optional):",attachment.common.explicitBakeMesh, typeof(Mesh), false);
 				EditorGUILayout.EndVertical();
 				
 			}
@@ -84,6 +85,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				EditorGUILayout.BeginVertical();
 				attachment.readbackTransformFromGPU = EditorGUILayout.Toggle("Readback positions from GPU: ", attachment.readbackTransformFromGPU);
+				attachment.common.showAttachmentTargetForBaking = EditorGUILayout.Toggle("Draw Bake target: ", attachment.common.showAttachmentTargetForBaking);
 				EditorGUILayout.EndVertical();
 				
 			}

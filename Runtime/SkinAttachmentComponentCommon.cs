@@ -55,9 +55,12 @@ namespace Unity.DemoTeam.DigitalHuman
         public SkinAttachmentDataStorage dataStorage;
         public SchedulingMode schedulingMode;
         public bool explicitScheduling = false;
+        public Mesh explicitBakeMesh = null;
 
         public bool IsAttached => attached;
         public Hash128 CheckSum => checkSum;
+
+        public bool showAttachmentTargetForBaking = false;
         
         [SerializeField] [HideInInspector] internal bool attached = false;
         [SerializeField] [HideInInspector] internal Vector3 attachedLocalPosition;
@@ -69,8 +72,6 @@ namespace Unity.DemoTeam.DigitalHuman
         internal SkinAttachmentPose[] bakedPoses;
         internal SkinAttachmentItem[] bakedItems;
 
-        
-        
         internal bool hasValidState = false;
 
 
@@ -289,5 +290,26 @@ namespace Unity.DemoTeam.DigitalHuman
             bool dataExists = currentStorage != null && bakedPoses != null && bakedItems != null && bakedPoses.Length > 0 && bakedItems.Length > 0;
             return dataExists;
         }
+#if UNITY_EDITOR
+        internal void DrawDebug(MonoBehaviour attachment)
+        {
+            if (showAttachmentTargetForBaking && IsAttachmentTargetValid())
+            {
+                var prevMatrix = Gizmos.matrix;
+                var prevColor = Gizmos.color;
+                
+                Gizmos.matrix = attachmentTarget.transform.localToWorldMatrix;
+                var color = Color.yellow;
+                color.a = 0.5f;
+                Gizmos.color = color;
+                
+                Mesh m = SkinAttachmentSystem.Inst.GetPoseBakeMesh(attachmentTarget, explicitBakeMesh);
+                Gizmos.DrawMesh(m);
+                
+                Gizmos.matrix = prevMatrix;
+                Gizmos.color = prevColor;
+            }
+        }
+#endif
     }
 }
