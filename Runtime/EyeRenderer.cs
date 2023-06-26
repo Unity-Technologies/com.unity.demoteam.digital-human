@@ -149,9 +149,12 @@ namespace Unity.DemoTeam.DigitalHuman
 
 #if UNITY_2021_2_OR_NEWER
         private List<SkinAttachment> markerAttachments = new List<SkinAttachment>();
+        
         private static ComputeShader s_computeASGParamsShader = null;
         private static int s_computeASGParamsKernel;
         private bool isHookedToSkinAttachmentTarget = false;
+        private List<SkinAttachmentTransform> markerAttachments2= new List<SkinAttachmentTransform>();
+        private int numberOfAttachment2callbacks = -1;
 #endif
         
         private Vector3[] markerPositions = new Vector3[4];
@@ -187,7 +190,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private void OnDisable()
         {
 #if UNITY_2021_2_OR_NEWER
-            HookIntoSkinAttachmentTarget(false);
+            HookIntoSkinAttachments(false);
 #endif
             asgParametersBuffer.Dispose();
             asgParametersBuffer = null;
@@ -333,7 +336,7 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 #if UNITY_2021_2_OR_NEWER
 
-        void HookIntoSkinAttachmentTarget(bool val)
+        void HookIntoSkinAttachments(bool val)
         {
             if (markerAttachmentTarget != null)
             {
@@ -345,24 +348,57 @@ namespace Unity.DemoTeam.DigitalHuman
 
                 isHookedToSkinAttachmentTarget = markerAttachmentTarget.executeOnGPU && val;
             }
+            else
+            {
+                if (markerAttachments2.Count == 4)
+                {
+                    if (val)
+                    {
+                        numberOfAttachment2callbacks = 0;
+                    }
+                    foreach (var att in markerAttachments2)
+                    {
+                        att.onSkinAttachmentTransformResolved -= UpdateAfterAttachmentResolve2;
+                        if (val)
+                        {
+                            att.onSkinAttachmentTransformResolved += UpdateAfterAttachmentResolve2;
+                        }
+                    }
+                }
+            }
             
         }
         
         void ASGParameterUpdateGPU()
         {
             CommandBuffer cmd = CommandBufferPool.Get("Calculate Eye Occlusion Parameters");
-                
-            var attachmentTarget = markerAttachmentTarget;
-            GraphicsBuffer attachmentBuffer = attachmentTarget.TransformAttachmentGPUPositionBuffer;
-            
-            int attachmentBufferStride = attachmentTarget.TransformAttachmentGPUPositionBufferStride;
-            int[] attachmentOffsets =
+
+            GraphicsBuffer attachmentBuffer = null;
+            int[] attachmentOffsets = new int[4];
+            if (markerAttachmentTarget != null)
             {
-                markerAttachments[0].TransformAttachmentGPUBufferIndex * attachmentBufferStride,
-                markerAttachments[1].TransformAttachmentGPUBufferIndex * attachmentBufferStride,
-                markerAttachments[2].TransformAttachmentGPUBufferIndex * attachmentBufferStride,
-                markerAttachments[3].TransformAttachmentGPUBufferIndex * attachmentBufferStride
-            };
+                var attachmentTarget = markerAttachmentTarget;
+                attachmentBuffer = attachmentTarget.TransformAttachmentGPUPositionBuffer;
+            
+                int attachmentBufferStride = attachmentTarget.TransformAttachmentGPUPositionBufferStride;
+
+                attachmentOffsets[0] = markerAttachments[0].TransformAttachmentGPUBufferIndex * attachmentBufferStride;
+                attachmentOffsets[1] = markerAttachments[1].TransformAttachmentGPUBufferIndex * attachmentBufferStride;
+                attachmentOffsets[2] = markerAttachments[2].TransformAttachmentGPUBufferIndex * attachmentBufferStride;
+                attachmentOffsets[3] = markerAttachments[3].TransformAttachmentGPUBufferIndex * attachmentBufferStride;
+            }
+            else
+            {
+                int attachmentBufferStride = SkinAttachmentTransform.TransformAttachmentBufferStride;
+
+                attachmentBuffer = markerAttachments2[0].CurrentGPUPositionsBuffer;
+                
+                attachmentOffsets[0] = markerAttachments2[0].CurrentOffsetIntoGPUPositionsBuffer * attachmentBufferStride;
+                attachmentOffsets[1] = markerAttachments2[1].CurrentOffsetIntoGPUPositionsBuffer * attachmentBufferStride;
+                attachmentOffsets[2] = markerAttachments2[2].CurrentOffsetIntoGPUPositionsBuffer * attachmentBufferStride;
+                attachmentOffsets[3] = markerAttachments2[3].CurrentOffsetIntoGPUPositionsBuffer * attachmentBufferStride;
+            }
+            
 
             if (attachmentBuffer == null) return;
             
@@ -430,33 +466,73 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
         
+        void UpdateAfterAttachmentResolve2(CommandBuffer cmd)
+        {
+            if (++numberOfAttachment2callbacks == 4)
+            {
+                UpdateEyeRenderer();
+            }
+        }
+        
         
 #endif
 
-        void SetupASGParameters()
+        void GatherSkinAttachments()
         {
 #if UNITY_2021_2_OR_NEWER
             markerAttachments.Clear();
-            for (int i = 0; i < 4; ++i)
+            markerAttachments2.Clear();
+
+            if (markerAttachmentTarget != null)
             {
-                var child = asgMarkerPolygon.GetChild(i);
-                markerPositions[i] = child.position;
-                
-                SkinAttachment attachment;
-                if (markerAttachmentTarget != null)
+                for (int i = 0; i < 4; ++i)
                 {
+                    var child = asgMarkerPolygon.GetChild(i);
+                    markerPositions[i] = child.position;
+                
+                    SkinAttachment attachment;
+                    if (markerAttachmentTarget != null)
+                    {
+                        if (child.TryGetComponent(out attachment))
+                        {
+                            if (attachment.target == markerAttachmentTarget)
+                            {
+                                markerAttachments.Add(attachment);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                Renderer attachmentTarget = null;
+                for (int i = 0; i < 4; ++i)
+                {
+                    var child = asgMarkerPolygon.GetChild(i);
+                    markerPositions[i] = child.position;
+                
+                    SkinAttachmentTransform attachment;
+
                     if (child.TryGetComponent(out attachment))
                     {
-                        if (attachment.target == markerAttachmentTarget)
+                        if (attachment.common.schedulingMode == SkinAttachmentComponentCommon.SchedulingMode.GPU && (attachmentTarget == null || attachmentTarget == attachment.GetTargetRenderer()))
                         {
-                            markerAttachments.Add(attachment);
+                            markerAttachments2.Add(attachment);
+                            attachmentTarget = attachment.GetTargetRenderer();
                         }
                     }
                 }
             }
             
-            bool calculateOnGPU = s_computeASGParamsShader != null && markerAttachmentTarget != null &&
-                                  markerAttachmentTarget.executeOnGPU && markerAttachments.Count == 4;
+#endif
+        }
+        
+        void SetupASGParameters()
+        {
+#if UNITY_2021_2_OR_NEWER
+            bool calculateOnGPU = s_computeASGParamsShader != null && 
+                                  ((markerAttachmentTarget != null && markerAttachmentTarget.executeOnGPU && markerAttachments.Count == 4)
+                                   || (markerAttachments2.Count == 4));
             cpuOcclusionParametersValid = !calculateOnGPU;
             if (calculateOnGPU)
             {
@@ -484,18 +560,23 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void LateUpdate()
         {
+            GatherSkinAttachments();
+            
 #if UNITY_2021_2_OR_NEWER
             
-            if (markerAttachmentTarget == null || !markerAttachmentTarget.executeOnGPU)
+            bool calculateOnGPU = s_computeASGParamsShader != null && 
+                                  ((markerAttachmentTarget != null && markerAttachmentTarget.executeOnGPU && markerAttachments.Count == 4)
+                                   || (markerAttachments2.Count == 4));
+            
+            if (!calculateOnGPU)
             {
                 UpdateEyeRenderer();
             }
             else
             {
-                if (!isHookedToSkinAttachmentTarget)
-                {
-                    HookIntoSkinAttachmentTarget(true);
-                }
+                isHookedToSkinAttachmentTarget = false;
+                HookIntoSkinAttachments(true);
+                
             }
 #else
             UpdateEyeRenderer();
