@@ -55,8 +55,10 @@ namespace Unity.DemoTeam.DigitalHuman
 #if UNITY_2021_2_OR_NEWER
         private GraphicsBuffer occlusionMarkerIndicesBuffer;
         private List<SkinAttachment> gatheredAttachments = new List<SkinAttachment>();
-        private bool isHookedToSkinAttachmentTarget = false;
+        private bool isHookedToSkinAttachments = false;
         private bool cpuOcclusionParametersValid = true;
+        private List<SkinAttachmentTransform> gatheredAttachments2 = new List<SkinAttachmentTransform>();
+        private int numberOfAttachment2callbacks = -1;
 #endif
         void Awake()
         {
@@ -83,7 +85,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 occlusionMarkerIndicesBuffer = null;
             }
 
-            HookIntoSkinAttachmentTarget(false);
+            HookIntoSkinAttachments(false);
 #endif
         }
 
@@ -127,7 +129,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
 #if UNITY_2021_2_OR_NEWER
-            if (markerAttachmentTarget != null && markerAttachmentTarget.executeOnGPU)
+            if (AreAttachmentsResolvedOnGPU())
             {
                 if (occlusionMarkerIndicesBuffer != null &&
                     (!needsIndirection || (occlusionMarkerIndicesBuffer.count != vertexData.Length)))
@@ -172,7 +174,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
         
-        void HookIntoSkinAttachmentTarget(bool enabled)
+        void HookIntoSkinAttachments(bool enabled)
         {
             if (markerAttachmentTarget != null)
             {
@@ -182,7 +184,25 @@ namespace Unity.DemoTeam.DigitalHuman
                     markerAttachmentTarget.afterGPUAttachmentWorkCommitted += UpdateAfterAttachmentResolve;
                 }
 
-                isHookedToSkinAttachmentTarget = markerAttachmentTarget.executeOnGPU && enabled;
+                isHookedToSkinAttachments = markerAttachmentTarget.executeOnGPU && enabled;
+            }
+            else
+            {
+                if (gatheredAttachments2.Count > 0)
+                {
+                    if (enabled)
+                    {
+                        numberOfAttachment2callbacks = 0;
+                    }
+                    foreach (var att in gatheredAttachments2)
+                    {
+                        att.onSkinAttachmentTransformResolved -= UpdateAfterAttachmentResolve2;
+                        if (enabled)
+                        {
+                            att.onSkinAttachmentTransformResolved += UpdateAfterAttachmentResolve2;
+                        }
+                    }
+                }
             }
             
         }
@@ -190,7 +210,11 @@ namespace Unity.DemoTeam.DigitalHuman
         void GatherAttachmentMarkers(Attenuation attenuation)
         {
             gatheredAttachments.Clear();
+            gatheredAttachments2.Clear();
             SkinAttachment attachmentOut;
+            SkinAttachmentTransform attachmentOut2;
+            
+            //old attachmentsystem
             switch (attenuation)
             {
                 case Attenuation.Linear:
@@ -218,6 +242,50 @@ namespace Unity.DemoTeam.DigitalHuman
 
                     break;
             }
+            
+            //new attachment system
+            if(gatheredAttachments.Count == 0)
+            {
+                Renderer previousAttachmentTarget = null;
+                var addMarkerFunc = new Action<SkinAttachmentTransform>((SkinAttachmentTransform marker) =>
+                {
+                    if (marker.common.schedulingMode == SkinAttachmentComponentCommon.SchedulingMode.GPU && (previousAttachmentTarget == null || previousAttachmentTarget == marker.GetTargetRenderer()))
+                    {
+                        gatheredAttachments2.Add(marker);
+                        previousAttachmentTarget = marker.GetTargetRenderer();
+                    }
+                });
+                
+
+                switch (attenuation)
+                {
+                    case Attenuation.Linear:
+
+                        if (linearFront.TryGetComponent(out attachmentOut2))
+                        {
+                            addMarkerFunc(attachmentOut2);
+                        }
+
+                        if (linearBack.TryGetComponent(out attachmentOut2))
+                        {
+                            addMarkerFunc(attachmentOut2);
+                        }
+
+                        break;
+
+                    case Attenuation.SkyPolygon:
+                        for (int i = 0; i < Mathf.Min(vertexLimit, skyPolygonContainer.childCount); ++i)
+                        {
+                            if (skyPolygonContainer.GetChild(i).TryGetComponent(out attachmentOut2))
+                            {
+                                addMarkerFunc(attachmentOut2);
+                            }
+                        }
+
+                        break;
+                }
+            }
+            
         }
         
         void UpdateAfterAttachmentResolve()
@@ -227,55 +295,26 @@ namespace Unity.DemoTeam.DigitalHuman
                 UpdateTeethRendererParameters();
             }
         }
-#endif
-
-        void LateUpdate()
+        
+        void UpdateAfterAttachmentResolve2(CommandBuffer cmd)
         {
-#if UNITY_2021_2_OR_NEWER
-            
-            if (markerAttachmentTarget == null || !markerAttachmentTarget.executeOnGPU)
+            if (++numberOfAttachment2callbacks == gatheredAttachments2.Count)
             {
                 UpdateTeethRendererParameters();
             }
-            else
-            {
-                if (!isHookedToSkinAttachmentTarget)
-                {
-                    HookIntoSkinAttachmentTarget(true);
-                }
-            }
-            
-#else
-            UpdateTeethRendererParameters();
-#endif
 
         }
+#endif
 
-        void UpdateTeethRendererParameters()
+        bool AreAttachmentsResolvedOnGPU()
         {
-            var outputAttn = mode;
-            var outputSize = 0;
-
-            switch (outputAttn)
-            {
-                case Attenuation.None:
-                    break;
-
-                case Attenuation.Linear:
-                    if (linearFront == null || linearBack == null)
-                        outputAttn = Attenuation.None;
-                    else
-                        outputSize = 6;
-                    break;
-
-                case Attenuation.SkyPolygon:
-                    if (skyPolygonContainer == null || skyPolygonContainer.childCount < 3)
-                        outputAttn = Attenuation.None;
-                    else
-                        outputSize = Mathf.Min(vertexLimit, skyPolygonContainer.childCount);
-                    break;
-            }
-
+            return (gatheredAttachments.Count > 0 && markerAttachmentTarget != null && markerAttachmentTarget.executeOnGPU) || gatheredAttachments2.Count > 0;
+        }
+        
+        void LateUpdate()
+        {
+            GetActualAttenuationAndSize(out Attenuation outputAttn, out int outputSize);
+            GatherAttachmentMarkers(outputAttn);
             var outputFixedBit = outputSize > 0 ? (1u << (outputSize - 1)) : 0u;
             var outputFixedSize = (vertexFixedMask & outputFixedBit) != 0;
 
@@ -290,6 +329,50 @@ namespace Unity.DemoTeam.DigitalHuman
                 PrepareVertexData(outputSize);
             else
                 PrepareVertexData(vertexLimit);
+            
+#if UNITY_2021_2_OR_NEWER
+            if (!AreAttachmentsResolvedOnGPU())
+            {
+                UpdateTeethRendererParameters();
+            }
+            else
+            {
+                if (!isHookedToSkinAttachments)
+                {
+                    HookIntoSkinAttachments(true);
+                }
+            }
+            
+#else
+            UpdateTeethRendererParameters();
+#endif
+
+        }
+
+        void GetActualAttenuationAndSize(out Attenuation outputAttn, out int outputSize)
+        {
+            outputAttn = mode;
+            outputSize = 0;
+            switch (mode)
+            {
+                case Attenuation.Linear:
+                    if (linearFront == null || linearBack == null)
+                        outputAttn = Attenuation.None;
+                    else
+                        outputSize = 6;
+                    break;
+
+                case Attenuation.SkyPolygon:
+                    if (skyPolygonContainer == null || skyPolygonContainer.childCount < 3)
+                        outputAttn = Attenuation.None;
+                    else
+                        outputSize = Mathf.Min(vertexLimit, skyPolygonContainer.childCount);
+                    break;
+            }
+        }
+        void UpdateTeethRendererParameters()
+        {
+            GetActualAttenuationAndSize(out Attenuation outputAttn, out int outputSize);
 
             GraphicsBuffer occlusionMarkers = null;
             GraphicsBuffer attachmentIndicesBuffer = null;
@@ -314,9 +397,8 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
 #if UNITY_2021_2_OR_NEWER
-            GatherAttachmentMarkers(outputAttn);
-            useGPUAttachmentData = gatheredAttachments.Count > 0 && outputAttn != Attenuation.None &&
-                                   markerAttachmentTarget != null && markerAttachmentTarget.executeOnGPU;
+
+            useGPUAttachmentData = outputAttn != Attenuation.None && AreAttachmentsResolvedOnGPU();
 #endif
             
             PrepareGPUResources(useGPUAttachmentData);
@@ -325,16 +407,34 @@ namespace Unity.DemoTeam.DigitalHuman
             cpuOcclusionParametersValid = !useGPUAttachmentData; 
             if (useGPUAttachmentData)
             {
-                NativeArray<int> attachmentIndices =
-                    new NativeArray<int>(gatheredAttachments.Count, Allocator.Temp);
-                for (int i = 0; i < gatheredAttachments.Count; ++i)
+                NativeArray<int> attachmentIndices;
+                if (gatheredAttachments2.Count > 0)
                 {
-                    var attachment = gatheredAttachments[i];
-                    var attachmentTarget = attachment.target;
-                    attachmentIndices[i] = attachment.TransformAttachmentGPUBufferIndex;
-                    occlusionMarkers = attachmentTarget.TransformAttachmentGPUPositionBuffer;
-                    occlusionMarkersStride = attachmentTarget.TransformAttachmentGPUPositionBufferStride;
+                    attachmentIndices =
+                        new NativeArray<int>(gatheredAttachments2.Count, Allocator.Temp);
+                    for (int i = 0; i < gatheredAttachments2.Count; ++i)
+                    {
+                        var attachment = gatheredAttachments2[i];
+                        attachmentIndices[i] = attachment.CurrentOffsetIntoGPUPositionsBuffer;
+                        occlusionMarkers = attachment.CurrentGPUPositionsBuffer;
+                        occlusionMarkersStride = SkinAttachmentTransform.TransformAttachmentBufferStride;
+                    }
                 }
+                else
+                {
+                    attachmentIndices =
+                        new NativeArray<int>(gatheredAttachments.Count, Allocator.Temp);
+                    for (int i = 0; i < gatheredAttachments.Count; ++i)
+                    {
+                        var attachment = gatheredAttachments[i];
+                        var attachmentTarget = attachment.target;
+                        attachmentIndices[i] = attachment.TransformAttachmentGPUBufferIndex;
+                        occlusionMarkers = attachmentTarget.TransformAttachmentGPUPositionBuffer;
+                        occlusionMarkersStride = attachmentTarget.TransformAttachmentGPUPositionBufferStride;
+                    }
+                }
+                
+                
 
                 occlusionMarkerIndicesBuffer.SetData(attachmentIndices);
                 attachmentIndices.Dispose();
