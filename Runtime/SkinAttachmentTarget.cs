@@ -52,6 +52,8 @@ namespace Unity.DemoTeam.DigitalHuman
 #if UNITY_2021_2_OR_NEWER
         [VisibleIfAttribute("executeOnGPU", true)]
         public bool readbackTransformPositions = false;
+        [VisibleIfAttribute("executeOnGPU", true)]
+        public bool forceTransformAttachmentResolveCPU = true;
 
         [Header("Execution")] public bool executeOnGPU = false;
 
@@ -63,6 +65,9 @@ namespace Unity.DemoTeam.DigitalHuman
         public readonly bool executeOnGPU = false;
 
 #endif
+        [Header("Advanced")]
+        public bool allowUnstablePoseBuild = true;
+        
         private bool UseCPUExecution => !executeOnGPU;
 
         private MeshInfo cachedMeshInfo;
@@ -163,9 +168,20 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void LateUpdate()
         {
-            if (ExecuteSkinAttachmentResolveAutomatically && UseCPUExecution)
+            if (ExecuteSkinAttachmentResolveAutomatically)
             {
-                ResolveSubjects();
+                if (UseCPUExecution)
+                {
+                    ResolveSubjects();
+                } 
+                else if (executeOnGPU && forceTransformAttachmentResolveCPU)
+                {
+                    if (UpdateMeshBuffers(true))
+                    {
+                        ResolveSubjectsCPU(true);
+                    }
+                }
+                
             }
         }
 
@@ -217,49 +233,66 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 if (UpdateMeshBuffers(true))
                 {
-                    ResolveSubjectsCPU();
+                    ResolveSubjectsCPU(false);
                 }
             }
 #if UNITY_2021_2_OR_NEWER
             else
             {
-                ResolveSubjectsGPU();
-				if (executeOnGPU && !transformGPUPositionsReadBack)
-				
-				//readback transform positions to CPU for debugging
-				if (readbackTransformPositions && transformAttachmentPosBuffer != null)
-				{
-					NativeArray<Vector3> readBackBuffer = new NativeArray<Vector3>(
-						transformAttachmentPosBuffer.count,
-						Allocator.Persistent);
-	
-					var readbackRequest =
-						AsyncGPUReadback.RequestIntoNativeArray(ref readBackBuffer, transformAttachmentPosBuffer);
-					readbackRequest.WaitForCompletion();
-	
-					for (int i = 0; i < subjects.Count; ++i)
-					{
-						if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
-						int index = subjects[i].TransformAttachmentGPUBufferIndex;
-						Vector3 pos = readBackBuffer[index];
-						subjects[i].transform.position = pos;
-					}
-	
-					readBackBuffer.Dispose();
-					transformGPUPositionsReadBack = true;
-				}
-				
-				
-				
+                ResolveSubjectsGPU(forceTransformAttachmentResolveCPU);
+
+                if (executeOnGPU && !transformGPUPositionsReadBack)
+                {
+                    //readback transform positions to CPU for debugging
+                    if (readbackTransformPositions && transformAttachmentPosBuffer != null)
+                    {
+                        NativeArray<Vector3> readBackBuffer = new NativeArray<Vector3>(
+                            transformAttachmentPosBuffer.count,
+                            Allocator.Persistent);
+
+                        var readbackRequest =
+                            AsyncGPUReadback.RequestIntoNativeArray(ref readBackBuffer, transformAttachmentPosBuffer);
+                        readbackRequest.WaitForCompletion();
+
+                        for (int i = 0; i < subjects.Count; ++i)
+                        {
+                            if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
+                            int index = subjects[i].TransformAttachmentGPUBufferIndex;
+                            Vector3 pos = readBackBuffer[index];
+                            subjects[i].transform.position = pos;
+                        }
+
+                        readBackBuffer.Dispose();
+                        transformGPUPositionsReadBack = true;
+                    }
+
+                }
+
                 afterGPUAttachmentWorkCommitted?.Invoke();
             }
 #endif
         }
 
 
-        void ResolveSubjectsCPU()
+        void ResolveSubjectsCPU(bool transformAttachmentsOnly)
         {
             Profiler.BeginSample("resolve-subj-all-cpu");
+            if (transformAttachmentsOnly)
+            {
+                bool transformAttachmentFound = false;
+                for (int i = 0, n = subjects.Count; i != n; i++)
+                {
+                    if (subjects[i].attachmentType == SkinAttachment.AttachmentType.Transform)
+                    {
+                        transformAttachmentFound = true;
+                        break;
+                    }
+                }
+
+                if (!transformAttachmentFound)
+                    return;
+            }
+
             int stagingPinsSourceDataCount = 3;
             int stagingPinsSourceDataOffset = subjects.Count * 3;
 
@@ -308,6 +341,9 @@ namespace Unity.DemoTeam.DigitalHuman
                     continue; // prevent out of bounds if subject holds damaged index/count 
 
                 if (!subject.gameObject.activeInHierarchy)
+                    continue;
+
+                if (transformAttachmentsOnly && subject.attachmentType != SkinAttachment.AttachmentType.Transform)
                     continue;
 
                 bool resolveTangents = subject.meshInstance && subject.meshInstance.HasVertexAttribute(VertexAttribute.Tangent);
@@ -653,7 +689,7 @@ namespace Unity.DemoTeam.DigitalHuman
             //for now deactive this path as it's not yet stable
             PoseBuildSettings poseBuildParams = new PoseBuildSettings
             {
-                onlyAllowPoseTrianglesContainingAttachedPoint = false
+                onlyAllowPoseTrianglesContainingAttachedPoint = allowUnstablePoseBuild
             };
             
             attachData.Clear();
@@ -1047,7 +1083,7 @@ namespace Unity.DemoTeam.DigitalHuman
             gpuResourcesAllocated = false;
         }
 
-        void ResolveSubjectsGPU()
+        void ResolveSubjectsGPU(bool ignoreTransformAttachments)
         {
             if (subjects.Count == 0 || resolveAttachmentsCS == null || attachmentPosesBuffer == null) return;
             TryGetComponent<MeshFilter>(out var mf);
@@ -1276,7 +1312,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
 
             //Resolve transform attachments
-            if (transformAttachmentPosBuffer != null)
+            if (transformAttachmentPosBuffer != null && !ignoreTransformAttachments)
             {
                 int resolveKernel = resolveTransformAttachmentsKernel;
 
