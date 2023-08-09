@@ -98,6 +98,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
             attached = false;
             currentTarget = null;
+            checkSum = default;
         }
 
         internal bool IsAttachmentTargetValid()
@@ -152,6 +153,11 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
+        public bool HasDataStorageChanged()
+        {
+            return currentStorage != dataStorage;
+        }
+        
         public bool BakeAttachmentDataToSceneOrPrefab(MonoBehaviour attachment)
         {
             bool succesfull = true;

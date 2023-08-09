@@ -49,18 +49,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		public void DrawGUIAttachmentDataStorage(SkinAttachmentTransform attachment)
 		{
-			attachment.common.dataStorage = (SkinAttachmentDataStorage)EditorGUILayout.ObjectField(attachment.common.dataStorage, typeof(SkinAttachmentDataStorage));
-			if (attachment.common.dataStorage == null)
-			{
-				EditorGUILayout.HelpBox("SkinAttachmentDataStorage needs to be assigned before attaching!", MessageType.Error);
-			}
-			else
-			{
-				if (GUILayout.Button("Rebake"))
-				{
-					attachment.common.BakeAttachmentDataToSceneOrPrefab(attachment);
-				}
-			}
+			SkinAttachmentEditorUtils.DrawGUISettings(attachment, attachment.common);
 		}
 
 		public void DrawGuiSettings(SkinAttachmentTransform attachment)
@@ -69,9 +58,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (settingsToggled)
 			{
 				EditorGUILayout.BeginVertical();
-				attachment.common.schedulingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", attachment.common.schedulingMode);
-				attachment.common.explicitScheduling = EditorGUILayout.Toggle("Explicit Scheduling: ", attachment.common.explicitScheduling);
-				attachment.common.explicitBakeMesh = (Mesh)EditorGUILayout.ObjectField("explicit mesh for baking (optional):",attachment.common.explicitBakeMesh, typeof(Mesh), false);
+				SkinAttachmentEditorUtils.DrawGUISettings(attachment, attachment.common);
 				EditorGUILayout.EndVertical();
 				
 			}
@@ -85,7 +72,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				EditorGUILayout.BeginVertical();
 				attachment.readbackTransformFromGPU = EditorGUILayout.Toggle("Readback positions from GPU: ", attachment.readbackTransformFromGPU);
-				attachment.common.showAttachmentTargetForBaking = EditorGUILayout.Toggle("Draw Bake target: ", attachment.common.showAttachmentTargetForBaking);
+				SkinAttachmentEditorUtils.DrawGuiDebug(attachment, attachment.common);
 				EditorGUILayout.EndVertical();
 				
 			}

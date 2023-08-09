@@ -466,7 +466,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
         
-        void UpdateAfterAttachmentResolve2(CommandBuffer cmd)
+        void UpdateAfterAttachmentResolve2()
         {
             if (++numberOfAttachment2callbacks == 4)
             {

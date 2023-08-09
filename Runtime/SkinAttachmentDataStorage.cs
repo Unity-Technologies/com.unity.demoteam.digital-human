@@ -81,16 +81,55 @@ namespace Unity.DemoTeam.DigitalHuman
 				return false;
 			}
 		}
+
+		private void ClearDataEntriesWithHash(Hash128 hash)
+		{
+
+			//go through the attach data and remove all entries with the hash (stale entries)
+			if (dataStorage != null)
+			{
+				for (int i = 0; i < dataStorage.Length; ++i)
+				{
+					if (dataStorage[i].hashKey != hash) continue;
+
+					if (dataStorage.Length > 1)
+					{
+						Hash128 lastEntryHash = dataStorage[^1].hashKey;
+						if (dataStorageLookup.TryGetValue(lastEntryHash, out DataStorageEntry lastEntry))
+						{
+							lastEntry.dataStorageIndex = i;
+						}
+
+						dataStorage[i] = dataStorage[^1];
+					}
+
+					//remove this entry
+					dataStorageLookup.Remove(hash);
+					if (dataStorage.Length > 1)
+					{
+						ArrayUtils.ResizeChecked(ref dataStorage, dataStorage.Length - 1);
+					}
+					else
+					{
+						dataStorage = null;
+					}
+
+					--i;
+				}
+			}
+		}
 		
 		private Hash128 StoreAttachmentDataInternal(string entryName, SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
 		{
 			EnsureEntryLookup();
+
+			Hash128 newHash = CalculateHash(poses, items);
+			
+			ClearDataEntriesWithHash(newHash);
 			
 			ArrayUtils.ResizeChecked(ref databaseEntries, (databaseEntries?.Length ?? 0) + 1);
 			ArrayUtils.ResizeChecked(ref dataStorage, (dataStorage?.Length ?? 0) + 1);
-			
-			Hash128 newHash = CalculateHash(poses, items);
-			
+
 			DataStorageEntry entry = databaseEntries[^1];
 			SkinAttachmentData data = new SkinAttachmentData
 			{
@@ -106,7 +145,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				hashKey = newHash,
 				dataStorageIndex = dataStorage.Length - 1,
 				entryName = entryName,
-				timestamp = DateTime.Now.ToUniversalTime()
+				timestamp = DateTime.UtcNow
 			};
 
 

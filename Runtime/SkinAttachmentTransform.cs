@@ -26,7 +26,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public bool readbackTransformFromGPU = false;
 
-        public event Action<CommandBuffer> onSkinAttachmentTransformResolved;
+        public event Action onSkinAttachmentTransformResolved;
 
         private int currentOffsetToTransformGroup = 0;
         private GraphicsBuffer currentPositionsBufferGPU;
@@ -163,7 +163,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 transform.position = positionsCPU[indexInGroup];
             }
 
-            onSkinAttachmentTransformResolved?.Invoke(cmd);
+            
         }
 
         public void AfterAllAttachmentsInQueueResolved()
@@ -184,6 +184,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
                 }
             }
+            
+            onSkinAttachmentTransformResolved?.Invoke();
         }
 
         public bool GetSkinAttachmentPosesAndItem(out SkinAttachmentPose[] poses, out SkinAttachmentItem item)

@@ -25,12 +25,19 @@ namespace Unity.DemoTeam.DigitalHuman
         public SkinAttachmentComponentCommon common = new SkinAttachmentComponentCommon();
         public MeshAttachmentType attachmentType = MeshAttachmentType.Mesh;
         public bool allowOnlyOneRoot = false;
-        public bool GeneratePrecalculatedMotionVectors = false;
+        public bool generatePrecalculatedMotionVectors = false;
+        
 
-        public event Action<CommandBuffer> onSkinAttachmentMeshResolved;
-
+        public event Action onSkinAttachmentMeshResolved;
         public bool IsAttached => common.attached;
-        public bool ScheduleExplicitly => common.explicitScheduling;
+        public bool ScheduleExplicitly 
+        {
+            get { return common.explicitScheduling; }
+            set { common.explicitScheduling = value; }
+        }
+    
+        public SkinAttachmentComponentCommon.SchedulingMode SchedulingMode => common.schedulingMode;
+
 
         private float meshAssetRadius;
         private Transform skinningBone;
@@ -140,15 +147,12 @@ namespace Unity.DemoTeam.DigitalHuman
                     meshInstance.SilentlySetTangents(stagingTangents);
                 }
             }
-
-
-            if (onSkinAttachmentMeshResolved != null)
-                onSkinAttachmentMeshResolved(cmd);
         }
 
         public void NotifyAllAttachmentsFromQueueResolved()
         {
-            
+            if (onSkinAttachmentMeshResolved != null)
+                onSkinAttachmentMeshResolved();
         }
 
         public bool ValidateBakedData()
@@ -189,7 +193,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
                 
                 //if we need to generate motion vectors and the meshInstance doesn't have proper streams setup, reset the meshinstance (so it gets recreated)
-                if (GeneratePrecalculatedMotionVectors && meshInstance &&
+                if (generatePrecalculatedMotionVectors && meshInstance &&
                     !meshInstance.HasVertexAttribute(VertexAttribute.TexCoord5))
                 {
                     RemoveMeshInstance();
@@ -361,7 +365,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 neededAttributes.Add(Tuple.Create(VertexAttribute.Tangent, 0));
             }
 
-            if (GeneratePrecalculatedMotionVectors)
+            if (generatePrecalculatedMotionVectors)
             {
                 VertexAttributeDescriptor[] attributes = meshInstance.GetVertexAttributes();
                 bool containsPrecalcMovecs = false;
