@@ -22,7 +22,36 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public SkinAttachmentComponentCommon common = new SkinAttachmentComponentCommon();
         public bool IsAttached => common.attached;
-        public bool ScheduleExplicitly => common.explicitScheduling;
+        public bool ScheduleExplicitly 
+        {
+            get => common.explicitScheduling;
+            set => common.explicitScheduling = value;
+        }
+
+        public Renderer Target
+        {
+            get => common.attachmentTarget;
+            set => common.attachmentTarget = value;
+        }
+
+        public Mesh ExplicitTargetBakeMesh
+        {
+            get => common.explicitBakeMesh;
+            set => common.explicitBakeMesh = value;
+        }
+
+        public SkinAttachmentDataStorage DataStorage
+        {
+            get => common.dataStorage;
+            set => common.dataStorage = value;
+        }
+
+        public SkinAttachmentComponentCommon.SchedulingMode SchedulingMode
+        {
+            get => common.schedulingMode;
+            set => common.schedulingMode = value;
+        }
+
 
         public bool readbackTransformFromGPU = false;
 
