@@ -60,7 +60,7 @@ void TeethAttenuation_float(in float3 positionWS, out float attnPure, out float 
 #elif defined(TEETH_ATTN_SKYPOLYGON)
 
 		float3 P[SPHERICALPOLYGON_MAX_VERTS];
-		for (int i = 0; i != SPHERICALPOLYGON_NUM_VERTS; i++)
+		for (int i = 0; i < SPHERICALPOLYGON_NUM_VERTS; i++)
 		{
 			P[i] = normalize(GetTeethVertex(i).xyz - positionWS);
 		}

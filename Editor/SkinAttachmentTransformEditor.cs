@@ -2,10 +2,11 @@ using System;
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	[CustomEditor(typeof(SkinAttachmentTransform))]
+	[CustomEditor(typeof(SkinAttachmentTransform)), CanEditMultipleObjects]
 	public class SkinAttachmentTransformEditor : Editor
 	{
 		private bool settingsToggled = false;
@@ -15,25 +16,36 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (target == null)
 				return;
 
-			var attachment = target as SkinAttachmentTransform;
-			if (attachment == null)
-				return;
-
-			//we always need data storage before anything else
-			if (attachment.common.dataStorage == null)
+			if (targets.Length == 1)
 			{
-				DrawGUIAttachmentDataStorage(attachment);
+				var attachment = target as SkinAttachmentTransform;
+				if (attachment == null)
+					return;
+
+				//we always need data storage before anything else
+				if (attachment.common.dataStorage == null)
+				{
+					DrawGUIAttachmentDataStorage(attachment);
+				}
+				else
+				{
+					EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum : "Currently detached.", MessageType.Info);
+					DrawGUIAttachDetach(attachment);
+					DrawGUIAttachmentDataStorage(attachment);
+					DrawGUIAttachmentTarget(attachment);
+					DrawGuiSettings(attachment);
+					DrawGuiDebug(attachment);
+				
+				}
 			}
 			else
 			{
-				EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum : "Currently detached.", MessageType.Info);
-				DrawGUIAttachDetach(attachment);
-				DrawGUIAttachmentDataStorage(attachment);
-				DrawGUIAttachmentTarget(attachment);
-				DrawGuiSettings(attachment);
-				DrawGuiDebug(attachment);
+				IEnumerable<SkinAttachmentTransform> transforms = targets.Where(o => o is SkinAttachmentTransform).Cast<SkinAttachmentTransform>();
 				
+				DrawMultiSelectGUI(transforms);
 			}
+
+
 		}
 
 		
@@ -49,7 +61,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		public void DrawGUIAttachmentDataStorage(SkinAttachmentTransform attachment)
 		{
-			SkinAttachmentEditorUtils.DrawGUISettings(attachment, attachment.common);
+			SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(attachment, attachment.common);
 		}
 
 		public void DrawGuiSettings(SkinAttachmentTransform attachment)
@@ -111,6 +123,19 @@ namespace Unity.DemoTeam.DigitalHuman
 				}
 			}
 			EditorGUI.EndDisabledGroup();
+		}
+
+		public void DrawMultiSelectGUI(IEnumerable<SkinAttachmentTransform> transforms)
+		{
+			foreach (var t in transforms)
+			{
+				EditorGUILayout.BeginHorizontal();
+				SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(t, t.common);
+				DrawGUIAttachmentTarget(t);
+				DrawGUIAttach(t);
+				DrawGUIDetach(t);
+				EditorGUILayout.EndHorizontal();
+			}
 		}
 
 	}

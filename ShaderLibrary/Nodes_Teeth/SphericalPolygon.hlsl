@@ -20,7 +20,7 @@ void SphericalPolygon_CalcInteriorAngles(in float3 P[SPHERICALPOLYGON_MAX_VERTS]
 	//       N[i+1] = cross(A, B);
 	{
 		N[0] = -normalize(cross(P[LAST_VERT], P[0]));
-		for (int i = 1; i != SPHERICALPOLYGON_NUM_VERTS; i++)
+		for (int i = 1; i < SPHERICALPOLYGON_NUM_VERTS; i++)
 		{
 			N[i] = -normalize(cross(P[i - 1], P[i]));
 		}
@@ -28,7 +28,7 @@ void SphericalPolygon_CalcInteriorAngles(in float3 P[SPHERICALPOLYGON_MAX_VERTS]
 
 	// calc interior angles
 	{
-		for (int i = 0; i != LAST_VERT; i++)
+		for (int i = 0; i < LAST_VERT; i++)
 		{
 			A[i] = PI - sign(dot(N[i], P[i + 1])) * acos(clamp(dot(N[i], N[i + 1]), -1.0, 1.0));
 		}
@@ -51,7 +51,7 @@ void SphericalPolygon_CalcInteriorAngles(in float3 P[SPHERICALPOLYGON_MAX_VERTS]
 void SphericalPolygon_CalcAreaFromInteriorAngles(in float A[SPHERICALPOLYGON_MAX_VERTS], out float area)
 {
 	float E = 0.0;
-	for (int i = 0; i != SPHERICALPOLYGON_NUM_VERTS; i++)
+	for (int i = 0; i < SPHERICALPOLYGON_NUM_VERTS; i++)
 	{
 		E += A[i];
 	}

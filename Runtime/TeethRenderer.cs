@@ -55,7 +55,6 @@ namespace Unity.DemoTeam.DigitalHuman
 #if UNITY_2021_2_OR_NEWER
         private GraphicsBuffer occlusionMarkerIndicesBuffer;
         private List<SkinAttachment> gatheredAttachments = new List<SkinAttachment>();
-        private bool isHookedToSkinAttachments = false;
         private bool cpuOcclusionParametersValid = true;
         private List<SkinAttachmentTransform> gatheredAttachments2 = new List<SkinAttachmentTransform>();
         private int numberOfAttachment2callbacks = -1;
@@ -174,37 +173,33 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
         
-        void HookIntoSkinAttachments(bool enabled)
+        void HookIntoSkinAttachments(bool val)
         {
             if (markerAttachmentTarget != null)
             {
                 markerAttachmentTarget.afterGPUAttachmentWorkCommitted -= UpdateAfterAttachmentResolve;
-                if (enabled && markerAttachmentTarget.executeOnGPU)
+                if (val && markerAttachmentTarget.executeOnGPU)
                 {
                     markerAttachmentTarget.afterGPUAttachmentWorkCommitted += UpdateAfterAttachmentResolve;
                 }
 
-                isHookedToSkinAttachments = markerAttachmentTarget.executeOnGPU && enabled;
             }
             else
             {
                 if (gatheredAttachments2.Count > 0)
                 {
-                    if (enabled)
-                    {
-                        numberOfAttachment2callbacks = 0;
-                    }
+                   
                     foreach (var att in gatheredAttachments2)
                     {
                         att.onSkinAttachmentTransformResolved -= UpdateAfterAttachmentResolve2;
-                        if (enabled)
+                        if (val)
                         {
                             att.onSkinAttachmentTransformResolved += UpdateAfterAttachmentResolve2;
                         }
                     }
                 }
+                numberOfAttachment2callbacks = 0;
             }
-            
         }
         
         void GatherAttachmentMarkers(Attenuation attenuation)
@@ -337,10 +332,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
             else
             {
-                if (!isHookedToSkinAttachments)
-                {
-                    HookIntoSkinAttachments(true);
-                }
+                HookIntoSkinAttachments(true);
             }
             
 #else

@@ -2,10 +2,11 @@ using System;
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-    [CustomEditor(typeof(SkinAttachmentMesh))]
+    [CustomEditor(typeof(SkinAttachmentMesh)), CanEditMultipleObjects]
     public class SkinAttachmentMeshEditor : Editor
     {
         private bool settingsToggled = false;
@@ -16,28 +17,37 @@ namespace Unity.DemoTeam.DigitalHuman
             if (target == null)
                 return;
 
-            var attachment = target as SkinAttachmentMesh;
-            if (attachment == null)
-                return;
 
-            //we always need data storage before anything else
-            if (attachment.common.dataStorage == null)
+            if (targets.Length == 1)
             {
-                DrawGUIAttachmentDataStorage(attachment);
+                var attachment = target as SkinAttachmentMesh;
+                if (attachment == null)
+                    return;
+
+                //we always need data storage before anything else
+                if (attachment.common.dataStorage == null)
+                {
+                    DrawGUIAttachmentDataStorage(attachment);
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox(
+                        attachment.IsAttached
+                            ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " +
+                              attachment.common.CheckSum
+                            : "Currently detached.", MessageType.Info);
+                    DrawGUIAttachDetach(attachment);
+                    DrawGUIAttachmentDataStorage(attachment);
+                    DrawGUIAttachmentTarget(attachment);
+                    DrawGuiSettings(attachment);
+                    DrawValidationInfo(attachment);
+                    DrawGuiDebug(attachment);
+                }
             }
             else
             {
-                EditorGUILayout.HelpBox(
-                    attachment.IsAttached
-                        ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " +
-                          attachment.common.CheckSum
-                        : "Currently detached.", MessageType.Info);
-                DrawGUIAttachDetach(attachment);
-                DrawGUIAttachmentDataStorage(attachment);
-                DrawGUIAttachmentTarget(attachment);
-                DrawGuiSettings(attachment);
-                DrawValidationInfo(attachment);
-                DrawGuiDebug(attachment);
+                IEnumerable<SkinAttachmentMesh> attachments = targets.Where(o => o is SkinAttachmentMesh).Cast<SkinAttachmentMesh>();
+                DrawMultiSelectGUI(attachments);
             }
         }
 
@@ -139,6 +149,19 @@ namespace Unity.DemoTeam.DigitalHuman
             if (!attachment.ValidateBakedData())
             {
                 EditorGUILayout.HelpBox("Baked data is invalid, rebake needed" , MessageType.Error);
+            }
+        }
+        
+        public void DrawMultiSelectGUI(IEnumerable<SkinAttachmentMesh> attachments)
+        {
+            foreach (var a in attachments)
+            {
+                EditorGUILayout.BeginHorizontal();
+                SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(a, a.common);
+                DrawGUIAttachmentTarget(a);
+                DrawGUIAttach(a);
+                DrawGUIDetach(a);
+                EditorGUILayout.EndHorizontal();
             }
         }
     }
