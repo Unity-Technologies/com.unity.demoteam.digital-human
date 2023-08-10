@@ -23,12 +23,6 @@ namespace Unity.DemoTeam.DigitalHuman
             GPU
         }
 
-        public enum BakedAttachmentDataRefreshMode
-        {
-            Automatic,
-            Manual
-        }
-        
         public  class PoseBakeOutput
         { 
             public SkinAttachmentPose[] poses;
@@ -49,13 +43,12 @@ namespace Unity.DemoTeam.DigitalHuman
             public MeshIslands meshIslands;
         }
 
-        
-
         public Renderer attachmentTarget;
         public SkinAttachmentDataStorage dataStorage;
         public SchedulingMode schedulingMode;
         public bool explicitScheduling = false;
         public Mesh explicitBakeMesh = null;
+        public string bakedDataEntryName;
 
         public bool IsAttached => attached;
         public Hash128 CheckSum => checkSum;
@@ -98,7 +91,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
             attached = false;
             currentTarget = null;
-            checkSum = default;
+            if (dataStorage)
+            {
+                dataStorage.RemoveAttachmentData(checkSum);
+                checkSum = default;
+            }
         }
 
         internal bool IsAttachmentTargetValid()
@@ -263,7 +260,13 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             if (currentStorage != null)
             {
-                string name = attachment != null ? attachment.name : "<unnamed>";
+
+                string name = bakedDataEntryName;
+                if (name == null)
+                {
+                    name = attachment != null ? attachment.name : "<unnamed>";
+                }
+                
                 if (checkSum.isValid)
                 {
                     checkSum = currentStorage.UpdateAttachmentData(name, poses, items, checkSum);

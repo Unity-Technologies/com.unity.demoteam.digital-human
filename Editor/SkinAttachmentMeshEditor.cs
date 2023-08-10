@@ -55,7 +55,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public void DrawGUIAttachmentDataStorage(SkinAttachmentMesh attachment)
         {
-            SkinAttachmentEditorUtils.DrawGUISettings(attachment, attachment.common);
+            SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(attachment, attachment.common);
         }
 
         public void DrawGuiSettings(SkinAttachmentMesh attachment)

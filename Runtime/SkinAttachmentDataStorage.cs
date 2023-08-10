@@ -19,7 +19,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			public Hash128 hashKey;
 			public string entryName;
 			public int dataStorageIndex;
-			public DateTime timestamp;
+			public string timeStamp;
 		}
 
 		[Serializable]
@@ -86,37 +86,36 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 
 			//go through the attach data and remove all entries with the hash (stale entries)
-			if (dataStorage != null)
+
+			for (int i = 0; dataStorage != null &&  i < dataStorage.Length; ++i)
 			{
-				for (int i = 0; i < dataStorage.Length; ++i)
+				if (dataStorage[i].hashKey != hash) continue;
+
+				if (dataStorage.Length > 1)
 				{
-					if (dataStorage[i].hashKey != hash) continue;
-
-					if (dataStorage.Length > 1)
+					Hash128 lastEntryHash = dataStorage[^1].hashKey;
+					if (dataStorageLookup.TryGetValue(lastEntryHash, out DataStorageEntry lastEntry))
 					{
-						Hash128 lastEntryHash = dataStorage[^1].hashKey;
-						if (dataStorageLookup.TryGetValue(lastEntryHash, out DataStorageEntry lastEntry))
-						{
-							lastEntry.dataStorageIndex = i;
-						}
-
-						dataStorage[i] = dataStorage[^1];
+						lastEntry.dataStorageIndex = i;
 					}
 
-					//remove this entry
-					dataStorageLookup.Remove(hash);
-					if (dataStorage.Length > 1)
-					{
-						ArrayUtils.ResizeChecked(ref dataStorage, dataStorage.Length - 1);
-					}
-					else
-					{
-						dataStorage = null;
-					}
-
-					--i;
+					dataStorage[i] = dataStorage[^1];
 				}
+
+				//remove this entry
+				dataStorageLookup.Remove(hash);
+				if (dataStorage.Length > 1)
+				{
+					ArrayUtils.ResizeChecked(ref dataStorage, dataStorage.Length - 1);
+				}
+				else
+				{
+					dataStorage = null;
+				}
+
+				--i;
 			}
+			
 		}
 		
 		private Hash128 StoreAttachmentDataInternal(string entryName, SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
@@ -145,7 +144,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				hashKey = newHash,
 				dataStorageIndex = dataStorage.Length - 1,
 				entryName = entryName,
-				timestamp = DateTime.UtcNow
+				timeStamp = DateTime.UtcNow.ToLongTimeString()
 			};
 
 
