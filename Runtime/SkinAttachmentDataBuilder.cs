@@ -1,5 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using Unity.Burst;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -7,7 +10,7 @@ namespace Unity.DemoTeam.DigitalHuman
 {
     using static Unity.Mathematics.math;
     using SkinAttachmentItem = Unity.DemoTeam.DigitalHuman.SkinAttachmentItem3;
-    
+
     public struct MeshInfo
     {
         public MeshBuffers meshBuffers;
@@ -15,6 +18,21 @@ namespace Unity.DemoTeam.DigitalHuman
         public KdTree3 meshVertexBSP;
         public bool valid;
     }
+
+    public unsafe struct MeshInfoUnsafe
+    {
+        //meshbuffers
+        [NativeDisableUnsafePtrRestriction, NoAlias]
+        public Vector3* vertexPositions;
+        [NativeDisableUnsafePtrRestriction, NoAlias]
+        public Vector4* vertexTangents;
+        [NativeDisableUnsafePtrRestriction, NoAlias]
+        public Vector3* vertexNormals;
+        [NativeDisableUnsafePtrRestriction, NoAlias]
+        public int* triangles;
+        public LinkedIndexListArrayUnsafeView vertexTriangles;
+    }
+
     public struct PoseBuildSettings
     {
         public bool onlyAllowPoseTrianglesContainingAttachedPoint;
@@ -56,12 +74,12 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        public static unsafe int BuildPosesTriangle(SkinAttachmentPose* pose, in MeshInfo meshInfo,
+        public static unsafe int BuildPosesTriangle(SkinAttachmentPose* pose, in MeshInfoUnsafe meshInfo,
             ref Vector3 target,
             int triangle, bool includeExterior)
         {
-            var meshPositions = meshInfo.meshBuffers.vertexPositions;
-            var meshTriangles = meshInfo.meshBuffers.triangles;
+            var meshPositions = meshInfo.vertexPositions;
+            var meshTriangles = meshInfo.triangles;
 
             int _0 = triangle * 3;
             var v0 = meshTriangles[_0];
@@ -105,15 +123,18 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        public static unsafe int BuildPosesVertex(SkinAttachmentPose* pose, in MeshInfo meshInfo, ref Vector3 target,
+        public static unsafe int BuildPosesVertex(SkinAttachmentPose* pose, in MeshInfoUnsafe meshInfo,
+            ref Vector3 target,
             int vertex, bool tryToOnlyAllowInterior)
         {
             int poseCount = 0;
 
             if (tryToOnlyAllowInterior)
             {
-                foreach (int triangle in meshInfo.meshAdjacency.vertexTriangles[vertex])
+                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
+                while (iterator.MoveNext())
                 {
+                    int triangle = iterator.Current;
                     poseCount += BuildPosesTriangle(pose + poseCount, meshInfo, ref target, triangle,
                         includeExterior: false);
                 }
@@ -121,8 +142,10 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (poseCount == 0)
             {
-                foreach (int triangle in meshInfo.meshAdjacency.vertexTriangles[vertex])
+                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
+                while (iterator.MoveNext())
                 {
+                    int triangle = iterator.Current;
                     poseCount += BuildPosesTriangle(pose + poseCount, meshInfo, ref target, triangle,
                         includeExterior: true);
                 }
@@ -131,29 +154,33 @@ namespace Unity.DemoTeam.DigitalHuman
             return poseCount;
         }
 
-        public static unsafe int CountPosesTriangle(in MeshInfo meshInfo, ref Vector3 target, int triangle,
+        public static unsafe int CountPosesTriangle(in MeshInfoUnsafe meshInfo, ref Vector3 target, int triangle,
             bool includeExterior)
         {
             SkinAttachmentPose dummyPose;
             return BuildPosesTriangle(&dummyPose, meshInfo, ref target, triangle, includeExterior);
         }
 
-        public static unsafe int CountPosesVertex(in MeshInfo meshInfo, ref Vector3 target, int vertex,
+        public static unsafe int CountPosesVertex(in MeshInfoUnsafe meshInfo, ref Vector3 target, int vertex,
             bool tryToOnlyAllowInterior)
         {
             int poseCount = 0;
             if (tryToOnlyAllowInterior)
             {
-                foreach (int triangle in meshInfo.meshAdjacency.vertexTriangles[vertex])
+                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
+                while (iterator.MoveNext())
                 {
+                    int triangle = iterator.Current;
                     poseCount += CountPosesTriangle(meshInfo, ref target, triangle, includeExterior: false);
                 }
             }
 
             if (poseCount == 0)
             {
-                foreach (int triangle in meshInfo.meshAdjacency.vertexTriangles[vertex])
+                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
+                while (iterator.MoveNext())
                 {
+                    int triangle = iterator.Current;
                     poseCount += CountPosesTriangle(meshInfo, ref target, triangle, includeExterior: true);
                 }
             }
@@ -161,143 +188,179 @@ namespace Unity.DemoTeam.DigitalHuman
             return poseCount;
         }
 
-        public static unsafe void CountDataAttachToVertex(ref int poseCount, ref int itemCount, in MeshInfo meshInfo,
-            in PoseBuildSettings settings, Vector3* targetPositions, Vector3* targetOffsets, Vector3* targetNormals,
-            Vector4* targetTangents, int* targetVertices, int targetCount)
-        {
-            for (int i = 0; i != targetCount; i++)
-            {
-                poseCount += CountPosesVertex(meshInfo, ref targetPositions[i], targetVertices[i],
-                    settings.onlyAllowPoseTrianglesContainingAttachedPoint);
-                itemCount += 1;
-            }
-        }
 
-        public static unsafe void CountDataAttachToClosestVertex(ref int poseCount, ref int itemCount,
-            in MeshInfo meshInfo, in PoseBuildSettings settings, Vector3* targetPositions, Vector3* targetNormals,
-            Vector4* targetTangents, int targetCount)
-        {
-            using (var targetOffsets = new UnsafeArrayVector3(targetCount))
-            using (var targetVertices = new UnsafeArrayInt(targetCount))
-            {
-                for (int i = 0; i != targetCount; i++)
-                {
-                    targetVertices.val[i] = meshInfo.meshVertexBSP.FindNearest(ref targetPositions[i]);
-                }
-
-                CountDataAttachToVertex(ref poseCount, ref itemCount, meshInfo, settings, targetPositions,
-                    targetOffsets.val, targetNormals, targetTangents, targetVertices.val, targetCount);
-            }
-        }
-
-        public static unsafe void BuildDataAttachToVertex(SkinAttachmentPose* poses, SkinAttachmentItem* items,
-            in MeshInfo meshInfo, Vector3* targetPositions, Vector3* targetOffsets,
-            Vector3* targetNormals, Vector4* targetTangents, int* targetVertices, int targetCount,
+        public static unsafe bool BuildDataAttachToVertex(SkinAttachmentPose* poses, SkinAttachmentItem* items,
+            in MeshInfoUnsafe meshInfo, Vector3 targetPosition, Vector3 targetOffset,
+            Vector3 targetNormal, Vector4 targetTangent, int targetVertex,
             bool tryToOnlyAllowInterior, int* attachmentOffset,
             int* poseOffset)
         {
             int currentItemIndex = *attachmentOffset;
             int currentPoseIndex = *poseOffset;
+
+
+            var poseCount = BuildPosesVertex(poses + currentPoseIndex, meshInfo, ref targetPosition,
+                targetVertex, tryToOnlyAllowInterior);
+            if (poseCount == 0)
             {
-                for (int i = 0; i != targetCount; i++)
-                {
-                    var poseCount = BuildPosesVertex(poses + currentPoseIndex, meshInfo, ref targetPositions[i],
-                        targetVertices[i], tryToOnlyAllowInterior);
-                    if (poseCount == 0)
-                    {
-                        Debug.LogError("no valid poses for target vertex " + i + ", aborting");
-                        currentItemIndex = *attachmentOffset;
-                        currentPoseIndex = *poseOffset;
-                        break;
-                    }
-
-                    ref readonly var baseNormal = ref meshInfo.meshBuffers.vertexNormals[targetVertices[i]];
-                    ref readonly var baseTangent = ref meshInfo.meshBuffers.vertexTangents[targetVertices[i]];
-
-                    var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3)baseTangent * baseTangent.w);
-                    var baseFrameInv = Quaternion.Inverse(baseFrame);
-
-                    var targetTangent = targetTangents[i];
-                    if (targetTangent.sqrMagnitude == 0)
-                        targetTangent = new Vector4(0, 0, 1, 1);
-                    var targetFrame = Quaternion.LookRotation(targetNormals[i],
-                        (Vector3)targetTangent /* sign is omitted here, added on resolve */);
-
-                    items[currentItemIndex].poseIndex = currentPoseIndex;
-                    items[currentItemIndex].poseCount = poseCount;
-                    items[currentItemIndex].baseVertex = targetVertices[i];
-                    items[currentItemIndex].targetFrameW =
-                        targetTangent.w; // used to preserve the sign of the resolved tangent
-                    items[currentItemIndex].targetFrameDelta = baseFrameInv * targetFrame;
-                    items[currentItemIndex].targetOffset = baseFrameInv * targetOffsets[i];
-
-                    currentPoseIndex += poseCount;
-                    currentItemIndex += 1;
-                }
+                return false;
             }
+
+            ref readonly var baseNormal = ref meshInfo.vertexNormals[targetVertex];
+            ref readonly var baseTangent = ref meshInfo.vertexTangents[targetVertex];
+
+            var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3) baseTangent * baseTangent.w);
+            var baseFrameInv = Quaternion.Inverse(baseFrame);
+
+            if (targetTangent.sqrMagnitude == 0)
+                targetTangent = new Vector4(0, 0, 1, 1);
+            var targetFrame = Quaternion.LookRotation(targetNormal,
+                (Vector3) targetTangent /* sign is omitted here, added on resolve */);
+
+            items[currentItemIndex].poseIndex = currentPoseIndex;
+            items[currentItemIndex].poseCount = poseCount;
+            items[currentItemIndex].baseVertex = targetVertex;
+            items[currentItemIndex].targetFrameW =
+                targetTangent.w; // used to preserve the sign of the resolved tangent
+            items[currentItemIndex].targetFrameDelta = baseFrameInv * targetFrame;
+            items[currentItemIndex].targetOffset = baseFrameInv * targetOffset;
+
+            currentPoseIndex += poseCount;
+            currentItemIndex += 1;
+
 
             *attachmentOffset = currentItemIndex;
             *poseOffset = currentPoseIndex;
+
+            return true;
         }
 
-        public static unsafe void BuildDataAttachToClosestVertex(SkinAttachmentPose* poses, SkinAttachmentItem* items,
-            in MeshInfo meshInfo, in PoseBuildSettings settings, Vector3* targetPositions, Vector3* targetNormals,
-            Vector4* targetTangents, int targetCount, int* attachmentOffset, int* poseOffset)
-        {
-            using (var targetOffsets = new UnsafeArrayVector3(targetCount))
-            using (var targetVertices = new UnsafeArrayInt(targetCount))
-            {
-                for (int i = 0; i != targetCount; i++)
-                {
-                    targetOffsets.val[i] = Vector3.zero;
-                    targetVertices.val[i] = meshInfo.meshVertexBSP.FindNearest(ref targetPositions[i]);
-                }
 
-                BuildDataAttachToVertex(poses, items, meshInfo, targetPositions,
-                    targetOffsets.val, targetNormals, targetTangents, targetVertices.val, targetCount,
-                    settings.onlyAllowPoseTrianglesContainingAttachedPoint, attachmentOffset, poseOffset);
-            }
-        }
-
-        public static unsafe void BuildDataAttachMesh(SkinAttachmentPose* poses, SkinAttachmentItem* items,
+        public static unsafe void BuildDataAttachMesh(ref SkinAttachmentPose[] poses,ref SkinAttachmentItem[] items,
             Matrix4x4 subjectToTarget, in MeshInfo meshInfo, in PoseBuildSettings settings,
             Vector3[] vertexPositions, Vector3[] vertexNormals, Vector4[] vertexTangents,
-            bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount,
-            int* attachmentOffset, int* poseOffset)
+            int itemsArrayOffset, int posesArrayOffset, out int itemCount, out int poseCount)
         {
             var subjectVertexCount = vertexPositions.Length;
-            var subjectPositions = vertexPositions;
-            var subjectNormals = vertexNormals;
-            var subjectTangents = vertexTangents;
 
             using (var targetPositions = new UnsafeArrayVector3(subjectVertexCount))
             using (var targetNormals = new UnsafeArrayVector3(subjectVertexCount))
             using (var targetTangents = new UnsafeArrayVector4(subjectVertexCount))
+            using (var targetOffsets = new UnsafeArrayVector3(subjectVertexCount))
+            using (var closestVertexIndices = new UnsafeArrayInt(subjectVertexCount))
+            using (var poseOffsetPerItem = new UnsafeArrayInt(subjectVertexCount))
+            using (var itemsOffset = new UnsafeArrayInt(subjectVertexCount + 1)) //one extra to be able to deduce the item count from prefix sum
             {
-                for (int i = 0; i != subjectVertexCount; i++)
+                //calculate attachment target relative positions and find closest vertex per attached mesh vertex
+                fixed (Vector3* subjectPositions = vertexPositions)
+                fixed (Vector3* subjectNormals = vertexNormals)
+                fixed (Vector4* subjectTangents = vertexTangents)
                 {
-                    targetPositions.val[i] = subjectToTarget.MultiplyPoint3x4(subjectPositions[i]);
-                    targetNormals.val[i] = subjectToTarget.MultiplyVector(subjectNormals[i]);
-                    Vector3 tan = subjectToTarget.MultiplyVector(subjectTangents[i]);
-                    targetTangents.val[i] = new Vector4(tan.x, tan.y, tan.z, subjectTangents[i].w);
+                    var initializeTargetDataJob = new InitializeTargetDataJob()
+                    {
+                        subjectPositions = subjectPositions,
+                        subjectNormals = subjectNormals,
+                        subjectTangents = subjectTangents,
+                        targetPositions = targetPositions.val,
+                        targetNormals = targetNormals.val,
+                        targetTangents = targetTangents.val,
+                        targetOffsets = targetOffsets.val,
+                        subjectToTarget = subjectToTarget
+                    };
+
+                    var jobToWait = initializeTargetDataJob.Schedule(subjectVertexCount, 64);
+                    meshInfo.meshVertexBSP.FindNearestForPointsJob(targetPositions.val, closestVertexIndices.val,
+                        subjectVertexCount, jobToWait);
                 }
 
-                if (dryRun)
-                    CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, settings,
-                        targetPositions.val, targetNormals.val, targetTangents.val, subjectVertexCount);
-                else
-                    BuildDataAttachToClosestVertex(poses, items, meshInfo, settings,
-                        targetPositions.val, targetNormals.val, targetTangents.val, subjectVertexCount,
-                        attachmentOffset, poseOffset);
+                //bake attachment data
+                fixed (Vector3* attachmentTargetPositions = meshInfo.meshBuffers.vertexPositions)
+                fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
+                fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
+                fixed (int* attachmentTargetTriangles = meshInfo.meshBuffers.triangles)
+                fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.triangleTriangles.items)
+                fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.triangleTriangles.lists)
+                {
+                    MeshInfoUnsafe meshInfoUnsafe = new MeshInfoUnsafe()
+                    {
+                        vertexPositions = attachmentTargetPositions,
+                        vertexNormals = attachmentTargetNormals,
+                        vertexTangents = attachmentTargetTangents,
+                        triangles = attachmentTargetTriangles,
+                        vertexTriangles = new LinkedIndexListArrayUnsafeView(vertexTrianglesLists, vertexTrianglesItems)
+                    };
+                    
+                    //count number of poses per item (and also item count, since not all source vertices are guaranteed to be valid)
+                    var countPosesPerItem = new CountPosesPerItemJob()
+                    {
+                        targetPositions = targetPositions.val,
+                        closestVertexIndices = closestVertexIndices.val,
+                        poseCountPerItem = poseOffsetPerItem.val,
+                        itemCount = itemsOffset.val,
+                        meshInfo = meshInfoUnsafe,
+                        onlyAllowPoseTrianglesContainingAttachedPoint =
+                            settings.onlyAllowPoseTrianglesContainingAttachedPoint
+                    };
+                    
+                    countPosesPerItem.Schedule(subjectVertexCount, 64).Complete();
+
+                    //TODO: parallelize prefixSum
+                    {
+                        int poseSum = 0;
+                        int itemSum = 0;
+                        for (int i = 0; i < subjectVertexCount; ++i)
+                        {
+                            int poseCountPerItem = poseOffsetPerItem.val[i];
+                            poseOffsetPerItem.val[i] = poseSum;
+                            poseSum += poseCountPerItem;
+
+                            int itCount = itemsOffset.val[i];
+                            itemsOffset.val[i] = itemSum;
+                            itemSum += itCount;
+                        }
+
+                        itemsOffset.val[subjectVertexCount] = itemSum;
+
+                        itemCount = itemSum;
+                        poseCount = poseSum;
+                    }
+
+                    ArrayUtils.ResizeCheckedIfLessThan(ref poses, posesArrayOffset + poseCount);
+                    ArrayUtils.ResizeCheckedIfLessThan(ref items, itemsArrayOffset + itemCount);
+                    fixed (SkinAttachmentPose* posesPtr = poses)
+                    fixed (SkinAttachmentItem* itemsPtr = items)
+                    {
+                        var calculatePosesJob = new CalculatePosesPerItemJob()
+                        {
+                            targetPositions = targetPositions.val,
+                            targetNormals = targetNormals.val,
+                            targetTangents = targetTangents.val,
+                            targetOffsets = targetOffsets.val,
+                            closestVertexIndices = closestVertexIndices.val,
+                            offsetToPosesPerItem = poseOffsetPerItem.val,
+                            offsetToItems = itemsOffset.val,
+                            poses = posesPtr,
+                            items = itemsPtr,
+                            meshInfo = meshInfoUnsafe,
+                            onlyAllowPoseTrianglesContainingAttachedPoint =
+                                settings.onlyAllowPoseTrianglesContainingAttachedPoint,
+                            initialItemOffset = itemsArrayOffset,
+                            initialPosesOffset = posesArrayOffset
+                        };
+
+                        calculatePosesJob.Schedule(subjectVertexCount, 64).Complete();
+                    }
+                }
             }
         }
 
-        public static unsafe void BuildDataAttachMeshRoots(SkinAttachmentPose* poses, SkinAttachmentItem* items, 
-            Matrix4x4 subjectToTarget, in MeshInfo meshInfo, in PoseBuildSettings settings, bool onlyAllowOneRoot,
-            MeshIslands meshIslands, MeshAdjacency meshAdjacency, Vector3[] vertexPositions, Vector3[] vertexNormals, Vector4[] vertexTangents,
+        public static unsafe void BuildDataAttachMeshRoots(SkinAttachmentPose* poses, SkinAttachmentItem* items,
+            Matrix4x4 subjectToTarget, in MeshInfoUnsafe meshInfo, in PoseBuildSettings settings, bool onlyAllowOneRoot,
+            MeshIslands meshIslands, MeshAdjacency meshAdjacency, Vector3[] vertexPositions, Vector3[] vertexNormals,
+            Vector4[] vertexTangents,
             bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount,
             int* attachmentOffset, int* poseOffset)
-        {
+        {/*
             var subjectVertexCount = vertexPositions.Length;
             var subjectPositions = vertexPositions;
             var subjectNormals = vertexNormals;
@@ -342,7 +405,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         var targetNode = -1;
 
                         if (meshInfo.meshVertexBSP.FindNearest(ref targetDist, ref targetNode,
-                                ref targetPositions.val[i]))
+                            ref targetPositions.val[i]))
                         {
                             // found a root if one or more neighbouring vertices are below
                             var bestDist = float.PositiveInfinity;
@@ -351,9 +414,9 @@ namespace Unity.DemoTeam.DigitalHuman
                             foreach (var j in meshAdjacency.vertexVertices[i])
                             {
                                 var targetDelta = targetPositions.val[j] -
-                                                  meshInfo.meshBuffers.vertexPositions[targetNode];
+                                                  meshInfo.vertexPositions[targetNode];
                                 var targetNormalDist = Vector3.Dot(targetDelta,
-                                    meshInfo.meshBuffers.vertexNormals[targetNode]);
+                                    meshInfo.vertexNormals[targetNode]);
                                 if (targetNormalDist < 0.0f)
                                 {
                                     var d = Vector3.SqrMagnitude(targetDelta);
@@ -381,9 +444,9 @@ namespace Unity.DemoTeam.DigitalHuman
 
                                 // see if node qualifies as second choice root
                                 var targetDelta = targetPositions.val[i] -
-                                                  meshInfo.meshBuffers.vertexPositions[targetNode];
+                                                  meshInfo.vertexPositions[targetNode];
                                 var targetNormalDist = Mathf.Abs(Vector3.Dot(targetDelta,
-                                    meshInfo.meshBuffers.vertexNormals[targetNode]));
+                                    meshInfo.vertexNormals[targetNode]));
                                 if (targetNormalDist < bestDist0)
                                 {
                                     bestDist1 = bestDist0;
@@ -411,7 +474,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         visitor.Ignore(bestVert0);
                         rootIdx.val[bestVert0] = bestNode0;
                         rootDir.val[bestVert0] =
-                            Vector3.Normalize(meshInfo.meshBuffers.vertexPositions[bestNode0] -
+                            Vector3.Normalize(meshInfo.vertexPositions[bestNode0] -
                                               targetPositions.val[bestVert0]);
                         rootGen.val[bestVert0] = 0;
                         rootCount++;
@@ -421,7 +484,7 @@ namespace Unity.DemoTeam.DigitalHuman
                             visitor.Ignore(bestVert1);
                             rootIdx.val[bestVert1] = bestNode1;
                             rootDir.val[bestVert1] = Vector3.Normalize(
-                                meshInfo.meshBuffers.vertexPositions[bestNode1] -
+                                meshInfo.vertexPositions[bestNode1] -
                                 targetPositions.val[bestVert1]);
                             rootGen.val[bestVert1] = 0;
                             rootCount++;
@@ -495,26 +558,180 @@ namespace Unity.DemoTeam.DigitalHuman
                         targetPositions.val, targetOffsets.val, targetNormals.val, targetTangents.val,
                         targetVertices.val, subjectVertexCount, settings.onlyAllowPoseTrianglesContainingAttachedPoint,
                         attachmentOffset, poseOffset);
-            }
+            }*/
         }
 
-        public static unsafe void BuildDataAttachTransform(SkinAttachmentPose* poses, SkinAttachmentItem* items,
+        public static unsafe void BuildDataAttachTransform(ref SkinAttachmentPose[] poses, ref SkinAttachmentItem[] items,
             Matrix4x4 subjectToTarget, in MeshInfo meshInfo, in PoseBuildSettings settings,
-            bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount,
-            int* attachmentOffset, int* poseOffset)
+            int itemsArrayOffset, int posesArrayOffset, out int itemCount, out int poseCount)
         {
             var targetPosition = subjectToTarget.MultiplyPoint3x4(Vector3.zero);
             var targetNormal = subjectToTarget.MultiplyVector(Vector3.up);
             Vector4 targetTangent = subjectToTarget.MultiplyVector(Vector3.right);
             targetTangent.w = 1.0f;
 
-            if (dryRun)
-                CountDataAttachToClosestVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, settings,
-                    &targetPosition, &targetNormal, &targetTangent, 1);
-            else
-                BuildDataAttachToClosestVertex(poses, items, meshInfo, settings,
-                    &targetPosition, &targetNormal, &targetTangent, 1, attachmentOffset, poseOffset);
+            fixed (Vector3* attachmentTargetPositions = meshInfo.meshBuffers.vertexPositions)
+            fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
+            fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
+            fixed (int* attachmentTargetTriangles = meshInfo.meshBuffers.triangles)
+            fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.triangleTriangles.items)
+            fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.triangleTriangles.lists)
+            {
+                int closestVertex = meshInfo.meshVertexBSP.FindNearest(ref targetPosition);
+
+                MeshInfoUnsafe meshInfoUnsafe = new MeshInfoUnsafe()
+                {
+                    vertexPositions = attachmentTargetPositions,
+                    vertexNormals = attachmentTargetNormals,
+                    vertexTangents = attachmentTargetTangents,
+                    triangles = attachmentTargetTriangles,
+                    vertexTriangles = new LinkedIndexListArrayUnsafeView(vertexTrianglesLists, vertexTrianglesItems)
+                };
+
+                poseCount = CountPosesVertex(meshInfoUnsafe, ref targetPosition, closestVertex,
+                    settings.onlyAllowPoseTrianglesContainingAttachedPoint);
+
+                if (poseCount == 0)
+                {
+                    itemCount = 0;
+                    return;
+                }
+
+                itemCount = 1;
+                ArrayUtils.ResizeCheckedIfLessThan(ref poses, posesArrayOffset + poseCount);
+                ArrayUtils.ResizeCheckedIfLessThan(ref items, itemsArrayOffset + itemCount);
+                fixed (SkinAttachmentPose* posesPtr = poses)
+                fixed (SkinAttachmentItem* itemsPtr = items)
+                {
+                    BuildDataAttachToVertex(posesPtr, itemsPtr, meshInfoUnsafe, targetPosition, Vector3.zero,
+                        targetNormal,
+                        targetTangent, closestVertex, settings.onlyAllowPoseTrianglesContainingAttachedPoint,
+                        &itemsArrayOffset, &posesArrayOffset);
+                }
+            }
         }
 
+        //Burst jobs
+        [BurstCompile(FloatMode = FloatMode.Fast)]
+        unsafe struct InitializeTargetDataJob : IJobParallelFor
+        {
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* subjectPositions;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* subjectNormals;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector4* subjectTangents;
+
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* targetPositions;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* targetNormals;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector4* targetTangents;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* targetOffsets;
+
+            public Matrix4x4 subjectToTarget;
+
+
+            public void Execute(int i)
+            {
+                targetPositions[i] = subjectToTarget.MultiplyPoint3x4(subjectPositions[i]);
+                targetNormals[i] = subjectToTarget.MultiplyVector(subjectNormals[i]);
+                Vector3 tan = subjectToTarget.MultiplyVector(subjectTangents[i]);
+                targetTangents[i] = new Vector4(tan.x, tan.y, tan.z, subjectTangents[i].w);
+                targetOffsets[i] = Vector3.zero;
+            }
+        }
+
+        [BurstCompile(FloatMode = FloatMode.Fast)]
+        unsafe struct CountPosesPerItemJob : IJobParallelFor
+        {
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* targetPositions;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public int* closestVertexIndices;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public int* poseCountPerItem;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public int* itemCount;
+
+            public MeshInfoUnsafe meshInfo;
+
+            public bool onlyAllowPoseTrianglesContainingAttachedPoint;
+
+            public void Execute(int i)
+            {
+                int poseCount = CountPosesVertex(meshInfo, ref targetPositions[i], closestVertexIndices[i],
+                    onlyAllowPoseTrianglesContainingAttachedPoint);
+
+                poseCountPerItem[i] = poseCount;
+                itemCount[i] = poseCount > 0 ? 1 : 0;
+            }
+        }
+
+        [BurstCompile(FloatMode = FloatMode.Fast)]
+        unsafe struct CalculatePosesPerItemJob : IJobParallelFor
+        {
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* targetPositions;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* targetNormals;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector4* targetTangents;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* targetOffsets;
+
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public int* closestVertexIndices;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public int* offsetToPosesPerItem;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public int* offsetToItems;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public SkinAttachmentPose* poses;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public SkinAttachmentItem* items;
+
+            public MeshInfoUnsafe meshInfo;
+
+            public bool onlyAllowPoseTrianglesContainingAttachedPoint;
+
+            public int initialItemOffset;
+            public int initialPosesOffset;
+
+            public void Execute(int i)
+            {
+                int currentItemOffset = offsetToItems[i];
+                int nextItemOffset = offsetToItems[i + 1];
+
+                if (currentItemOffset != nextItemOffset)
+                {
+                    int itemOffset = initialItemOffset + currentItemOffset;
+                    int posesOffset = initialPosesOffset + offsetToPosesPerItem[i];
+                    BuildDataAttachToVertex(poses, items, meshInfo, targetPositions[i], targetOffsets[i],
+                        targetNormals[i],
+                        targetTangents[i], closestVertexIndices[i],
+                        onlyAllowPoseTrianglesContainingAttachedPoint, &itemOffset, &posesOffset);
+                }
+            }
+        }
     }
 }

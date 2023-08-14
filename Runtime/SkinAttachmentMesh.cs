@@ -229,43 +229,44 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
         
-        static void BuildDataAttachSubject(in SkinAttachmentPose[] posesArray, in SkinAttachmentItem[] itemsArray,
+        static void BuildDataAttachSubject(ref SkinAttachmentPose[] posesArray, ref SkinAttachmentItem[] itemsArray,
             in BakeData attachmentBakeData, Matrix4x4 subjectToTarget,
             in MeshInfo targetBakeData, in PoseBuildSettings settings, MeshAttachmentType attachmentType,
-            bool allowOnlyOneRoot, bool dryRun,
-            ref int dryRunPoseCount, ref int dryRunItemCount, ref int itemOffset, ref int poseOffset)
+            bool allowOnlyOneRoot,  ref int itemOffset, ref int poseOffset)
         {
-            unsafe
+            
+            int poseCount = 0;
+            int itemCount = 0;
+
+            switch (attachmentType)
             {
-                fixed (int* attachmentIndex = &itemOffset)
-                fixed (int* poseIndex = &poseOffset)
-                fixed (SkinAttachmentPose* pose = posesArray)
-                fixed (SkinAttachmentItem* items = itemsArray)
-                {
-                    switch (attachmentType)
-                    {
-                        case MeshAttachmentType.Mesh:
-                            SkinAttachmentDataBuilder.BuildDataAttachMesh(pose, items, subjectToTarget, targetBakeData,
-                                settings,
-                                attachmentBakeData.meshBuffers.vertexPositions,
-                                attachmentBakeData.meshBuffers.vertexNormals,
-                                attachmentBakeData.meshBuffers.vertexTangents,
-                                dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex,
-                                poseIndex);
-                            break;
-                        case MeshAttachmentType.MeshRoots:
-                            SkinAttachmentDataBuilder.BuildDataAttachMeshRoots(pose, items, subjectToTarget,
-                                targetBakeData, settings,
-                                allowOnlyOneRoot, attachmentBakeData.meshIslands, attachmentBakeData.meshAdjacency,
-                                attachmentBakeData.meshBuffers.vertexPositions,
-                                attachmentBakeData.meshBuffers.vertexNormals,
-                                attachmentBakeData.meshBuffers.vertexTangents,
-                                dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex,
-                                poseIndex);
-                            break;
-                    }
-                }
+                case MeshAttachmentType.Mesh:
+                    SkinAttachmentDataBuilder.BuildDataAttachMesh(ref posesArray, ref itemsArray, subjectToTarget, targetBakeData,
+                        settings,
+                        attachmentBakeData.meshBuffers.vertexPositions,
+                        attachmentBakeData.meshBuffers.vertexNormals,
+                        attachmentBakeData.meshBuffers.vertexTangents, 
+                        itemOffset,
+                        poseOffset,
+                        out itemCount,
+                        out poseCount);
+                    break;
+                case MeshAttachmentType.MeshRoots:
+                   /* SkinAttachmentDataBuilder.BuildDataAttachMeshRoots(pose, items, subjectToTarget,
+                        targetBakeData, settings,
+                        allowOnlyOneRoot, attachmentBakeData.meshIslands, attachmentBakeData.meshAdjacency,
+                        attachmentBakeData.meshBuffers.vertexPositions,
+                        attachmentBakeData.meshBuffers.vertexNormals,
+                        attachmentBakeData.meshBuffers.vertexTangents,
+                        dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex,
+                        poseIndex);*/
+                    break;
             }
+            
+
+            itemOffset += itemCount;
+            poseOffset += poseCount;
+
         }
 
         bool BakeAttachmentPoses(SkinAttachmentComponentCommon.PoseBakeOutput bakeOutput)
@@ -297,31 +298,13 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 onlyAllowPoseTrianglesContainingAttachedPoint = false
             };
-
-            // pass 1: dry run
-            int dryRunPoseCount = 0;
-            int dryRunItemCount = 0;
-
-            int poseOffsetDummy = 0;
-            int itemOffsetDummy = 0;
-
-            BuildDataAttachSubject(poses, items, attachmentBakeData, subjectToTarget,
-                attachmentTargetBakeData, poseBuildParams,
-                attachmentType, allowOnlyOneRoot, true, ref dryRunPoseCount, ref dryRunItemCount, ref itemOffsetDummy,
-                ref poseOffsetDummy);
-
-            //int dryRunPoseCountNextPowerOfTwo = Mathf.NextPowerOfTwo(dryRunPoseCount);
-            //int dryRunItemCountNextPowerOfTwo = Mathf.NextPowerOfTwo(dryRunItemCount);
-
-            ArrayUtils.ResizeCheckedIfLessThan(ref poses, dryRunPoseCount);
-            ArrayUtils.ResizeCheckedIfLessThan(ref items, dryRunItemCount);
-
+            
             int currentPoseOffset = 0;
             int currentItemOffset = 0;
 
-            BuildDataAttachSubject(poses, items, attachmentBakeData, subjectToTarget,
+            BuildDataAttachSubject(ref poses, ref items, attachmentBakeData, subjectToTarget,
                 attachmentTargetBakeData, poseBuildParams,
-                attachmentType, allowOnlyOneRoot, false, ref dryRunPoseCount, ref dryRunItemCount,
+                attachmentType, allowOnlyOneRoot,
                 ref currentItemOffset, ref currentPoseOffset);
 
 

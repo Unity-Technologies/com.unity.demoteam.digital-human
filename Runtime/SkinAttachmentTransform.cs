@@ -118,21 +118,14 @@ namespace Unity.DemoTeam.DigitalHuman
             common.UpdateAttachedState(this);
         }
 
-        static void BuildDataAttachSubject(in SkinAttachmentPose[] posesArray, in SkinAttachmentItem[] itemsArray,
-            Matrix4x4 resolveMatrix, in MeshInfo targetBakeData, in PoseBuildSettings settings, bool dryRun,
-            ref int dryRunPoseCount, ref int dryRunItemCount, ref int itemOffset, ref int poseOffset)
+        static void BuildDataAttachSubject(ref SkinAttachmentPose[] posesArray, ref SkinAttachmentItem[] itemsArray,
+            Matrix4x4 resolveMatrix, in MeshInfo targetBakeData, in PoseBuildSettings settings, ref int itemOffset, ref int poseOffset)
         {
-            unsafe
-            {
-                fixed (int* attachmentIndex = &itemOffset)
-                fixed (int* poseIndex = &poseOffset)
-                fixed (SkinAttachmentPose* pose = posesArray)
-                fixed (SkinAttachmentItem* items = itemsArray)
-                {
-                    SkinAttachmentDataBuilder.BuildDataAttachTransform(pose, items, resolveMatrix, targetBakeData,
-                        settings, dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex, poseIndex);
-                }
-            }
+            SkinAttachmentDataBuilder.BuildDataAttachTransform(ref posesArray, ref itemsArray, resolveMatrix, targetBakeData,
+                settings, itemOffset, poseOffset, out var itemCount, out var poseCount);
+
+            itemOffset += itemCount;
+            poseOffset += poseCount;
         }
 
         bool BakeAttachmentPoses(SkinAttachmentComponentCommon.PoseBakeOutput bakeOutput)
@@ -154,27 +147,11 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 onlyAllowPoseTrianglesContainingAttachedPoint = false
             };
-
-            // pass 1: dry run
-            int dryRunPoseCount = 0;
-            int dryRunItemCount = 0;
-
+            
             int currentPoseOffset = 0;
             int currentItemOffset = 0;
 
-            BuildDataAttachSubject(poses, items, subjectToTarget, attachmentTargetBakeData, poseBuildParams, true,
-                ref dryRunPoseCount, ref dryRunItemCount, ref currentItemOffset,
-                ref currentPoseOffset);
-
-            ArrayUtils.ResizeCheckedIfLessThan(ref poses, dryRunPoseCount);
-            ArrayUtils.ResizeCheckedIfLessThan(ref items, dryRunItemCount);
-
-            currentPoseOffset = 0;
-            currentItemOffset = 0;
-
-
-            BuildDataAttachSubject(poses, items, subjectToTarget, attachmentTargetBakeData, poseBuildParams, false,
-                ref dryRunPoseCount, ref dryRunItemCount, ref currentItemOffset,
+            BuildDataAttachSubject(ref poses, ref items, subjectToTarget, attachmentTargetBakeData, poseBuildParams, ref currentItemOffset,
                 ref currentPoseOffset);
 
             return true;

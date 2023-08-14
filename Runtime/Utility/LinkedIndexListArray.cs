@@ -1,4 +1,6 @@
 ﻿using System;
+using Unity.Burst;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
@@ -114,5 +116,74 @@ namespace Unity.DemoTeam.DigitalHuman
 				return new LinkedIndexEnumerable(this.items, this.lists[listIndex].head);
 			}
 		}
+	}
+
+	//convinience for using LinkedIndexListArray without managed types (read only). Superficially resembles IEnumerator but does not inherit from it as it\s managed type
+	public unsafe struct LinkedIndexListArrayUnsafeView
+	{
+		public struct LinkedIndexListArrayUnsafeViewIterator
+		{
+			[NativeDisableUnsafePtrRestriction, NoAlias]
+			private LinkedIndexItem* items;
+			private int headIndex;
+			private int itemIndex;
+			public LinkedIndexListArrayUnsafeViewIterator(LinkedIndexItem* itemsPtr, int head, int index)
+			{
+				items = itemsPtr;
+				headIndex = head;
+				itemIndex = index;
+			}
+			
+			public int Current
+			{
+				get { return items[itemIndex].data; }
+			}
+
+			public bool MoveNext()
+			{
+				if (itemIndex == -1)
+				{
+					itemIndex = headIndex;
+					return (itemIndex != -1);//return true;
+				}
+				else
+				{
+					itemIndex = items[itemIndex].next;
+					return (itemIndex != headIndex);
+				}
+			}
+
+			public int ReadNext()
+			{
+				if (MoveNext())
+					return Current;
+				else
+					return -1;
+			}
+
+			public void Reset()
+			{
+				itemIndex = headIndex;
+			}
+		}
+		
+		[NativeDisableUnsafePtrRestriction, NoAlias]
+		private LinkedIndexList* lists;
+		[NativeDisableUnsafePtrRestriction, NoAlias]
+		private LinkedIndexItem* items;
+		
+		public LinkedIndexListArrayUnsafeView(LinkedIndexList* listPtr, LinkedIndexItem* itemsPtr)
+		{
+			lists = listPtr;
+			items = itemsPtr;
+		}
+
+		public LinkedIndexListArrayUnsafeViewIterator GetIterator(int listIndex)
+		{
+			return new LinkedIndexListArrayUnsafeViewIterator(items, lists[listIndex].head, -1);
+		}
+
+
+		
 	}
 }

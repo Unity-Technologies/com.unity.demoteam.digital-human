@@ -286,7 +286,37 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		unsafe void FindNearest(ref float bestDist, ref int bestNode, int node, int depth, ref Vector3 target)
+		public unsafe void FindNearestForPointsJob(Vector3* targetPositions, int* closestPointIndices, int count, JobHandle jobToWaitFor = default)
+		{
+			fixed(Node* nodesPtr = nodes)
+			fixed (Point3* pointsPtr = points)
+			{
+				var job = new FindNearestJob()
+				{
+					targetPositions = targetPositions,
+					closestPointIndices = closestPointIndices,
+					nodes = nodesPtr,
+					points = pointsPtr,
+				};
+				job.Schedule(count, 64, jobToWaitFor).Complete();
+			}
+		}
+
+		void FindNearest(ref float bestDist, ref int bestNode, int node, int depth, ref Vector3 target)
+		{
+			unsafe
+			{
+				fixed (Node* __node = this.nodes)
+				fixed (Point3* __points = this.points)
+				{
+					FindNearest(__node, __points, ref bestDist, ref bestNode, 0, 0, ref target);
+				}
+			}
+			
+		}
+		
+		
+		unsafe static void FindNearest(Node* nodes, Point3* points, ref float bestDist, ref int bestNode, int node, int depth, ref Vector3 target)
 		{
 			// update best index
 			int point = nodes[node].point;
@@ -313,13 +343,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			// search near
 			if (stepN != 0)
 			{
-				FindNearest(ref bestDist, ref bestNode, node + stepN, depth + 1, ref target);
+				FindNearest(nodes, points, ref bestDist, ref bestNode, node + stepN, depth + 1, ref target);
 			}
 
 			// search far
 			if (stepF != 0 && delta * delta < bestDist)
 			{
-				FindNearest(ref bestDist, ref bestNode, node + stepF, depth + 1, ref target);
+				FindNearest(nodes,  points, ref bestDist, ref bestNode, node + stepF, depth + 1, ref target);
 			}
 		}
 
@@ -353,6 +383,34 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 
 			return bestNode;
+		}
+		
+		[BurstCompile]
+		unsafe struct FindNearestJob : IJobParallelFor
+		{
+			[NativeDisableUnsafePtrRestriction, NoAlias]
+			public Vector3* targetPositions;
+			
+			[NativeDisableUnsafePtrRestriction, NoAlias]
+			public int* closestPointIndices;
+
+			[NativeDisableUnsafePtrRestriction, NoAlias]
+			public Node* nodes;
+			[NativeDisableUnsafePtrRestriction, NoAlias]
+			public Point3* points;
+
+			public void Execute(int i)
+			{
+				var bestDist = float.PositiveInfinity;
+				var bestNode = -1;
+
+				FindNearest(nodes, points, ref bestDist, ref bestNode, 0, 0, ref targetPositions[i]);
+
+				if (bestNode != -1)
+					closestPointIndices[i] = points[nodes[bestNode].point].index;
+				else
+					closestPointIndices[i] = -1;
+			}
 		}
 	}
 
