@@ -252,14 +252,16 @@ namespace Unity.DemoTeam.DigitalHuman
                         out poseCount);
                     break;
                 case MeshAttachmentType.MeshRoots:
-                   /* SkinAttachmentDataBuilder.BuildDataAttachMeshRoots(pose, items, subjectToTarget,
+                    SkinAttachmentDataBuilder.BuildDataAttachMeshRoots(ref posesArray, ref itemsArray, subjectToTarget,
                         targetBakeData, settings,
                         allowOnlyOneRoot, attachmentBakeData.meshIslands, attachmentBakeData.meshAdjacency,
                         attachmentBakeData.meshBuffers.vertexPositions,
                         attachmentBakeData.meshBuffers.vertexNormals,
                         attachmentBakeData.meshBuffers.vertexTangents,
-                        dryRun, ref dryRunPoseCount, ref dryRunItemCount, attachmentIndex,
-                        poseIndex);*/
+                        itemOffset,
+                        poseOffset,
+                        out itemCount,
+                        out poseCount);
                     break;
             }
             

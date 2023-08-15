@@ -565,11 +565,11 @@ namespace Unity.DemoTeam.DigitalHuman
                         subject.meshBuffers.vertexTangents, itemOffset, poseOffset, out itemCount,out poseCount);
                     break;
                 case SkinAttachment.AttachmentType.MeshRoots:
-                   /* BuildDataAttachMeshRoots(pose, items, subjectToTarget, meshInfo, settings,
+                    BuildDataAttachMeshRoots(ref pose, ref items, subjectToTarget, meshInfo, settings,
                         subject.allowOnlyOneRoot, subject.meshIslands, subject.meshAdjacency,
                         subject.meshBuffers.vertexPositions, subject.meshBuffers.vertexNormals,
                         subject.meshBuffers.vertexTangents,
-                        itemOffset, poseOffset, out itemCount,out poseCount);*/
+                        itemOffset, poseOffset, out itemCount,out poseCount);
                     break;
             }
 
@@ -593,10 +593,7 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 onlyAllowPoseTrianglesContainingAttachedPoint = false
             };
-            Stopwatch stopWatch = new Stopwatch();
-            stopWatch.Start();
 
-            
             attachData.Clear();
             attachData.driverVertexCount = meshInfo.meshBuffers.vertexCount;
             {
@@ -678,8 +675,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
             attachData.dataVersion = SkinAttachmentData.DataVersion.Version_3;
             attachData.subjectCount = subjects.Count;
-            stopWatch.Stop();
-            Debug.Log("Time took to bake: " + stopWatch.ElapsedMilliseconds +"ms");
+
             attachData.Persist();
 
 

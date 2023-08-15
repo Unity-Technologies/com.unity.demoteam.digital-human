@@ -227,6 +227,93 @@ namespace Unity.DemoTeam.DigitalHuman
             return true;
         }
 
+        public static unsafe void CalculatePoses(ref SkinAttachmentPose[] poses, ref SkinAttachmentItem[] items, 
+            in MeshInfo meshInfo, in PoseBuildSettings settings, int subjectVertexCount,
+            Vector3* targetPositions, Vector3* targetNormals, Vector4* targetTangents, Vector3* targetOffsets, int* closestVertexIndices,
+            int itemsArrayOffset, int posesArrayOffset, out int itemCount, out int poseCount)
+        {
+            //bake attachment data
+            using (var poseOffsetPerItem = new UnsafeArrayInt(subjectVertexCount))
+            using (var itemsOffset = new UnsafeArrayInt(subjectVertexCount + 1)) //one extra to be able to deduce the item count from prefix sum
+            fixed (Vector3* attachmentTargetPositions = meshInfo.meshBuffers.vertexPositions)
+            fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
+            fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
+            fixed (int* attachmentTargetTriangles = meshInfo.meshBuffers.triangles)
+            fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.vertexTriangles.items)
+            fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.vertexTriangles.lists)
+                
+            {
+                MeshInfoUnsafe meshInfoUnsafe = new MeshInfoUnsafe()
+                {
+                    vertexPositions = attachmentTargetPositions,
+                    vertexNormals = attachmentTargetNormals,
+                    vertexTangents = attachmentTargetTangents,
+                    triangles = attachmentTargetTriangles,
+                    vertexTriangles = new LinkedIndexListArrayUnsafeView(vertexTrianglesLists, vertexTrianglesItems)
+                };
+                
+                //count number of poses per item (and also item count, since not all source vertices are guaranteed to be valid)
+                var countPosesPerItem = new CountPosesPerItemJob()
+                {
+                    targetPositions = targetPositions,
+                    closestVertexIndices = closestVertexIndices,
+                    poseCountPerItem = poseOffsetPerItem.val,
+                    itemCount = itemsOffset.val,
+                    meshInfo = meshInfoUnsafe,
+                    onlyAllowPoseTrianglesContainingAttachedPoint =
+                        settings.onlyAllowPoseTrianglesContainingAttachedPoint
+                };
+                
+                countPosesPerItem.Schedule(subjectVertexCount, 64).Complete();
+
+                //TODO: parallelize/reduction prefixSum
+                {
+                    int poseSum = 0;
+                    int itemSum = 0;
+                    for (int i = 0; i < subjectVertexCount; ++i)
+                    {
+                        int poseCountPerItem = poseOffsetPerItem.val[i];
+                        poseOffsetPerItem.val[i] = poseSum;
+                        poseSum += poseCountPerItem;
+
+                        int itCount = itemsOffset.val[i];
+                        itemsOffset.val[i] = itemSum;
+                        itemSum += itCount;
+                    }
+
+                    itemsOffset.val[subjectVertexCount] = itemSum;
+
+                    itemCount = itemSum;
+                    poseCount = poseSum;
+                }
+
+                ArrayUtils.ResizeCheckedIfLessThan(ref poses, posesArrayOffset + poseCount);
+                ArrayUtils.ResizeCheckedIfLessThan(ref items, itemsArrayOffset + itemCount);
+                fixed (SkinAttachmentPose* posesPtr = poses)
+                fixed (SkinAttachmentItem* itemsPtr = items)
+                {
+                    var calculatePosesJob = new CalculatePosesPerItemJob()
+                    {
+                        targetPositions = targetPositions,
+                        targetNormals = targetNormals,
+                        targetTangents = targetTangents,
+                        targetOffsets = targetOffsets,
+                        closestVertexIndices = closestVertexIndices,
+                        offsetToPosesPerItem = poseOffsetPerItem.val,
+                        offsetToItems = itemsOffset.val,
+                        poses = posesPtr,
+                        items = itemsPtr,
+                        meshInfo = meshInfoUnsafe,
+                        onlyAllowPoseTrianglesContainingAttachedPoint =
+                            settings.onlyAllowPoseTrianglesContainingAttachedPoint,
+                        initialItemOffset = itemsArrayOffset,
+                        initialPosesOffset = posesArrayOffset
+                    };
+
+                    calculatePosesJob.Schedule(subjectVertexCount, 64).Complete();
+                }
+            }
+        }
 
         public static unsafe void BuildDataAttachMesh(ref SkinAttachmentPose[] poses,ref SkinAttachmentItem[] items,
             Matrix4x4 subjectToTarget, in MeshInfo meshInfo, in PoseBuildSettings settings,
@@ -240,8 +327,6 @@ namespace Unity.DemoTeam.DigitalHuman
             using (var targetTangents = new UnsafeArrayVector4(subjectVertexCount))
             using (var targetOffsets = new UnsafeArrayVector3(subjectVertexCount))
             using (var closestVertexIndices = new UnsafeArrayInt(subjectVertexCount))
-            using (var poseOffsetPerItem = new UnsafeArrayInt(subjectVertexCount))
-            using (var itemsOffset = new UnsafeArrayInt(subjectVertexCount + 1)) //one extra to be able to deduce the item count from prefix sum
             {
                 //calculate attachment target relative positions and find closest vertex per attached mesh vertex
                 fixed (Vector3* subjectPositions = vertexPositions)
@@ -265,98 +350,19 @@ namespace Unity.DemoTeam.DigitalHuman
                         subjectVertexCount, jobToWait);
                 }
 
-                //bake attachment data
-                fixed (Vector3* attachmentTargetPositions = meshInfo.meshBuffers.vertexPositions)
-                fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
-                fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
-                fixed (int* attachmentTargetTriangles = meshInfo.meshBuffers.triangles)
-                fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.vertexTriangles.items)
-                fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.vertexTriangles.lists)
-                {
-                    MeshInfoUnsafe meshInfoUnsafe = new MeshInfoUnsafe()
-                    {
-                        vertexPositions = attachmentTargetPositions,
-                        vertexNormals = attachmentTargetNormals,
-                        vertexTangents = attachmentTargetTangents,
-                        triangles = attachmentTargetTriangles,
-                        vertexTriangles = new LinkedIndexListArrayUnsafeView(vertexTrianglesLists, vertexTrianglesItems)
-                    };
-                    
-                    //count number of poses per item (and also item count, since not all source vertices are guaranteed to be valid)
-                    var countPosesPerItem = new CountPosesPerItemJob()
-                    {
-                        targetPositions = targetPositions.val,
-                        closestVertexIndices = closestVertexIndices.val,
-                        poseCountPerItem = poseOffsetPerItem.val,
-                        itemCount = itemsOffset.val,
-                        meshInfo = meshInfoUnsafe,
-                        onlyAllowPoseTrianglesContainingAttachedPoint =
-                            settings.onlyAllowPoseTrianglesContainingAttachedPoint
-                    };
-                    
-                    countPosesPerItem.Schedule(subjectVertexCount, 64).Complete();
+                CalculatePoses(ref poses, ref items, meshInfo, settings, subjectVertexCount, targetPositions.val,
+                    targetNormals.val, targetTangents.val, targetOffsets.val, closestVertexIndices.val, itemsArrayOffset, posesArrayOffset, out itemCount, out poseCount);
 
-                    //TODO: parallelize/reduction prefixSum
-                    {
-                        int poseSum = 0;
-                        int itemSum = 0;
-                        for (int i = 0; i < subjectVertexCount; ++i)
-                        {
-                            int poseCountPerItem = poseOffsetPerItem.val[i];
-                            poseOffsetPerItem.val[i] = poseSum;
-                            poseSum += poseCountPerItem;
-
-                            int itCount = itemsOffset.val[i];
-                            itemsOffset.val[i] = itemSum;
-                            itemSum += itCount;
-                        }
-
-                        itemsOffset.val[subjectVertexCount] = itemSum;
-
-                        itemCount = itemSum;
-                        poseCount = poseSum;
-                    }
-
-                    ArrayUtils.ResizeCheckedIfLessThan(ref poses, posesArrayOffset + poseCount);
-                    ArrayUtils.ResizeCheckedIfLessThan(ref items, itemsArrayOffset + itemCount);
-                    fixed (SkinAttachmentPose* posesPtr = poses)
-                    fixed (SkinAttachmentItem* itemsPtr = items)
-                    {
-                        var calculatePosesJob = new CalculatePosesPerItemJob()
-                        {
-                            targetPositions = targetPositions.val,
-                            targetNormals = targetNormals.val,
-                            targetTangents = targetTangents.val,
-                            targetOffsets = targetOffsets.val,
-                            closestVertexIndices = closestVertexIndices.val,
-                            offsetToPosesPerItem = poseOffsetPerItem.val,
-                            offsetToItems = itemsOffset.val,
-                            poses = posesPtr,
-                            items = itemsPtr,
-                            meshInfo = meshInfoUnsafe,
-                            onlyAllowPoseTrianglesContainingAttachedPoint =
-                                settings.onlyAllowPoseTrianglesContainingAttachedPoint,
-                            initialItemOffset = itemsArrayOffset,
-                            initialPosesOffset = posesArrayOffset
-                        };
-
-                        calculatePosesJob.Schedule(subjectVertexCount, 64).Complete();
-                    }
-                }
             }
         }
 
-        public static unsafe void BuildDataAttachMeshRoots(SkinAttachmentPose* poses, SkinAttachmentItem* items,
-            Matrix4x4 subjectToTarget, in MeshInfoUnsafe meshInfo, in PoseBuildSettings settings, bool onlyAllowOneRoot,
+        public static unsafe void BuildDataAttachMeshRoots(ref SkinAttachmentPose[] poses, ref SkinAttachmentItem[] items,
+            Matrix4x4 subjectToTarget, in MeshInfo meshInfo, in PoseBuildSettings settings, bool onlyAllowOneRoot,
             MeshIslands meshIslands, MeshAdjacency meshAdjacency, Vector3[] vertexPositions, Vector3[] vertexNormals,
-            Vector4[] vertexTangents,
-            bool dryRun, ref int dryRunPoseCount, ref int dryRunItemCount,
-            int* attachmentOffset, int* poseOffset)
-        {/*
+            Vector4[] vertexTangents, int itemsArrayOffset, int posesArrayOffset, out int itemCount, out int poseCount)
+        {
             var subjectVertexCount = vertexPositions.Length;
-            var subjectPositions = vertexPositions;
-            var subjectNormals = vertexNormals;
-            var subjectTangent = vertexTangents;
+
 
             using (var targetPositions = new UnsafeArrayVector3(subjectVertexCount))
             using (var targetNormals = new UnsafeArrayVector3(subjectVertexCount))
@@ -368,17 +374,29 @@ namespace Unity.DemoTeam.DigitalHuman
             using (var visitor = new UnsafeBFS(subjectVertexCount))
             using (var targetTangents = new UnsafeArrayVector4(subjectVertexCount))
             {
-                for (int i = 0; i != subjectVertexCount; i++)
+                //calculate attachment target relative positions
+                fixed (Vector3* subjectPositions = vertexPositions)
+                fixed (Vector3* subjectNormals = vertexNormals)
+                fixed (Vector4* subjectTangents = vertexTangents)
                 {
-                    targetPositions.val[i] = subjectToTarget.MultiplyPoint3x4(subjectPositions[i]);
-                    targetNormals.val[i] = subjectToTarget.MultiplyVector(subjectNormals[i]);
-                    targetTangents.val[i] = subjectToTarget.MultiplyVector(subjectTangent[i]);
-                    targetOffsets.val[i] = Vector3.zero;
-                }
+                    var initializeTargetDataJob = new InitializeTargetDataJob()
+                    {
+                        subjectPositions = subjectPositions,
+                        subjectNormals = subjectNormals,
+                        subjectTangents = subjectTangents,
+                        targetPositions = targetPositions.val,
+                        targetNormals = targetNormals.val,
+                        targetTangents = targetTangents.val,
+                        targetOffsets = targetOffsets.val,
+                        subjectToTarget = subjectToTarget
+                    };
 
+                    initializeTargetDataJob.Schedule(subjectVertexCount, 64).Complete();
+                }
+                
                 visitor.Clear();
 
-                // find island roots
+                // find island roots (TODO: parallelize this) 
                 for (int island = 0; island != meshIslands.islandCount; island++)
                 {
                     int rootCount = 0;
@@ -406,9 +424,9 @@ namespace Unity.DemoTeam.DigitalHuman
                             foreach (var j in meshAdjacency.vertexVertices[i])
                             {
                                 var targetDelta = targetPositions.val[j] -
-                                                  meshInfo.vertexPositions[targetNode];
+                                                  meshInfo.meshBuffers.vertexPositions[targetNode];
                                 var targetNormalDist = Vector3.Dot(targetDelta,
-                                    meshInfo.vertexNormals[targetNode]);
+                                    meshInfo.meshBuffers.vertexNormals[targetNode]);
                                 if (targetNormalDist < 0.0f)
                                 {
                                     var d = Vector3.SqrMagnitude(targetDelta);
@@ -436,9 +454,9 @@ namespace Unity.DemoTeam.DigitalHuman
 
                                 // see if node qualifies as second choice root
                                 var targetDelta = targetPositions.val[i] -
-                                                  meshInfo.vertexPositions[targetNode];
+                                                  meshInfo.meshBuffers.vertexPositions[targetNode];
                                 var targetNormalDist = Mathf.Abs(Vector3.Dot(targetDelta,
-                                    meshInfo.vertexNormals[targetNode]));
+                                    meshInfo.meshBuffers.vertexNormals[targetNode]));
                                 if (targetNormalDist < bestDist0)
                                 {
                                     bestDist1 = bestDist0;
@@ -466,7 +484,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         visitor.Ignore(bestVert0);
                         rootIdx.val[bestVert0] = bestNode0;
                         rootDir.val[bestVert0] =
-                            Vector3.Normalize(meshInfo.vertexPositions[bestNode0] -
+                            Vector3.Normalize(meshInfo.meshBuffers.vertexPositions[bestNode0] -
                                               targetPositions.val[bestVert0]);
                         rootGen.val[bestVert0] = 0;
                         rootCount++;
@@ -476,7 +494,7 @@ namespace Unity.DemoTeam.DigitalHuman
                             visitor.Ignore(bestVert1);
                             rootIdx.val[bestVert1] = bestNode1;
                             rootDir.val[bestVert1] = Vector3.Normalize(
-                                meshInfo.vertexPositions[bestNode1] -
+                                meshInfo.meshBuffers.vertexPositions[bestNode1] -
                                 targetPositions.val[bestVert1]);
                             rootGen.val[bestVert1] = 0;
                             rootCount++;
@@ -541,16 +559,9 @@ namespace Unity.DemoTeam.DigitalHuman
                     targetVertices.val[i] = rootIdx.val[i];
                 }
 
-                if (dryRun)
-                    CountDataAttachToVertex(ref dryRunPoseCount, ref dryRunItemCount, meshInfo, settings,
-                        targetPositions.val, targetOffsets.val, targetNormals.val, targetTangents.val,
-                        targetVertices.val, subjectVertexCount);
-                else
-                    BuildDataAttachToVertex(poses, items, meshInfo,
-                        targetPositions.val, targetOffsets.val, targetNormals.val, targetTangents.val,
-                        targetVertices.val, subjectVertexCount, settings.onlyAllowPoseTrianglesContainingAttachedPoint,
-                        attachmentOffset, poseOffset);
-            }*/
+                CalculatePoses(ref poses, ref items, meshInfo, settings, subjectVertexCount, targetPositions.val,
+                    targetNormals.val, targetTangents.val, targetOffsets.val, targetVertices.val, itemsArrayOffset, posesArrayOffset, out itemCount, out poseCount);
+            }
         }
 
         public static unsafe void BuildDataAttachTransform(ref SkinAttachmentPose[] poses, ref SkinAttachmentItem[] items,
