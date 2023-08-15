@@ -40,6 +40,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		public DataStorageEntry[] GetAllEntries()
 		{
 			DataStorageEntry[] copy = null;
+			if (databaseEntries == null) return copy;
 			ArrayUtils.CopyChecked(databaseEntries, ref copy, databaseEntries.Length);
 			return copy;
 		}
@@ -180,10 +181,6 @@ namespace Unity.DemoTeam.DigitalHuman
 					dataStorage = null;
 				}
 				
-			}
-			else
-			{
-				Debug.LogWarning("Tried to remove storage data entry which doesn't exists, ignoring.");
 			}
 		}
 
