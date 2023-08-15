@@ -131,10 +131,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (tryToOnlyAllowInterior)
             {
-                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
-                while (iterator.MoveNext())
+                foreach (var triangle in meshInfo.vertexTriangles[vertex])
                 {
-                    int triangle = iterator.Current;
                     poseCount += BuildPosesTriangle(pose + poseCount, meshInfo, ref target, triangle,
                         includeExterior: false);
                 }
@@ -142,10 +140,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
             if (poseCount == 0)
             {
-                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
-                while (iterator.MoveNext())
+                foreach (var triangle in meshInfo.vertexTriangles[vertex])
                 {
-                    int triangle = iterator.Current;
                     poseCount += BuildPosesTriangle(pose + poseCount, meshInfo, ref target, triangle,
                         includeExterior: true);
                 }
@@ -167,20 +163,16 @@ namespace Unity.DemoTeam.DigitalHuman
             int poseCount = 0;
             if (tryToOnlyAllowInterior)
             {
-                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
-                while (iterator.MoveNext())
+                foreach (var triangle in meshInfo.vertexTriangles[vertex])
                 {
-                    int triangle = iterator.Current;
                     poseCount += CountPosesTriangle(meshInfo, ref target, triangle, includeExterior: false);
                 }
             }
 
             if (poseCount == 0)
             {
-                var iterator = meshInfo.vertexTriangles.GetIterator(vertex);
-                while (iterator.MoveNext())
+                foreach (var triangle in meshInfo.vertexTriangles[vertex])
                 {
-                    int triangle = iterator.Current;
                     poseCount += CountPosesTriangle(meshInfo, ref target, triangle, includeExterior: true);
                 }
             }
@@ -278,8 +270,8 @@ namespace Unity.DemoTeam.DigitalHuman
                 fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
                 fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
                 fixed (int* attachmentTargetTriangles = meshInfo.meshBuffers.triangles)
-                fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.triangleTriangles.items)
-                fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.triangleTriangles.lists)
+                fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.vertexTriangles.items)
+                fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.vertexTriangles.lists)
                 {
                     MeshInfoUnsafe meshInfoUnsafe = new MeshInfoUnsafe()
                     {
@@ -304,7 +296,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     
                     countPosesPerItem.Schedule(subjectVertexCount, 64).Complete();
 
-                    //TODO: parallelize prefixSum
+                    //TODO: parallelize/reduction prefixSum
                     {
                         int poseSum = 0;
                         int itemSum = 0;

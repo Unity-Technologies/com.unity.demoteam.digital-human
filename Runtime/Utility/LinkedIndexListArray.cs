@@ -134,10 +134,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				itemIndex = index;
 			}
 			
-			public int Current
-			{
-				get { return items[itemIndex].data; }
-			}
+			public int Current => items[itemIndex].data;
 
 			public bool MoveNext()
 			{
@@ -148,25 +145,41 @@ namespace Unity.DemoTeam.DigitalHuman
 				}
 				else
 				{
-					itemIndex = items[itemIndex].next;
+					itemIndex = items[itemIndex].prev;
 					return (itemIndex != headIndex);
 				}
 			}
-
-			public int ReadNext()
-			{
-				if (MoveNext())
-					return Current;
-				else
-					return -1;
-			}
-
+			
 			public void Reset()
 			{
 				itemIndex = headIndex;
 			}
+
+
+			
 		}
-		
+
+		public struct LinkedIndexListArrayUnsafeViewEnumerable
+		{
+			[NativeDisableUnsafePtrRestriction, NoAlias]
+			private LinkedIndexItem* items;
+			private int headIndex;
+			
+			public LinkedIndexListArrayUnsafeViewEnumerable(LinkedIndexItem* itemsPtr, int head)
+			{
+				items = itemsPtr;
+				headIndex = head;
+			}
+			
+			
+			public LinkedIndexListArrayUnsafeViewIterator GetEnumerator()
+			{
+				return new LinkedIndexListArrayUnsafeViewIterator(items, headIndex, -1);
+			}
+
+		}
+
+
 		[NativeDisableUnsafePtrRestriction, NoAlias]
 		private LinkedIndexList* lists;
 		[NativeDisableUnsafePtrRestriction, NoAlias]
@@ -178,12 +191,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			items = itemsPtr;
 		}
 
-		public LinkedIndexListArrayUnsafeViewIterator GetIterator(int listIndex)
+		public LinkedIndexListArrayUnsafeViewEnumerable this[int listIndex]
 		{
-			return new LinkedIndexListArrayUnsafeViewIterator(items, lists[listIndex].head, -1);
+			get
+			{
+				return new LinkedIndexListArrayUnsafeViewEnumerable(items, lists[listIndex].head);
+			}
 		}
 
-
-		
 	}
 }

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Profiling;
 using Unity.Collections.LowLevel.Unsafe;
@@ -11,6 +13,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine.Assertions;
 using UnityEngine.Rendering;
+using Debug = UnityEngine.Debug;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
@@ -590,6 +593,9 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 onlyAllowPoseTrianglesContainingAttachedPoint = false
             };
+            Stopwatch stopWatch = new Stopwatch();
+            stopWatch.Start();
+
             
             attachData.Clear();
             attachData.driverVertexCount = meshInfo.meshBuffers.vertexCount;
@@ -672,7 +678,8 @@ namespace Unity.DemoTeam.DigitalHuman
             }
             attachData.dataVersion = SkinAttachmentData.DataVersion.Version_3;
             attachData.subjectCount = subjects.Count;
-            
+            stopWatch.Stop();
+            Debug.Log("Time took to bake: " + stopWatch.ElapsedMilliseconds +"ms");
             attachData.Persist();
 
 
@@ -892,14 +899,17 @@ namespace Unity.DemoTeam.DigitalHuman
                     else
                         targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
                 }
-                
-                SkinAttachmentSystem.SkinAttachmentDescGPU attachmentDesc = default;
-                if (SkinAttachmentSystem.FillSkinAttachmentDesc(subject.meshInstance, targetToSubject,
-                        attachmentPosesBuffer,
-                        attachmentItemsBuffer, subject.attachmentIndex, subject.attachmentCount, true, ref attachmentDesc))
+                if (subject.attachmentCount != 0)
                 {
-                    attachmentDescs.Add(attachmentDesc);
+                    SkinAttachmentSystem.SkinAttachmentDescGPU attachmentDesc = default;
+                    if (SkinAttachmentSystem.FillSkinAttachmentDesc(subject.meshInstance, targetToSubject,
+                            attachmentPosesBuffer,
+                            attachmentItemsBuffer, subject.attachmentIndex, subject.attachmentCount, true, ref attachmentDesc))
+                    {
+                        attachmentDescs.Add(attachmentDesc);
+                    }
                 }
+                
             }
 
             //execute resolve
