@@ -103,6 +103,11 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             int poseCount = 0;
 
+            if (vertex == -1)
+            {
+                return poseCount;
+            }
+            
             if(tryToOnlyAllowInterior)
             {
                 foreach (int triangle in meshInfo.meshAdjacency.vertexTriangles[vertex])
@@ -142,7 +147,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         Debug.LogError("no valid poses for target vertex " + i + ", aborting");
                         poseIndex = attachData.poseCount;
                         itemIndex = attachData.itemCount;
-                        break;
+                        continue;
                     }
 
                     ref readonly var baseNormal = ref meshInfo.meshBuffers.vertexNormals[targetVertices[i]];
@@ -202,6 +207,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public static unsafe int CountPosesVertex(in MeshInfo meshInfo, ref Vector3 target, int vertex, bool tryToOnlyAllowInterior)
         {
+            
             int poseCount = 0;
             if(tryToOnlyAllowInterior)
             {
@@ -246,6 +252,12 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             for (int i = 0; i != targetCount; i++)
             {
+                if (targetVertices[i] == -1)
+                {
+                    Debug.LogErrorFormat("Couldn't find closest vertex to attach attachment vertex in index {0} (position was {1}).", i, targetPositions[i]);
+                    continue;
+                }
+                
                 poseCount += CountPosesVertex(meshInfo, ref targetPositions[i], targetVertices[i], settings.onlyAllowPoseTrianglesContainingAttachedPoint);
                 itemCount += 1;
             }
