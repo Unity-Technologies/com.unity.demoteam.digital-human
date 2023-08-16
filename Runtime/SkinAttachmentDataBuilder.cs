@@ -674,9 +674,12 @@ namespace Unity.DemoTeam.DigitalHuman
 
             public void Execute(int i)
             {
-                int poseCount = CountPosesVertex(meshInfo, ref targetPositions[i], closestVertexIndices[i],
-                    onlyAllowPoseTrianglesContainingAttachedPoint);
-
+                int closestIndex = closestVertexIndices[i];
+                int poseCount = 0;
+                if (closestIndex != -1)
+                {
+                    poseCount = CountPosesVertex(meshInfo, ref targetPositions[i], closestIndex, onlyAllowPoseTrianglesContainingAttachedPoint);
+                }
                 poseCountPerItem[i] = poseCount;
                 itemCount[i] = poseCount > 0 ? 1 : 0;
             }
