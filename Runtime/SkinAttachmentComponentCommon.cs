@@ -44,7 +44,7 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 
         public Renderer attachmentTarget;
-        public SkinAttachmentDataStorage dataStorage;
+        public SkinAttachmentDataRegistry dataStorage;
         public SchedulingMode schedulingMode;
         public bool explicitScheduling = false;
         public Mesh explicitBakeMesh = null;
@@ -59,7 +59,7 @@ namespace Unity.DemoTeam.DigitalHuman
         [SerializeField] [HideInInspector] internal Vector3 attachedLocalPosition;
         [SerializeField] [HideInInspector] internal Quaternion attachedLocalRotation;
         [SerializeField] [HideInInspector] internal Hash128 checkSum;
-        [SerializeField] [HideInInspector] internal SkinAttachmentDataStorage currentStorage;
+        [SerializeField] [HideInInspector] internal SkinAttachmentDataRegistry currentStorage;
         [SerializeField] [HideInInspector] internal Renderer currentTarget;
         
         internal SkinAttachmentPose[] bakedPoses;
@@ -93,7 +93,7 @@ namespace Unity.DemoTeam.DigitalHuman
             currentTarget = null;
             if (dataStorage)
             {
-                dataStorage.RemoveAttachmentData(checkSum);
+                dataStorage.ReleaseAttachmentData(checkSum);
                 checkSum = default;
             }
         }
@@ -246,7 +246,7 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 if (checkSum.isValid)
                 {
-                    currentStorage.RemoveAttachmentData(checkSum);
+                    currentStorage.ReleaseAttachmentData(checkSum);
                     checkSum = default;
                 }
 
@@ -266,15 +266,18 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     name = attachment != null ? attachment.name : "<unnamed>";
                 }
+
+                Hash128 newHash = SkinAttachmentDataRegistry.CalculateHash(poses, items);
+
+                if (newHash == checkSum && checkSum.isValid) return;
                 
                 if (checkSum.isValid)
                 {
-                    checkSum = currentStorage.UpdateAttachmentData(name, poses, items, checkSum);
+                    currentStorage.ReleaseAttachmentData(checkSum);
                 }
-                else
-                {
-                    checkSum = currentStorage.StoreAttachmentData(name, poses, items);
-                }
+
+                checkSum = currentStorage.UseAttachmentData(poses, items);
+                
 
 #if UNITY_EDITOR
                 UnityEditor.EditorUtility.SetDirty(attachment);

@@ -7,17 +7,17 @@ namespace Unity.DemoTeam.DigitalHuman
 {
 	using SkinAttachmentItem = SkinAttachmentItem3;
 	
-	[CustomEditor(typeof(SkinAttachmentDataStorage))]
-	public class SkinAttachmentDataStorageEditor : Editor
+	[CustomEditor(typeof(SkinAttachmentDataRegistry))]
+	public class SkinAttachmentDataRegistryEditor : Editor
 	{
-		private SkinAttachmentDataStorage storage;
+		private SkinAttachmentDataRegistry storage;
 		private Vector2 scrollPos = Vector2.zero;
 		public override void OnInspectorGUI()
 		{
 			if (target == null)
 				return;
 
-			storage = target as SkinAttachmentDataStorage;
+			storage = target as SkinAttachmentDataRegistry;
 			if (storage == null)
 				return;
 
@@ -31,26 +31,24 @@ namespace Unity.DemoTeam.DigitalHuman
 			scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
 			foreach (var entry in storageEntries)
 			{
-				storage.LoadAttachmentData(entry.hashKey, out SkinAttachmentPose[] poses, out SkinAttachmentItem[] items);
-				DrawGuiStorageEntry(entry, poses, items);
+				DrawGuiStorageEntry(entry);
 			}
 			EditorGUILayout.EndScrollView();
 		}
 
-		void DrawGuiStorageEntry(SkinAttachmentDataStorage.DataStorageEntry entry, in SkinAttachmentPose[] poses, in SkinAttachmentItem[] items)
+		void DrawGuiStorageEntry(SkinAttachmentDataRegistry.DataStorageHeader entry)
 		{
 			EditorGUILayout.BeginHorizontal();
 			
 			EditorGUILayout.HelpBox(
 				"hash: " + entry.hashKey
-				+ "\nname: " + entry.entryName 
 				+ "\nbaked: " + entry.timeStamp
-				+ "\nitemCount:" + (items == null ? "0" : + items.Length)
-				+ "\nposeCount:" + (poses == null ? "0" : + poses.Length)
+				+ "\nitemCount:" + entry.itemCount
+				+ "\nposeCount:" + entry.poseCount
 				,MessageType.None);
 			if (GUILayout.Button("delete"))
 			{
-				storage.RemoveAttachmentData(entry.hashKey);
+				storage.ForceDestroyAttachmentData(entry.hashKey);
 				EditorUtility.SetDirty(this);
 			}
 			EditorGUILayout.EndHorizontal();

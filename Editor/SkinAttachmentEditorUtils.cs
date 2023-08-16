@@ -9,8 +9,8 @@ public static class SkinAttachmentEditorUtils
     public static void DrawGUIAttachmentDataStorage(MonoBehaviour attachment, SkinAttachmentComponentCommon common)
     {
         common.dataStorage =
-            (SkinAttachmentDataStorage)EditorGUILayout.ObjectField(common.dataStorage,
-                typeof(SkinAttachmentDataStorage));
+            (SkinAttachmentDataRegistry)EditorGUILayout.ObjectField(common.dataStorage,
+                typeof(SkinAttachmentDataRegistry));
         if (common.dataStorage == null)
         {
             EditorGUILayout.HelpBox("SkinAttachmentDataStorage needs to be assigned before attaching!",
