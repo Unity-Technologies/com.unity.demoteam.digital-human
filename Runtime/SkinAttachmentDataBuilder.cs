@@ -40,6 +40,17 @@ namespace Unity.DemoTeam.DigitalHuman
 
     public static class SkinAttachmentDataBuilder
     {
+        public static readonly SkinAttachmentItem3 c_DummyItem = new SkinAttachmentItem3()
+        {
+            poseIndex = 0,
+            poseCount = 1,
+            baseVertex = 0,
+            targetFrameW = 1,
+            targetFrameDelta = Quaternion.identity,
+            targetOffset = Vector3.zero
+        };
+
+        
         public static float SqDistTriangle(in float3 v1, in float3 v2, in float3 v3, in float3 p)
         {
             // see: "distance to triangle" by Inigo Quilez
@@ -160,6 +171,11 @@ namespace Unity.DemoTeam.DigitalHuman
         public static unsafe int CountPosesVertex(in MeshInfoUnsafe meshInfo, ref Vector3 target, int vertex,
             bool tryToOnlyAllowInterior)
         {
+            if (vertex == -1)
+            {
+                return 0;
+            }
+            
             int poseCount = 0;
             if (tryToOnlyAllowInterior)
             {
@@ -181,7 +197,7 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 
 
-        public static unsafe bool BuildDataAttachToVertex(SkinAttachmentPose* poses, SkinAttachmentItem* items,
+        public static unsafe void BuildDataAttachToVertex(SkinAttachmentPose* poses, SkinAttachmentItem* items,
             in MeshInfoUnsafe meshInfo, Vector3 targetPosition, Vector3 targetOffset,
             Vector3 targetNormal, Vector4 targetTangent, int targetVertex,
             bool tryToOnlyAllowInterior, int* attachmentOffset,
@@ -190,12 +206,19 @@ namespace Unity.DemoTeam.DigitalHuman
             int currentItemIndex = *attachmentOffset;
             int currentPoseIndex = *poseOffset;
 
+            if (targetVertex == -1)
+            {
+                items[currentItemIndex] = c_DummyItem;
+                *attachmentOffset = currentItemIndex + 1;
+            }
 
             var poseCount = BuildPosesVertex(poses + currentPoseIndex, meshInfo, ref targetPosition,
                 targetVertex, tryToOnlyAllowInterior);
             if (poseCount == 0)
             {
-                return false;
+                items[currentItemIndex] = c_DummyItem;
+                *attachmentOffset = currentItemIndex + 1;
+                return;
             }
 
             ref readonly var baseNormal = ref meshInfo.vertexNormals[targetVertex];
@@ -224,7 +247,7 @@ namespace Unity.DemoTeam.DigitalHuman
             *attachmentOffset = currentItemIndex;
             *poseOffset = currentPoseIndex;
 
-            return true;
+            return;
         }
 
         public static unsafe void CalculatePoses(ref SkinAttachmentPose[] poses, ref SkinAttachmentItem[] items, 
@@ -234,8 +257,7 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             //bake attachment data
             using (var poseOffsetPerItem = new UnsafeArrayInt(subjectVertexCount))
-            using (var itemsOffset = new UnsafeArrayInt(subjectVertexCount + 1)) //one extra to be able to deduce the item count from prefix sum
-            fixed (Vector3* attachmentTargetPositions = meshInfo.meshBuffers.vertexPositions)
+                fixed (Vector3* attachmentTargetPositions = meshInfo.meshBuffers.vertexPositions)
             fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
             fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
             fixed (int* attachmentTargetTriangles = meshInfo.meshBuffers.triangles)
@@ -258,7 +280,6 @@ namespace Unity.DemoTeam.DigitalHuman
                     targetPositions = targetPositions,
                     closestVertexIndices = closestVertexIndices,
                     poseCountPerItem = poseOffsetPerItem.val,
-                    itemCount = itemsOffset.val,
                     meshInfo = meshInfoUnsafe,
                     onlyAllowPoseTrianglesContainingAttachedPoint =
                         settings.onlyAllowPoseTrianglesContainingAttachedPoint
@@ -269,23 +290,18 @@ namespace Unity.DemoTeam.DigitalHuman
                 //TODO: parallelize/reduction prefixSum
                 {
                     int poseSum = 0;
-                    int itemSum = 0;
+
                     for (int i = 0; i < subjectVertexCount; ++i)
                     {
                         int poseCountPerItem = poseOffsetPerItem.val[i];
                         poseOffsetPerItem.val[i] = poseSum;
                         poseSum += poseCountPerItem;
-
-                        int itCount = itemsOffset.val[i];
-                        itemsOffset.val[i] = itemSum;
-                        itemSum += itCount;
                     }
 
-                    itemsOffset.val[subjectVertexCount] = itemSum;
-
-                    itemCount = itemSum;
                     poseCount = poseSum;
                 }
+
+                itemCount = subjectVertexCount;
 
                 ArrayUtils.ResizeCheckedIfLessThan(ref poses, posesArrayOffset + poseCount);
                 ArrayUtils.ResizeCheckedIfLessThan(ref items, itemsArrayOffset + itemCount);
@@ -300,7 +316,6 @@ namespace Unity.DemoTeam.DigitalHuman
                         targetOffsets = targetOffsets,
                         closestVertexIndices = closestVertexIndices,
                         offsetToPosesPerItem = poseOffsetPerItem.val,
-                        offsetToItems = itemsOffset.val,
                         poses = posesPtr,
                         items = itemsPtr,
                         meshInfo = meshInfoUnsafe,
@@ -591,16 +606,9 @@ namespace Unity.DemoTeam.DigitalHuman
                     vertexTriangles = new LinkedIndexListArrayUnsafeView(vertexTrianglesLists, vertexTrianglesItems)
                 };
 
-                poseCount = CountPosesVertex(meshInfoUnsafe, ref targetPosition, closestVertex,
-                    settings.onlyAllowPoseTrianglesContainingAttachedPoint);
-
-                if (poseCount == 0)
-                {
-                    itemCount = 0;
-                    return;
-                }
-
+                poseCount = CountPosesVertex(meshInfoUnsafe, ref targetPosition, closestVertex, settings.onlyAllowPoseTrianglesContainingAttachedPoint);
                 itemCount = 1;
+                
                 ArrayUtils.ResizeCheckedIfLessThan(ref poses, posesArrayOffset + poseCount);
                 ArrayUtils.ResizeCheckedIfLessThan(ref items, itemsArrayOffset + itemCount);
                 fixed (SkinAttachmentPose* posesPtr = poses)
@@ -674,14 +682,11 @@ namespace Unity.DemoTeam.DigitalHuman
 
             public void Execute(int i)
             {
-                int closestIndex = closestVertexIndices[i];
+
                 int poseCount = 0;
-                if (closestIndex != -1)
-                {
-                    poseCount = CountPosesVertex(meshInfo, ref targetPositions[i], closestIndex, onlyAllowPoseTrianglesContainingAttachedPoint);
-                }
+                poseCount = CountPosesVertex(meshInfo, ref targetPositions[i], closestVertexIndices[i], onlyAllowPoseTrianglesContainingAttachedPoint);
                 poseCountPerItem[i] = poseCount;
-                itemCount[i] = poseCount > 0 ? 1 : 0;
+
             }
         }
 
@@ -706,10 +711,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
             [NativeDisableUnsafePtrRestriction, NoAlias]
             public int* offsetToPosesPerItem;
-
-            [NativeDisableUnsafePtrRestriction, NoAlias]
-            public int* offsetToItems;
-
+            
             [NativeDisableUnsafePtrRestriction, NoAlias]
             public SkinAttachmentPose* poses;
 
@@ -725,18 +727,14 @@ namespace Unity.DemoTeam.DigitalHuman
 
             public void Execute(int i)
             {
-                int currentItemOffset = offsetToItems[i];
-                int nextItemOffset = offsetToItems[i + 1];
 
-                if (currentItemOffset != nextItemOffset)
-                {
-                    int itemOffset = initialItemOffset + currentItemOffset;
-                    int posesOffset = initialPosesOffset + offsetToPosesPerItem[i];
-                    BuildDataAttachToVertex(poses, items, meshInfo, targetPositions[i], targetOffsets[i],
-                        targetNormals[i],
-                        targetTangents[i], closestVertexIndices[i],
-                        onlyAllowPoseTrianglesContainingAttachedPoint, &itemOffset, &posesOffset);
-                }
+                int itemOffset = initialItemOffset + i;
+                int posesOffset = initialPosesOffset + offsetToPosesPerItem[i];
+                BuildDataAttachToVertex(poses, items, meshInfo, targetPositions[i], targetOffsets[i],
+                    targetNormals[i],
+                    targetTangents[i], closestVertexIndices[i],
+                    onlyAllowPoseTrianglesContainingAttachedPoint, &itemOffset, &posesOffset);
+                
             }
         }
     }
