@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.DemoTeam.DigitalHuman;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -17,7 +18,7 @@ namespace Unity.DemoTeam.DigitalHuman
     [Serializable]
     public class SkinAttachmentComponentCommon
     {
-        public enum PoseDataMode
+        public enum PoseDataSource
         {
             BuildPoses,
             LinkPosesByChecksum,
@@ -52,7 +53,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public Renderer attachmentTarget;
         public SkinAttachmentDataRegistry dataStorage;
         public SchedulingMode schedulingMode;
-        public PoseDataMode poseDataMode = PoseDataMode.BuildPoses;
+        public PoseDataSource poseDataSource = PoseDataSource.BuildPoses;
         public Hash128 linkedChecksum;
         public bool explicitScheduling = false;
         public Mesh explicitBakeMesh = null;
@@ -67,7 +68,7 @@ namespace Unity.DemoTeam.DigitalHuman
         [SerializeField] [HideInInspector] internal Vector3 attachedLocalPosition;
         [SerializeField] [HideInInspector] internal Quaternion attachedLocalRotation;
         [SerializeField] [HideInInspector] internal Hash128 checkSum;
-        [SerializeField] [HideInInspector] internal PoseDataMode currentPoseDataMode;
+        [SerializeField] [HideInInspector] internal PoseDataSource currentPoseDataSource;
         [SerializeField] [HideInInspector] internal SkinAttachmentDataRegistry currentStorage;
         [SerializeField] [HideInInspector] internal Renderer currentTarget;
         
@@ -244,7 +245,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         internal void UpdateBakedData(MonoBehaviour attachment, bool allowBakeRefresh)
         {
-            if (currentPoseDataMode == PoseDataMode.BuildPoses)
+            if (currentPoseDataSource == PoseDataSource.BuildPoses)
             {
                 if (allowBakeRefresh)
                 {
@@ -255,44 +256,36 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
                 }
             } 
-            else if (currentPoseDataMode == PoseDataMode.LinkPosesByChecksum)
+            else if (currentPoseDataSource == PoseDataSource.LinkPosesByChecksum)
             {
                 if (linkedChecksum != checkSum || currentTarget == null)
                 {
-                    checkSum = linkedChecksum;
-                    currentTarget = attachmentTarget;
-                    LoadBakedData();
+                    if (linkedChecksum.isValid)
+                    {
+                        checkSum = linkedChecksum;
+                        currentTarget = attachmentTarget;
+                        LoadBakedData();
+                        currentStorage.UseAttachmentData(checkSum);
+                    }
+                    
                 }
             }
         }
 
         internal void ValidateDataStorage()
         {
-            if (currentPoseDataMode != poseDataMode)
-            {
-                if (currentPoseDataMode == PoseDataMode.BuildPoses)
-                {
-                    if (checkSum.isValid)
-                    {
-                        currentStorage.ReleaseAttachmentData(checkSum);
-                    }
-                }
-                
-                checkSum = default;
-                currentPoseDataMode = poseDataMode;
-            }
             
-            if (currentStorage != null && currentStorage != dataStorage)
+            if (currentStorage != null && currentStorage != dataStorage || currentPoseDataSource != poseDataSource)
             {
                 if (checkSum.isValid)
                 {
                     currentStorage.ReleaseAttachmentData(checkSum);
-                    checkSum = default;
                 }
-
+                checkSum = default;
                 currentStorage = null;
             }
 
+            currentPoseDataSource = poseDataSource;
             currentStorage = dataStorage;
         }
 

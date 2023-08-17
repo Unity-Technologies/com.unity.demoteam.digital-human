@@ -157,6 +157,14 @@ namespace Unity.DemoTeam.DigitalHuman
             return true;
         }
 
+        public bool ValidateBakedData()
+        {
+            bool validData = common.ValidateBakedData();
+
+            
+            return validData;
+        }
+        
         public void AfterSkinAttachmentGroupResolve(CommandBuffer cmd, Vector3[] positionsCPU,
             GraphicsBuffer positionsGPU,
             int indexInGroup)

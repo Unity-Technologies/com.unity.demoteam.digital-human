@@ -11,6 +11,7 @@ namespace Unity.DemoTeam.DigitalHuman
 	{
 		private bool settingsToggled = false;
 		private bool debugToggled = false;
+		private bool storageToggled = true;
 		public override void OnInspectorGUI()
 		{
 			if (target == null)
@@ -30,9 +31,11 @@ namespace Unity.DemoTeam.DigitalHuman
 				else
 				{
 					EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum : "Currently detached.", MessageType.Info);
+					DrawValidationInfo(attachment);
+					DrawGUIAttachmentTarget(attachment);
 					DrawGUIAttachDetach(attachment);
 					DrawGUIAttachmentDataStorage(attachment);
-					DrawGUIAttachmentTarget(attachment);
+					
 					DrawGuiSettings(attachment);
 					DrawGuiDebug(attachment);
 				
@@ -61,7 +64,15 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		public void DrawGUIAttachmentDataStorage(SkinAttachmentTransform attachment)
 		{
-			SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(attachment, attachment.common);
+			storageToggled = EditorGUILayout.BeginFoldoutHeaderGroup(storageToggled, "Storage");
+			if (storageToggled)
+			{
+				EditorGUILayout.BeginVertical();
+				DrawGUIAttachmentDataStorage(attachment);
+				EditorGUILayout.EndVertical();
+			}
+
+			EditorGUILayout.EndFoldoutHeaderGroup();
 		}
 
 		public void DrawGuiSettings(SkinAttachmentTransform attachment)
@@ -135,6 +146,14 @@ namespace Unity.DemoTeam.DigitalHuman
 				DrawGUIAttach(t);
 				DrawGUIDetach(t);
 				EditorGUILayout.EndHorizontal();
+			}
+		}
+		
+		public void DrawValidationInfo(SkinAttachmentTransform attachment)
+		{
+			if (!attachment.ValidateBakedData())
+			{
+				EditorGUILayout.HelpBox("Baked data is invalid, rebake needed" , MessageType.Error);
 			}
 		}
 

@@ -11,6 +11,7 @@ namespace Unity.DemoTeam.DigitalHuman
     {
         private bool settingsToggled = false;
         private bool debugToggled = false;
+        private bool storageToggled = true;
 
         public override void OnInspectorGUI()
         {
@@ -36,11 +37,11 @@ namespace Unity.DemoTeam.DigitalHuman
                             ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " +
                               attachment.common.CheckSum
                             : "Currently detached.", MessageType.Info);
-                    DrawGUIAttachDetach(attachment);
-                    DrawGUIAttachmentDataStorage(attachment);
-                    DrawGUIAttachmentTarget(attachment);
-                    DrawGuiSettings(attachment);
                     DrawValidationInfo(attachment);
+                    DrawGUIAttachmentTarget(attachment);
+                    DrawGUIAttachDetach(attachment);
+                    DrawGUIStorage(attachment);
+                    DrawGuiSettings(attachment);
                     DrawGuiDebug(attachment);
                 }
             }
@@ -51,6 +52,19 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
+        public void DrawGUIStorage(SkinAttachmentMesh attachment)
+        {
+            storageToggled = EditorGUILayout.BeginFoldoutHeaderGroup(storageToggled, "Storage");
+            if (storageToggled)
+            {
+                EditorGUILayout.BeginVertical();
+                DrawGUIAttachmentDataStorage(attachment);
+                EditorGUILayout.EndVertical();
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+            
+        }
 
         public static void DrawGUIAttachmentTarget(SkinAttachmentMesh attachment)
         {

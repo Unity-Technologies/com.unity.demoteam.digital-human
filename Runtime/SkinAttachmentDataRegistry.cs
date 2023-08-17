@@ -52,6 +52,18 @@ namespace Unity.DemoTeam.DigitalHuman
 #endif
 		}
 		
+		public void UseAttachmentData(Hash128 hash)
+		{
+#if UNITY_EDITOR
+			EnsureEntryLookup();
+			if (dataStorageLookup.TryGetValue(hash, out DataStorageHeader header))
+			{
+				header.referenceCount += 1;
+				Persist();
+			}
+#endif
+		}
+		
 		public void ReleaseAttachmentData(Hash128 hash)
 		{
 #if UNITY_EDITOR
