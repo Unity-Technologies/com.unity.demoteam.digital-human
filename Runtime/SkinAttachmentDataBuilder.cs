@@ -16,6 +16,20 @@ namespace Unity.DemoTeam.DigitalHuman
     
     public static class SkinAttachmentDataBuilder
     {
+
+        public static readonly SkinAttachmentItem3 c_DummyItem = new SkinAttachmentItem3()
+        {
+            poseIndex = 0,
+            poseCount = 1,
+            baseVertex = 0,
+            targetFrameW = 1,
+            targetFrameDelta = Quaternion.identity,
+            targetOffset = Vector3.zero
+        };
+        
+        
+        
+        
         public static float SqDistTriangle(in float3 v1, in float3 v2, in float3 v3, in float3 p)
         {
             // see: "distance to triangle" by Inigo Quilez
@@ -128,6 +142,8 @@ namespace Unity.DemoTeam.DigitalHuman
             return poseCount;
         }
 
+   
+
         public static unsafe void BuildDataAttachToVertex(SkinAttachmentData attachData, int* attachmentIndex,
             int* attachmentCount, in MeshInfo meshInfo, Vector3* targetPositions, Vector3* targetOffsets,
             Vector3* targetNormals, Vector4* targetTangents, int* targetVertices, int targetCount,  bool tryToOnlyAllowInterior)
@@ -140,13 +156,22 @@ namespace Unity.DemoTeam.DigitalHuman
             {
                 for (int i = 0; i != targetCount; i++)
                 {
+                    if (targetVertices[i] == -1)
+                    {
+                        item[itemIndex] = c_DummyItem;
+                        itemIndex += 1;
+                        Debug.LogWarningFormat("Couldn't find closest vertex to attach attachment vertex in index {0} (position was {1}). Inserting dummy data.", i, targetPositions[i]);
+                        continue;
+                    }
+                    
                     var poseCount = BuildPosesVertex(pose + poseIndex, meshInfo, ref targetPositions[i],
                         targetVertices[i], tryToOnlyAllowInterior);
+                    
                     if (poseCount == 0)
                     {
-                        Debug.LogError("no valid poses for target vertex " + i + ", aborting");
-                        poseIndex = attachData.poseCount;
-                        itemIndex = attachData.itemCount;
+                        item[itemIndex] = c_DummyItem;
+                        itemIndex += 1;
+                        Debug.LogError("no valid poses for target vertex " + i + ", ignoring");
                         continue;
                     }
 
@@ -252,9 +277,10 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             for (int i = 0; i != targetCount; i++)
             {
+                //the input vertex was invalid, add dummy item
                 if (targetVertices[i] == -1)
                 {
-                    Debug.LogErrorFormat("Couldn't find closest vertex to attach attachment vertex in index {0} (position was {1}).", i, targetPositions[i]);
+                    itemCount += 1;
                     continue;
                 }
                 
