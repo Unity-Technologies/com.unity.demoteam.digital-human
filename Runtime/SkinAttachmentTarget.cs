@@ -45,6 +45,8 @@ namespace Unity.DemoTeam.DigitalHuman
         public event Action afterGPUAttachmentWorkCommitted;
         public bool IsAfterGPUResolveFenceValid => afterGPUResolveFenceValid;
         public GraphicsFence AfterGPUResolveFence => afterGPUResolveFence;
+        
+        public event Func<Mesh, bool> customCPUMeshBaker;
 
         public bool ExecuteSkinAttachmentResolveAutomatically { get; set; } =
             true; //if set to false, external logic must drive the resolve tick
@@ -514,7 +516,11 @@ namespace Unity.DemoTeam.DigitalHuman
                     {
                         Profiler.BeginSample("smr.BakeMesh");
                         {
-                            smr.BakeMesh(meshBakedSmr);
+                            var result = customCPUMeshBaker?.Invoke(meshBakedSmr);
+                            if (!result.HasValue || !result.Value)
+                            {
+                                smr.BakeMesh(meshBakedSmr);
+                            }
                             {
                                 meshBakedSmr.bounds = smr.bounds;
                             }
