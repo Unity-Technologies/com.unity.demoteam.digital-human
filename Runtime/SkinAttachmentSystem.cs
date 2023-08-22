@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,6 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
+using Object = UnityEngine.Object;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
@@ -94,6 +96,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 public MeshBuffers meshBuffers;
                 public int lastTargetUsedFrame;
                 public int lastMeshBuffersUpdatedFrame;
+                public Func<Mesh, bool> customBakeFunc;
                 
                 //bake dependencies 
                 public Mesh lastSeenBakeMesh;
@@ -156,6 +159,12 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     attachmentResolveQueueCPU.Add(sam);
                 }
+            }
+
+            public void SetCustomCPUSkinnedMeshBaker(Renderer r, Func<Mesh, bool> customBake)
+            {
+                AttachmentTargetData data = GetAttachmentTargetData(r);
+                data.customBakeFunc = customBake;
             }
             
             public bool GetAttachmentTargetMeshInfo(Renderer r, out MeshInfo info, Mesh explicitBakeMesh = null)
@@ -222,14 +231,20 @@ namespace Unity.DemoTeam.DigitalHuman
                     {
                         if (smr != null)
                         {
-
                             bakeMesh = Object.Instantiate(smr.sharedMesh);
                             bakeMesh.name = "SkinAttachmentTarget(BakeMesh)";
                             bakeMesh.hideFlags = HideFlags.HideAndDontSave & ~HideFlags.DontUnloadUnusedAsset;
                             bakeMesh.MarkDynamic();
                             
+                            AttachmentTargetData data = GetAttachmentTargetData(r);
+                            
                             Profiler.BeginSample("smr.BakeMesh");
                             {
+                                var result = data.customBakeFunc?.Invoke(bakeMesh);
+                                if (!result.HasValue || !result.Value)
+                                {
+                                    smr.BakeMesh(bakeMesh);
+                                }
                                 smr.BakeMesh(bakeMesh);
                                 {
                                     bakeMesh.bounds = smr.bounds;
