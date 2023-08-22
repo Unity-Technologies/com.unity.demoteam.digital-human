@@ -337,9 +337,10 @@ namespace Unity.DemoTeam.DigitalHuman
                 
                 KeyValuePair<Renderer, List<ISkinAttachment>>[] attachmentsPerRenderer =
                     queue.GetAttachmentsPerRenderer();
+                
+                queue.Clear();
 
                 List<SkinAttachmentDescCPU> attachmentDescs = new List<SkinAttachmentDescCPU>();
-
 
                 foreach (var rendererEntry in attachmentsPerRenderer)
                 {
@@ -391,7 +392,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     
                 }
                 
-                queue.Clear();
+                
             }
 
             private void ResolveAttachmentsGPU(AttachmentResolveQueue queue)
@@ -402,7 +403,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     queue.GetAttachmentsPerRenderer();
 
                 List<SkinAttachmentDescGPU> attachmentDescs = new List<SkinAttachmentDescGPU>();
-
+                queue.Clear();
 
                 CommandBuffer cmd = CommandBufferPool.Get("Resolve SkinAttachments");
 
@@ -461,7 +462,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     
                 }
                 
-                queue.Clear();
+                
             }
 
             private AttachmentTargetData GetAttachmentTargetData(Renderer target)

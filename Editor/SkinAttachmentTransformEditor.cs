@@ -12,6 +12,13 @@ namespace Unity.DemoTeam.DigitalHuman
 		private bool settingsToggled = false;
 		private bool debugToggled = false;
 		private bool storageToggled = true;
+
+		private SkinAttachmentDataRegistry prototypeRegistry = null;
+		private Renderer prototypeRenderer = null;
+		private bool prototypeScheduleExplicitly = false;
+		private SkinAttachmentComponentCommon.SchedulingMode prototypeSchedlingMode = SkinAttachmentComponentCommon.SchedulingMode.GPU;
+		private Mesh prototypeMesh = null;
+		
 		public override void OnInspectorGUI()
 		{
 			if (target == null)
@@ -68,7 +75,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (storageToggled)
 			{
 				EditorGUILayout.BeginVertical();
-				DrawGUIAttachmentDataStorage(attachment);
+				SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(attachment, attachment.common);
 				EditorGUILayout.EndVertical();
 			}
 
@@ -138,15 +145,64 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public void DrawMultiSelectGUI(IEnumerable<SkinAttachmentTransform> transforms)
 		{
+
 			foreach (var t in transforms)
 			{
-				EditorGUILayout.BeginHorizontal();
-				SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(t, t.common);
+				EditorGUILayout.BeginHorizontal(GUILayout.ExpandWidth(false));
 				DrawGUIAttachmentTarget(t);
+				SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(t, t.common, false);
 				DrawGUIAttach(t);
 				DrawGUIDetach(t);
 				EditorGUILayout.EndHorizontal();
 			}
+
+			if (GUILayout.Button("Attach All"))
+			{
+				foreach (var t in transforms)
+				{
+					t.Attach();
+				}
+			}
+			
+			if (GUILayout.Button("Detach All"))
+			{
+				foreach (var t in transforms)
+				{
+					t.Detach();
+				}
+			}
+			
+			EditorGUILayout.BeginVertical(new GUIStyle(EditorStyles.helpBox));
+			EditorGUILayout.LabelField("Prototype settings");
+			DrawPrototypeEntries();
+			if (GUILayout.Button("Apply To All"))
+			{
+				foreach (var t in transforms)
+				{
+					t.DataStorage = prototypeRegistry;
+					t.Target = prototypeRenderer;
+					t.ScheduleExplicitly = prototypeScheduleExplicitly;
+					t.SchedulingMode = prototypeSchedlingMode;
+					t.ExplicitTargetBakeMesh = prototypeMesh;
+				}
+			}
+			EditorGUILayout.EndVertical();
+		}
+
+		public void DrawPrototypeEntries()
+		{
+			EditorGUILayout.BeginHorizontal();
+			prototypeRegistry =
+				(SkinAttachmentDataRegistry)EditorGUILayout.ObjectField(prototypeRegistry,
+					typeof(SkinAttachmentDataRegistry));
+			
+			prototypeRenderer = (Renderer)EditorGUILayout.ObjectField(prototypeRenderer, typeof(Renderer));
+			EditorGUILayout.EndHorizontal();
+			
+			prototypeSchedlingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", prototypeSchedlingMode);
+			prototypeScheduleExplicitly = EditorGUILayout.Toggle("Explicit Scheduling: ", prototypeScheduleExplicitly);
+			prototypeMesh = (Mesh)EditorGUILayout.ObjectField("Explicit mesh for baking (optional):", prototypeMesh, typeof(Mesh), false);
+			
 		}
 		
 		public void DrawValidationInfo(SkinAttachmentTransform attachment)

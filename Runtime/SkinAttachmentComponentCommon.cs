@@ -52,7 +52,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public Renderer attachmentTarget;
         public SkinAttachmentDataRegistry dataStorage;
-        public SchedulingMode schedulingMode;
+        public SchedulingMode schedulingMode = SchedulingMode.GPU;
         public PoseDataSource poseDataSource = PoseDataSource.BuildPoses;
         public Hash128 linkedChecksum;
         public bool explicitScheduling = false;
