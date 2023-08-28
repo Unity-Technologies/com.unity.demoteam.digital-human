@@ -99,9 +99,8 @@ namespace Unity.DemoTeam.DigitalHuman
                 public Func<Mesh, bool> customBakeFunc;
                 
                 //bake dependencies 
-                public Mesh lastSeenBakeMesh;
                 public MeshInfo meshInfo;
-                public int lastBakeDataUpdatedFrame;
+                public Hash128 bakeMeshInfoHash;
             }
 
             private Dictionary<Renderer, AttachmentTargetData> attachmentTargetDict =
@@ -173,14 +172,13 @@ namespace Unity.DemoTeam.DigitalHuman
                 if (IsValidAttachmentTarget(r))
                 {
                     AttachmentTargetData data = GetAttachmentTargetData(r);
-
-                    int currentFrame = Time.frameCount;
                     
                     Mesh m = GetPoseBakeMesh(r, explicitBakeMesh);
                     if (m == null) return false;
-                    //TODO: is it valid to assume that the mesh cannot have changed in the middle of the frame?
-                    bool oldBakeDataValid = data.lastBakeDataUpdatedFrame == currentFrame && m == data.lastSeenBakeMesh;
-                    data.lastSeenBakeMesh = m;
+                    
+                    Hash128 bakeMeshHash = GetBakeMeshHash(m);
+                    bool oldBakeDataValid = data.bakeMeshInfoHash == bakeMeshHash;
+                    data.bakeMeshInfoHash = bakeMeshHash;
 
                     //is bakedata up to date?
                     if (!oldBakeDataValid)
@@ -201,8 +199,7 @@ namespace Unity.DemoTeam.DigitalHuman
                             data.meshInfo.meshVertexBSP = new KdTree3(data.meshInfo.meshBuffers.vertexPositions, data.meshInfo.meshBuffers.vertexCount);
                         else
                             data.meshInfo.meshVertexBSP.BuildFrom(data.meshInfo.meshBuffers.vertexPositions, data.meshInfo.meshBuffers.vertexCount);
-
-                        data.lastBakeDataUpdatedFrame = currentFrame;
+                        
                     }
                     info = data.meshInfo;
                 }
@@ -210,7 +207,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 return true;
             }
             
-            public Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh = null)
+            public Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh)
             {
                 if (!IsValidAttachmentTarget(r)) return null;
                 
@@ -270,6 +267,27 @@ namespace Unity.DemoTeam.DigitalHuman
                 GetAttachmentTargetData(r);
 
                 return true;
+            }
+
+            Hash128 GetBakeMeshHash(Mesh m)
+            {
+                Hash128 hash = default;
+                
+                Vector3[] positions = m.vertices;
+                Vector4[] tangents = m.tangents;
+                Vector3[] normals = m.normals;
+                
+                hash.Append(positions);
+                hash.Append(tangents);
+                hash.Append(normals);
+
+                for (int i = 0; i < m.subMeshCount; ++i)
+                {
+                    hash.Append(m.GetIndices(i));
+                }
+
+                return hash;
+
             }
             
             void PruneUnusedAttachmentTargets()
@@ -493,7 +511,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     {
                         lastTargetUsedFrame = Time.frameCount,
                         lastMeshBuffersUpdatedFrame = -1,
-                        lastBakeDataUpdatedFrame = -1
+                        bakeMeshInfoHash = default
                     };
                     attachmentTargetDict[target] = newData;
                     return newData;
