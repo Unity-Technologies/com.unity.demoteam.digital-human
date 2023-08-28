@@ -592,8 +592,8 @@ namespace Unity.DemoTeam.DigitalHuman
             fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
             fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
             fixed (int* attachmentTargetTriangles = meshInfo.meshBuffers.triangles)
-            fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.triangleTriangles.items)
-            fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.triangleTriangles.lists)
+            fixed (LinkedIndexItem* vertexTrianglesItems = meshInfo.meshAdjacency.vertexTriangles.items)
+            fixed (LinkedIndexList* vertexTrianglesLists = meshInfo.meshAdjacency.vertexTriangles.lists)
             {
                 int closestVertex = meshInfo.meshVertexBSP.FindNearest(ref targetPosition);
 

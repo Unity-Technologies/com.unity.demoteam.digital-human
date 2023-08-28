@@ -242,7 +242,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			var folderPath = GetDataFolderPath();
 			if (folderPath == null) return false;
-			var filePath = folderPath + GetFileName(hash);
+			var filePath = Path.Combine(folderPath, GetFileName(hash));
 
 			if (AssetDatabase.AssetPathExists(filePath))
 			{
