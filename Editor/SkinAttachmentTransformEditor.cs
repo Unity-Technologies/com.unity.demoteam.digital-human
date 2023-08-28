@@ -9,9 +9,9 @@ namespace Unity.DemoTeam.DigitalHuman
 	[CustomEditor(typeof(SkinAttachmentTransform)), CanEditMultipleObjects]
 	public class SkinAttachmentTransformEditor : Editor
 	{
-		private bool settingsToggled = false;
-		private bool debugToggled = false;
-		private bool storageToggled = true;
+		private static bool settingsToggled = false;
+		private static bool debugToggled = false;
+		private static bool storageToggled = true;
 
 		private SkinAttachmentDataRegistry prototypeRegistry = null;
 		private Renderer prototypeRenderer = null;
