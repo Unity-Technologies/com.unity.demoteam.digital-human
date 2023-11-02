@@ -16,17 +16,17 @@
 	#define SLICE_ARRAY_INDEX  0
 #endif
 
+#define TEXTURE2D_ARRAY(textureName)          Texture2DArray textureName
+#define TEXTURE2D_X                           TEXTURE2D_ARRAY
+#define LOAD_TEXTURE2D_ARRAY(textureName, unCoord2, index)                      textureName.Load(int4(unCoord2, index, 0))
+#define LOAD_TEXTURE2D_X(textureName, unCoord2) LOAD_TEXTURE2D_ARRAY(textureName, unCoord2, SLICE_ARRAY_INDEX)
+
+#ifndef UNITY_NORMAL_BUFFER_INCLUDED
 struct NormalData
 {
 	float3 normalWS;
 	float  perceptualRoughness;
 };
-
-#define TEXTURE2D_ARRAY(textureName)          Texture2DArray textureName
-#define TEXTURE2D_X                           TEXTURE2D_ARRAY
-#define LOAD_TEXTURE2D_ARRAY(textureName, unCoord2, index)                      textureName.Load(int4(unCoord2, index, 0))
-
-#define LOAD_TEXTURE2D_X(textureName, unCoord2) LOAD_TEXTURE2D_ARRAY(textureName, unCoord2, SLICE_ARRAY_INDEX)
 
 TEXTURE2D_X(_NormalBufferTexture);
 
@@ -43,6 +43,7 @@ void DecodeFromNormalBuffer(uint2 positionSS, out NormalData normalData)
 	float4 normalBuffer = LOAD_TEXTURE2D_X(_NormalBufferTexture, positionSS);
 	DecodeFromNormalBuffer(normalBuffer, normalData);
 }
+#endif
 
 void LoadNormalBuffer_float(in float2 positionSS, out float3 normalWS, out float smoothness)
 {
