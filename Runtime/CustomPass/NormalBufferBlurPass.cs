@@ -3,12 +3,14 @@ using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 #if UNITY_2021_2_OR_NEWER
-using UnityEngine.Rendering.RendererUtils;
+	using UnityEngine.Rendering.RendererUtils;
 #else
-using UnityEngine.Experimental.Rendering;
+	using UnityEngine.Experimental.Rendering;
 #endif
-#if UNITY_2020_2_OR_NEWER
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+#if UNITY_2023_3_OR_NEWER
+    using UnityEngine.Rendering.RenderGraphModule;
+#elif UNITY_2020_2_OR_NEWER
+    using UnityEngine.Experimental.Rendering.RenderGraphModule;
 #endif
 using System.Reflection;
 
