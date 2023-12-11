@@ -244,7 +244,8 @@ namespace Unity.DemoTeam.DigitalHuman
 						if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
 						int index = subjects[i].TransformAttachmentGPUBufferIndex;
 						Vector3 pos = readBackBuffer[index];
-						if (Single.IsNaN(pos.x) || Single.IsNaN(pos.y) || Single.IsNaN(pos.z)) continue;
+						if (float.IsNaN(pos.x) || float.IsNaN(pos.y) || float.IsNaN(pos.z) || float.IsInfinity(pos.x) || float.IsInfinity(pos.y) ||
+                            float.IsInfinity(pos.z)) continue;
 						subjects[i].transform.position = pos;
 					}
 	
