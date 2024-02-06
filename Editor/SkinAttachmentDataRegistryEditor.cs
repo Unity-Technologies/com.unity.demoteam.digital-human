@@ -27,7 +27,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				EditorGUILayout.HelpBox("Storage is empty", MessageType.Info);
 				return;
 			}
-			
+			EditorGUILayout.HelpBox($"Number of entries: {storageEntries.Length} ", MessageType.Info);
 			scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
 			foreach (var entry in storageEntries)
 			{
