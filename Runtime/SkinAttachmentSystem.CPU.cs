@@ -37,7 +37,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private static JobHandle[] s_stagingJobs;
         private static GCHandle[] s_stagingPins;
         
-        public static void ResolveSubjectsCPU(ref SkinAttachmentTargetDescCPU targetDescGPU,
+        public static void ResolveSubjectsCPU(ref SkinAttachmentTargetDescCPU targetDescCPU,
             SkinAttachmentDescCPU[] attachments)
         {
             int stagingPinsSourceDataCount = 3;
@@ -46,9 +46,9 @@ namespace Unity.DemoTeam.DigitalHuman
             ArrayUtils.ResizeChecked(ref s_stagingJobs, attachments.Length);
             ArrayUtils.ResizeChecked(ref s_stagingPins, stagingPinsSourceDataOffset + stagingPinsSourceDataCount);
 
-            s_stagingPins[stagingPinsSourceDataOffset + 0] = GCHandle.Alloc(targetDescGPU.positions, GCHandleType.Pinned);
-            s_stagingPins[stagingPinsSourceDataOffset + 1] = GCHandle.Alloc(targetDescGPU.normals, GCHandleType.Pinned);
-            s_stagingPins[stagingPinsSourceDataOffset + 2] = GCHandle.Alloc(targetDescGPU.tangents, GCHandleType.Pinned);
+            s_stagingPins[stagingPinsSourceDataOffset + 0] = GCHandle.Alloc(targetDescCPU.positions, GCHandleType.Pinned);
+            s_stagingPins[stagingPinsSourceDataOffset + 1] = GCHandle.Alloc(targetDescCPU.normals, GCHandleType.Pinned);
+            s_stagingPins[stagingPinsSourceDataOffset + 2] = GCHandle.Alloc(targetDescCPU.tangents, GCHandleType.Pinned);
             unsafe
             {
                 Vector3* targetPositions =

@@ -174,7 +174,16 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         targetBlended = targetBlended / targetWeights;
 
         float3 baseNormal = asfloat(_SkinNormalsBuffer.Load3(item.baseVertex * _SkinNormalStrideOffset.x + _SkinNormalStrideOffset.y));
-        float4 baseTangent4 = asfloat(_SkinTangentsBuffer.Load4(item.baseVertex * _SkinTangentStrideOffset.x + _SkinTangentStrideOffset.y));
+        float4 baseTangent4;
+        if(_SkinTangentStrideOffset.x == 0 || _SkinTangentStrideOffset.y == -1)
+        {
+            baseTangent4 = 0;
+        }
+        else
+        {
+            baseTangent4 = asfloat(_SkinTangentsBuffer.Load4(item.baseVertex * _SkinTangentStrideOffset.x + _SkinTangentStrideOffset.y));
+        }
+        
         float3 baseTangent = baseTangent4.xyz * baseTangent4.w;
         
         // convert to the same space as the attachment vertices

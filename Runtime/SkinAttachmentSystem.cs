@@ -354,6 +354,12 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
                 }
 
+                if (!runtimeMesh.HasVertexAttribute(VertexAttribute.Tangent))
+                {
+                    Debug.LogError(
+                            "SkinAttachment target (SkinnedMeshRenderer) does not have tangents, the attachment resolve will not be correct!");
+                }
+
                 attachmentTargetData.lastSeenRuntimeMesh = runtimeMesh;
                 attachmentTargetData.lastMeshBuffersUpdatedFrame = currentFrame;
                 if (attachmentTargetData.meshBuffers == null)

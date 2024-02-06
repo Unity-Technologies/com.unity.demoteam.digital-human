@@ -227,6 +227,18 @@ namespace Unity.DemoTeam.DigitalHuman
                 smr.vertexBufferTarget |= GraphicsBuffer.Target.Raw;
             }
 
+            if (normalStream == -1)
+            {
+                Debug.LogError(
+                    "SkinAttachment target (SkinnedMeshRenderer) does not have normals, the attachment resolve will not be correct!");
+            }
+            
+            if (tangentStream == -1)
+            {
+                Debug.LogError(
+                    "SkinAttachment target (SkinnedMeshRenderer) does not have tangents, the attachment resolve will not be correct!");
+            }
+            
             GraphicsBuffer skinPositionsBuffer = smr.GetVertexBuffer();
             GraphicsBuffer skinNormalsBuffer = smr.GetVertexBuffer();
             GraphicsBuffer skinTangentsBuffer = smr.GetVertexBuffer();
