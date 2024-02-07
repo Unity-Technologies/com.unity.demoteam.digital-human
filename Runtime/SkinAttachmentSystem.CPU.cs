@@ -248,12 +248,12 @@ namespace Unity.DemoTeam.DigitalHuman
                 ref readonly var baseNormal = ref meshNormals[item.baseVertex];
                 ref readonly var baseTangent = ref meshTangents[item.baseVertex];
                 
-                var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3)baseTangent * baseTangent.w);
+                var baseFrame = QuaternionExt.LookRotationForwardExact((Vector3)baseTangent * baseTangent.w, baseNormal);
 
                 var targetFrame = baseFrame * item.targetFrameDelta;
                 var targetOffset = baseFrame * item.targetOffset;
-                var targetNormal = targetFrame * Vector3.forward;
-                var targetTangent = targetFrame * Vector3.up;
+                var targetNormal = targetFrame * Vector3.up;
+                var targetTangent = targetFrame * Vector3.forward;
 
                 resolvedPositions[i] = resolveTransform.MultiplyPoint3x4(targetBlended / targetWeights + targetOffset);
                 resolvedNormals[i] = resolveTransform.MultiplyVector(targetNormal).normalized;
