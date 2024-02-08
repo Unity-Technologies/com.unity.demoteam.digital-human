@@ -38,16 +38,6 @@ namespace Unity.DemoTeam.DigitalHuman
         public bool onlyAllowPoseTrianglesContainingAttachedPoint;
     }
 
-    public static class QuaternionExt
-    {
-        //This is like LookRotation except that the forward will be respected over up if not orthogonal
-        public static Quaternion LookRotationForwardExact(Vector3 forward, Vector3 up)
-        {
-            Quaternion rot = Quaternion.FromToRotation(Vector3.up, up);
-            return Quaternion.FromToRotation((rot * Vector3.forward) , forward) * rot;
-        }
-    }
-    
     public static class SkinAttachmentDataBuilder
     {
         public static readonly SkinAttachmentItem3 c_DummyItem = new SkinAttachmentItem3()
@@ -59,8 +49,6 @@ namespace Unity.DemoTeam.DigitalHuman
             targetFrameDelta = Quaternion.identity,
             targetOffset = Vector3.zero
         };
-        
-        
 
         
         public static float SqDistTriangle(in float3 v1, in float3 v2, in float3 v3, in float3 p)
@@ -236,13 +224,13 @@ namespace Unity.DemoTeam.DigitalHuman
             ref readonly var baseNormal = ref meshInfo.vertexNormals[targetVertex];
             ref readonly var baseTangent = ref meshInfo.vertexTangents[targetVertex];
 
-            var baseFrame = QuaternionExt.LookRotationForwardExact( (Vector3) baseTangent * baseTangent.w, baseNormal);
+            var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3) baseTangent * baseTangent.w);
             var baseFrameInv = Quaternion.Inverse(baseFrame);
 
             if (targetTangent.sqrMagnitude == 0)
                 targetTangent = new Vector4(0, 0, 1, 1);
-            var targetFrame = QuaternionExt.LookRotationForwardExact(
-                (Vector3) targetTangent /* sign is omitted here, added on resolve */, targetNormal);
+            var targetFrame = Quaternion.LookRotation(targetNormal,
+                (Vector3) targetTangent /* sign is omitted here, added on resolve */);
 
             items[currentItemIndex].poseIndex = currentPoseIndex;
             items[currentItemIndex].poseCount = poseCount;
