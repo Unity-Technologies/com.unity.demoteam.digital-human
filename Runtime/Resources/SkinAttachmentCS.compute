@@ -69,60 +69,17 @@ float3 QMul(float4 q, float3 v)
     return v + q.w * t + cross(q.xyz, t);
 }
 
-float4 QConjugate(float4 q)
+void ForceOrthogonal(inout float3 a, inout float3 b)
 {
-    return q * float4(-1.0, -1.0, -1.0, 1.0);
+    float3 c = cross(a, b);
+    b = cross(c,a);
 }
 
-float4 QInverse(float4 q)
+float3x3 MakeTransformLookAt(float3 forward, float3 up)
 {
-    return QConjugate(q) * rcp(dot(q, q));
-}
-
-float4 MakeQuaternionFromTo(float3 u, float3 v)
-{
-    float4 q;
-    float s = 1.0 + dot(u, v);
-    if (s < 1e-6)// if 'u' and 'v' are directly opposing
-        {
-        q.xyz = abs(u.x) > abs(u.z) ? float3(-u.y, u.x, 0.0) : float3(0.0, -u.z, u.y);
-        q.w = 0.0;
-        }
-    else
-    {
-        q.xyz = cross(u, v);
-        q.w = s;
-    }
-    return normalize(q);
-}
-
-float4 MakeQuaternionFromToWithFallback(float3 u, float3 v, float3 w)
-{
-    float4 q;
-    float s = 1.0 + dot(u, v);
-    if (s < 1e-6)// if 'u' and 'v' are directly opposing
-        {
-        q.xyz = w;
-        q.w = 0.0;
-        }
-    else
-    {
-        q.xyz = cross(u, v);
-        q.w = s;
-    }
-    return normalize(q);
-}
-
-
-float4 MakeQuaternionLookAt(float3 forward, float3 up)
-{
-    float3 localForward = float3(0, 0, 1);
-    float3 localUp = float3(0, 1, 0);
-
-    float4 rotForward = MakeQuaternionFromTo(localForward, forward);
-    float4 rotForwardTwist = MakeQuaternionFromToWithFallback(QMul(rotForward, localUp), up, forward);
-
-    return QMul(rotForwardTwist, rotForward);
+    ForceOrthogonal(forward, up);
+    float3 x = -cross(forward, up);
+    return transpose(float3x3(x, up, forward));
 }
 
 [numthreads(64,1,1)]
@@ -190,13 +147,11 @@ void KERNEL_NAME (uint id : SV_DispatchThreadID)
         targetBlended = mul(_PostSkinningToAttachmentTransform, float4(targetBlended, 1.f) ).xyz;
         baseNormal = mul(_PostSkinningToAttachmentTransform, float4(baseNormal, 0.f) ).xyz;
         baseTangent = mul(_PostSkinningToAttachmentTransform, float4(baseTangent, 0.f) ).xyz;
-
-        float4 baseFrame = MakeQuaternionLookAt(baseNormal, baseTangent);
-
-        float4 targetFrame = QMul(baseFrame, item.targetFrameDelta);
-        float3 targetOffset = QMul(baseFrame, item.targetOffset);
-        float3 targetNormal = QMul(targetFrame, float3(0.f, 0.f, 1.f));
-        float3 targetTangent = QMul(targetFrame, float3(0.f, 1.f, 0.f));
+        
+        float3x3 m = MakeTransformLookAt(normalize(baseNormal), normalize(baseTangent));
+        float3 targetOffset = mul(m, item.targetOffset);
+        float3 targetNormal = mul(m, QMul(item.targetFrameDelta, float3(0.f, 0.f, 1.f)));
+        float3 targetTangent = mul(m, QMul(item.targetFrameDelta, float3(0.f, 1.f, 0.f)));
 
         float3 resolvedPos = mul(_ResolveTransform, float4(targetBlended + targetOffset, 1.f)).xyz;
         float3 resolvedNormal = mul(_ResolveTransform, float4(targetNormal, 0.f)).xyz;
