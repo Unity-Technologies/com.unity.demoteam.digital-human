@@ -67,7 +67,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (deformationRenderer.meshAsset != mesh)
 					continue;
 
-				var target = deformationRenderer.GetComponent<SkinAttachmentTarget>();
+				var target = deformationRenderer.GetComponent<LegacySkinAttachmentTarget>();
 				if (target == null)
 					continue;
 

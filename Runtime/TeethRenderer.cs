@@ -24,7 +24,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 #if UNITY_2021_2_OR_NEWER
         [Tooltip("This is only required if the asg markers are driven by attachment system that is configured to execute on GPU")]
-        public SkinAttachmentTarget markerAttachmentTarget;
+        public LegacySkinAttachmentTarget markerAttachmentTarget;
 #endif
 
         public Attenuation mode;
@@ -54,7 +54,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private const int occlusionMarkersBufferStride = sizeof(float) * 3;
 #if UNITY_2021_2_OR_NEWER
         private GraphicsBuffer occlusionMarkerIndicesBuffer;
-        private List<SkinAttachment> gatheredAttachments = new List<SkinAttachment>();
+        private List<LegacySkinAttachment> gatheredAttachments = new List<LegacySkinAttachment>();
         private bool cpuOcclusionParametersValid = true;
         private List<SkinAttachmentTransform> gatheredAttachments2 = new List<SkinAttachmentTransform>();
         private int numberOfAttachment2callbacks = -1;
@@ -206,7 +206,7 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             gatheredAttachments.Clear();
             gatheredAttachments2.Clear();
-            SkinAttachment attachmentOut;
+            LegacySkinAttachment attachmentOut;
             SkinAttachmentTransform attachmentOut2;
             
             //old attachmentsystem

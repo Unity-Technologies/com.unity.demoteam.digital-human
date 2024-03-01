@@ -44,7 +44,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			DrawGUIAttachmentTarget(serializedCommon);
 			DrawGUIAttachmentDataStorage(serializedCommon);
-			DrawGuiSettings(serializedCommon);
+			DrawGuiSettings(serializedObject, serializedCommon);
 			DrawGuiDebug(serializedObject, serializedCommon);
 
 			serializedObject.ApplyModifiedProperties();
@@ -69,12 +69,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			EditorGUILayout.EndFoldoutHeaderGroup();
 		}
 
-		public void DrawGuiSettings(SerializedProperty common)
+		public void DrawGuiSettings(SerializedObject so, SerializedProperty common)
 		{
 			settingsToggled = EditorGUILayout.BeginFoldoutHeaderGroup(settingsToggled, "Settings");
 			if (settingsToggled)
 			{
 				EditorGUILayout.BeginVertical();
+				EditorGUILayout.PropertyField(so.FindProperty("attachmentType"), new GUIContent("AttachmentType: "));
 				SkinAttachmentEditorUtils.DrawGUISettings(common);
 				EditorGUILayout.EndVertical();
 				
@@ -87,9 +88,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			debugToggled = EditorGUILayout.BeginFoldoutHeaderGroup(debugToggled, "Debug");
 			if (debugToggled)
 			{
-				SerializedProperty readback = attachment.FindProperty("readbackTransformFromGPU");
 				EditorGUILayout.BeginVertical();
-				EditorGUILayout.PropertyField( readback, new GUIContent("Readback positions from GPU: "));
 				SkinAttachmentEditorUtils.DrawGuiDebug(common);
 				EditorGUILayout.EndVertical();
 				

@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 namespace Unity.DemoTeam.DigitalHuman
 {
     [ExecuteAlways]
-    public class SkinAttachment : MeshInstanceBehaviour
+    public class LegacySkinAttachment : MeshInstanceBehaviour
     {
         public enum AttachmentMode
         {
@@ -30,15 +30,15 @@ namespace Unity.DemoTeam.DigitalHuman
         [HideInInspector] public Vector3 attachedLocalPosition;
         [HideInInspector] public Quaternion attachedLocalRotation;
 
-        [HideInInspector] public SkinAttachmentTarget targetActive;
+        [HideInInspector] public LegacySkinAttachmentTarget targetActive;
 
-        [EditableIf("attached", false)] public SkinAttachmentTarget target;
+        [EditableIf("attached", false)] public LegacySkinAttachmentTarget target;
 
         [EditableIf("attached", false)] public AttachmentType attachmentType = AttachmentType.Transform;
 
         [EditableIf("attached", false)] public AttachmentMode attachmentMode = AttachmentMode.BuildPoses;
 
-        [EditableIf("attached", false)] public SkinAttachment attachmentLink = null;
+        [EditableIf("attached", false)] public LegacySkinAttachment attachmentLink = null;
 
         [EditableIf("attachmentMode", AttachmentMode.LinkPosesBySpecificIndex)]
         public int attachmentIndex = -1;
@@ -63,7 +63,7 @@ namespace Unity.DemoTeam.DigitalHuman
         private static Color[] debugColors = new Color[debugColorsSize]
             {Color.red, Color.green, Color.blue, Color.cyan, Color.magenta, Color.yellow, Color.white};
 
-        private static SkinAttachmentData debugData;
+        private static LegacySkinAttachmentData debugData;
 
         [Header("Runtime options")]
         public bool forceRecalculateBounds;
@@ -223,7 +223,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 onSkinAttachmentMeshModified(cmd);
         }
 
-        public bool ChecksumCompare(in SkinAttachmentData data)
+        public bool ChecksumCompare(in LegacySkinAttachmentData data)
         {
             return (checksum0 == data.checksum0) && (checksum1 == data.checksum1);
         }
@@ -434,7 +434,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     if (debugData == null)
                     {
-                        debugData = SkinAttachmentData.CreateInstance<SkinAttachmentData>();
+                        debugData = LegacySkinAttachmentData.CreateInstance<LegacySkinAttachmentData>();
                         debugData.hideFlags = HideFlags.HideAndDontSave;
                     }
                     else
@@ -449,7 +449,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         onlyAllowPoseTrianglesContainingAttachedPoint = false
                     };
 
-                    SkinAttachmentTarget.BuildDataAttachSubject(ref debugData, target.transform, target.GetCachedMeshInfo(),poseBuildParams, this,  ref currentItemOffset, ref currentPoseOffset);
+                    LegacySkinAttachmentTarget.BuildDataAttachSubject(ref debugData, target.transform, target.GetCachedMeshInfo(),poseBuildParams, this,  ref currentItemOffset, ref currentPoseOffset);
 
 
                     Matrix4x4 targetToWorld;

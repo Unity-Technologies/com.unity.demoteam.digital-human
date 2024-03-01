@@ -4,10 +4,10 @@ using System.Collections.Generic;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-    [CustomEditor(typeof(SkinAttachmentTarget))]
-    public class SkinAttachmentTargetEditor : Editor
+    [CustomEditor(typeof(LegacySkinAttachmentTarget))]
+    public class LegacySkinAttachmentTargetEditor : Editor
     {
-        private HashSet<SkinAttachmentTarget> attachmentTargetSet = new HashSet<SkinAttachmentTarget>();
+        private HashSet<LegacySkinAttachmentTarget> attachmentTargetSet = new HashSet<LegacySkinAttachmentTarget>();
 
         public override void OnInspectorGUI()
         {
@@ -16,7 +16,7 @@ namespace Unity.DemoTeam.DigitalHuman
             if (target == null)
                 return;
 
-            var driver = target as SkinAttachmentTarget;
+            var driver = target as LegacySkinAttachmentTarget;
             if (driver == null)
                 return;
 
@@ -48,8 +48,8 @@ namespace Unity.DemoTeam.DigitalHuman
                     continue;
 
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.ObjectField(attachment, typeof(SkinAttachment), false);
-                SkinAttachmentEditor.DrawGUIDetach(attachment, attachmentTargetSet);
+                EditorGUILayout.ObjectField(attachment, typeof(LegacySkinAttachment), false);
+                LegacySkinAttachmentEditor.DrawGUIDetach(attachment, attachmentTargetSet);
                 EditorGUILayout.EndHorizontal();
 
                 if (checksumFailed)
@@ -71,10 +71,10 @@ namespace Unity.DemoTeam.DigitalHuman
                     i--;
             }
 
-            SkinAttachmentEditor.CommitTargetChanges(attachmentTargetSet);
+            LegacySkinAttachmentEditor.CommitTargetChanges(attachmentTargetSet);
         }
 
-        void DrawGUIAttachmentData(SkinAttachmentData attachData)
+        void DrawGUIAttachmentData(LegacySkinAttachmentData attachData)
         {
             if (DrawGUIGrowShrink("Poses", ref attachData.pose, attachData.poseCount))
             {
@@ -87,7 +87,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        void DrawGuiSchedulingWarnings(SkinAttachmentTarget driver)
+        void DrawGuiSchedulingWarnings(LegacySkinAttachmentTarget driver)
         {
 #if UNITY_2021_2_OR_NEWER
             SkinDeformationRenderer sdr;
@@ -109,7 +109,7 @@ namespace Unity.DemoTeam.DigitalHuman
 #endif
         }
 
-        void DrawGUIAttachmentDataValidation(SkinAttachmentTarget driver)
+        void DrawGUIAttachmentDataValidation(LegacySkinAttachmentTarget driver)
         {
             var checksum = driver.attachData.Checksum();
             var checksumFailed = driver.CommitRequired();
@@ -164,7 +164,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         void OnSceneGUI()
         {
-            var driver = target as SkinAttachmentTarget;
+            var driver = target as LegacySkinAttachmentTarget;
             if (driver == null)
                 return;
 
@@ -174,7 +174,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        public static void DrawSceneGUIMouseOver(SkinAttachmentTarget driver)
+        public static void DrawSceneGUIMouseOver(LegacySkinAttachmentTarget driver)
         {
             var mouseScreen = Event.current.mousePosition;
             var mouseWorldRay = HandleUtility.GUIPointToWorldRay(mouseScreen);

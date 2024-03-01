@@ -97,7 +97,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public float asgModulateAlbedoIris = 0.0f;
 #if UNITY_2021_2_OR_NEWER
         [Tooltip("This is only required if the asg markers are driven by attachment system that is configured to execute on GPU")]
-        public SkinAttachmentTarget markerAttachmentTarget;
+        public LegacySkinAttachmentTarget markerAttachmentTarget;
 #endif
 
         [FormerlySerializedAs("eyePolygonContainer")]
@@ -148,7 +148,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public event EyeRendererAboutToSetMaterialCallback EyeMaterialUpdateEvent;
 
 #if UNITY_2021_2_OR_NEWER
-        private List<SkinAttachment> markerAttachments = new List<SkinAttachment>();
+        private List<LegacySkinAttachment> markerAttachments = new List<LegacySkinAttachment>();
         
         private static ComputeShader s_computeASGParamsShader = null;
         private static int s_computeASGParamsKernel;
@@ -490,7 +490,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     var child = asgMarkerPolygon.GetChild(i);
                     markerPositions[i] = child.position;
                 
-                    SkinAttachment attachment;
+                    LegacySkinAttachment attachment;
                     if (markerAttachmentTarget != null)
                     {
                         if (child.TryGetComponent(out attachment))

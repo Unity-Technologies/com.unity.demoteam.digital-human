@@ -20,16 +20,16 @@ namespace Unity.DemoTeam.DigitalHuman
     using static SkinAttachmentDataBuilder;
     using SkinAttachmentItem = Unity.DemoTeam.DigitalHuman.SkinAttachmentItem3;
     [ExecuteAlways]
-    public class SkinAttachmentTarget : MonoBehaviour
+    public class LegacySkinAttachmentTarget : MonoBehaviour
     {
-        [HideInInspector] public List<SkinAttachment> subjects = new List<SkinAttachment>();
+        [HideInInspector] public List<LegacySkinAttachment> subjects = new List<LegacySkinAttachment>();
 
         [NonSerialized] public Mesh meshBakedSmr;
         [NonSerialized] public Mesh meshBakedOrAsset;
         [NonSerialized] public MeshBuffers meshBuffers;
         [NonSerialized] public Mesh meshBuffersLastAsset;
 
-        public SkinAttachmentData attachData;
+        public LegacySkinAttachmentData attachData;
 
         [Header("Debug options")] public bool showWireframe = false;
         public bool showUVSeams = false;
@@ -198,7 +198,7 @@ namespace Unity.DemoTeam.DigitalHuman
 	
 					for (int i = 0; i < subjects.Count; ++i)
 					{
-						if (subjects[i].attachmentType != SkinAttachment.AttachmentType.Transform) continue;
+						if (subjects[i].attachmentType != LegacySkinAttachment.AttachmentType.Transform) continue;
 						int index = subjects[i].TransformAttachmentGPUBufferIndex;
 						Vector3 pos = readBackBuffer[index];
 						subjects[i].transform.position = pos;
@@ -244,7 +244,7 @@ namespace Unity.DemoTeam.DigitalHuman
             
             List<SkinAttachmentSystem.SkinAttachmentDescCPU> attachmentDescs =
                 new List<SkinAttachmentSystem.SkinAttachmentDescCPU>();
-            List<SkinAttachment> resolvedAttachments = new List<SkinAttachment>();
+            List<LegacySkinAttachment> resolvedAttachments = new List<LegacySkinAttachment>();
             int resolvedSubjectIndex = 0;
             for (int i = 0; i < subjects.Count; i++)
             {
@@ -264,7 +264,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     continue;
 
                 Matrix4x4 resolveTransform = targetToWorld;
-                if (subject.attachmentType != SkinAttachment.AttachmentType.Transform)
+                if (subject.attachmentType != LegacySkinAttachment.AttachmentType.Transform)
                 {
                     // this used to always read:
                     //   var targetToSubject = subject.transform.worldToLocalMatrix * targetToWorld;
@@ -316,7 +316,7 @@ namespace Unity.DemoTeam.DigitalHuman
             for (int i = 0; i < attachmentDescs.Count; ++i)
             {
                 ref SkinAttachmentSystem.SkinAttachmentDescCPU attachmentDesc = ref attachmentDescsArray[i];
-                SkinAttachment subject = resolvedAttachments[i];
+                LegacySkinAttachment subject = resolvedAttachments[i];
                 
                 bool resolveTangents = subject.meshInstance &&
                                        subject.meshInstance.HasVertexAttribute(VertexAttribute.Tangent);
@@ -327,14 +327,14 @@ namespace Unity.DemoTeam.DigitalHuman
                 Profiler.BeginSample("gather-subj");
                 switch (subject.attachmentType)
                 {
-                    case SkinAttachment.AttachmentType.Transform:
+                    case LegacySkinAttachment.AttachmentType.Transform:
                     {
                         subject.transform.position = stagingDataVec3[indexPosStaging][0];
                     } 
                         break;
 
-                    case SkinAttachment.AttachmentType.Mesh:
-                    case SkinAttachment.AttachmentType.MeshRoots:
+                    case LegacySkinAttachment.AttachmentType.Mesh:
+                    case LegacySkinAttachment.AttachmentType.MeshRoots:
                     {
                         if (subject.meshInstance == null)
                             break;
@@ -495,7 +495,7 @@ namespace Unity.DemoTeam.DigitalHuman
             return ref cachedMeshInfo;
         }
 
-        public void AddSubject(SkinAttachment subject)
+        public void AddSubject(LegacySkinAttachment subject)
         {
             if (subjects.Contains(subject) == false)
                 subjects.Add(subject);
@@ -503,7 +503,7 @@ namespace Unity.DemoTeam.DigitalHuman
             subjectsNeedRefresh = true;
         }
 
-        public void RemoveSubject(SkinAttachment subject)
+        public void RemoveSubject(LegacySkinAttachment subject)
         {
             if (subjects.Contains(subject))
                 subjects.Remove(subject);
@@ -535,8 +535,8 @@ namespace Unity.DemoTeam.DigitalHuman
         }
         
         
-        public static void BuildDataAttachSubject(ref SkinAttachmentData attachData, Transform target,
-            in MeshInfo meshInfo, in PoseBuildSettings settings, SkinAttachment subject, ref int itemOffset, ref int poseOffset)
+        public static void BuildDataAttachSubject(ref LegacySkinAttachmentData attachData, Transform target,
+            in MeshInfo meshInfo, in PoseBuildSettings settings, LegacySkinAttachment subject, ref int itemOffset, ref int poseOffset)
         {
             Matrix4x4 subjectToTarget;
             {
@@ -555,16 +555,16 @@ namespace Unity.DemoTeam.DigitalHuman
 
             switch (subject.attachmentType)
             {
-                case SkinAttachment.AttachmentType.Transform:
+                case LegacySkinAttachment.AttachmentType.Transform:
                     BuildDataAttachTransform(ref pose, ref items, subjectToTarget, meshInfo, settings,
                         itemOffset, poseOffset, out itemCount, out poseCount);
                     break;
-                case SkinAttachment.AttachmentType.Mesh:
+                case LegacySkinAttachment.AttachmentType.Mesh:
                     BuildDataAttachMesh(ref pose, ref items, subjectToTarget, meshInfo, settings,
                         subject.meshBuffers.vertexPositions, subject.meshBuffers.vertexNormals,
                         subject.meshBuffers.vertexTangents, itemOffset, poseOffset, out itemCount,out poseCount);
                     break;
-                case SkinAttachment.AttachmentType.MeshRoots:
+                case LegacySkinAttachment.AttachmentType.MeshRoots:
                     BuildDataAttachMeshRoots(ref pose, ref items, subjectToTarget, meshInfo, settings,
                         subject.allowOnlyOneRoot, subject.meshIslands, subject.meshAdjacency,
                         subject.meshBuffers.vertexPositions, subject.meshBuffers.vertexNormals,
@@ -602,7 +602,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 // pass 1: dry run
                 for (int i = 0, n = subjects.Count; i != n; i++)
                 {
-                    if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
+                    if (subjects[i].attachmentMode == LegacySkinAttachment.AttachmentMode.BuildPoses)
                     {
                         subjects[i].RevertVertexData();
                     }
@@ -614,7 +614,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 // pass 2: build poses
                 for (int i = 0, n = subjects.Count; i != n; i++)
                 {
-                    if (subjects[i].attachmentMode == SkinAttachment.AttachmentMode.BuildPoses)
+                    if (subjects[i].attachmentMode == LegacySkinAttachment.AttachmentMode.BuildPoses)
                     {
                         int poseOffset = currentPoseOffset;
                         int itemOffset = currentItemOffset;
@@ -646,7 +646,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 {
                     switch (subjects[i].attachmentMode)
                     {
-                        case SkinAttachment.AttachmentMode.LinkPosesByReference:
+                        case LegacySkinAttachment.AttachmentMode.LinkPosesByReference:
                         {
                             if (subjects[i].attachmentLink != null)
                             {
@@ -662,7 +662,7 @@ namespace Unity.DemoTeam.DigitalHuman
                         }
                             break;
 
-                        case SkinAttachment.AttachmentMode.LinkPosesBySpecificIndex:
+                        case LegacySkinAttachment.AttachmentMode.LinkPosesBySpecificIndex:
                         {
                             subjects[i].attachmentIndex =
                                 Mathf.Clamp(subjects[i].attachmentIndex, 0, attachData.itemCount - 1);
@@ -673,7 +673,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
                 }
             }
-            attachData.dataVersion = SkinAttachmentData.DataVersion.Version_3;
+            attachData.dataVersion = LegacySkinAttachmentData.DataVersion.Version_3;
             attachData.subjectCount = subjects.Count;
 
             attachData.Persist();
@@ -768,7 +768,7 @@ namespace Unity.DemoTeam.DigitalHuman
             transformAttachmentCount = 0;
             for (int i = 0; i < subjects.Count; ++i)
             {
-                if (subjects[i].attachmentType == SkinAttachment.AttachmentType.Transform)
+                if (subjects[i].attachmentType == LegacySkinAttachment.AttachmentType.Transform)
                 {
                     subjects[i].TransformAttachmentGPUBufferIndex = transformAttachmentCount;
                     ++transformAttachmentCount;
@@ -784,7 +784,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     int transformPoseOffsetIndex = 0;
                     for (int i = 0; i < subjects.Count; ++i)
                     {
-                        if (subjects[i].attachmentType == SkinAttachment.AttachmentType.Transform)
+                        if (subjects[i].attachmentType == LegacySkinAttachment.AttachmentType.Transform)
                         {
                             transformItems[transformPoseOffsetIndex++] = itemsBuffer[subjects[i].attachmentIndex];
                         }
@@ -874,7 +874,7 @@ namespace Unity.DemoTeam.DigitalHuman
             
             for (int i = 0; i < subjects.Count; i++)
             {
-                SkinAttachment subject = subjects[i];
+                LegacySkinAttachment subject = subjects[i];
                 if (subject.meshInstance == null) continue;
                 
                 Matrix4x4 targetToSubject;
@@ -920,7 +920,7 @@ namespace Unity.DemoTeam.DigitalHuman
             var targetMeshWorldBoundsExtent = targetMeshWorldBounds.extents;
             for (int i = 0; i < subjects.Count; i++)
             {
-                SkinAttachment subject = subjects[i];
+                LegacySkinAttachment subject = subjects[i];
                 if (subject.meshInstance == null) continue;
                 
                 Profiler.BeginSample("conservative-bounds");
@@ -999,7 +999,7 @@ namespace Unity.DemoTeam.DigitalHuman
             var activeGO = UnityEditor.Selection.activeGameObject;
             if (activeGO == null)
                 return;
-            if (activeGO != this.gameObject && activeGO.GetComponent<SkinAttachment>() == null)
+            if (activeGO != this.gameObject && activeGO.GetComponent<LegacySkinAttachment>() == null)
                 return;
 
             Gizmos.matrix = this.transform.localToWorldMatrix;

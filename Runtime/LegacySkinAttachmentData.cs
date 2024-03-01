@@ -5,9 +5,9 @@ using UnityEngine.Serialization;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	[CreateAssetMenu(menuName = "Digital Human/Skin Attachment Data")]
+	[CreateAssetMenu(menuName = "Digital Human/Legacy Skin Attachment Data")]
 	[PreferBinarySerialization]
-	public class SkinAttachmentData : ScriptableObject
+	public class LegacySkinAttachmentData : ScriptableObject
 	{
 		public enum DataVersion
 		{

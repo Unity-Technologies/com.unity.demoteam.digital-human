@@ -4,11 +4,11 @@ using System.Collections.Generic;
 
 namespace Unity.DemoTeam.DigitalHuman
 {
-	[CustomEditor(typeof(SkinAttachment)), CanEditMultipleObjects]
-	public class SkinAttachmentEditor : Editor
+	[CustomEditor(typeof(LegacySkinAttachment)), CanEditMultipleObjects]
+	public class LegacySkinAttachmentEditor : Editor
 	{
 		private Editor attachmentTargetEditor;
-		private HashSet<SkinAttachmentTarget> attachmentTargetSet = new HashSet<SkinAttachmentTarget>();
+		private HashSet<LegacySkinAttachmentTarget> attachmentTargetSet = new HashSet<LegacySkinAttachmentTarget>();
 
 		public override void OnInspectorGUI()
 		{
@@ -19,7 +19,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			if (targets.Length == 1)
 			{
-				var attachment = target as SkinAttachment;
+				var attachment = target as LegacySkinAttachment;
 				if (attachment == null)
 					return;
 
@@ -30,7 +30,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
 				base.OnInspectorGUI();
 
-				var attachmentTarget = (target as SkinAttachment).target;
+				var attachmentTarget = (target as LegacySkinAttachment).target;
 				if (attachmentTarget != null)
 				{
 					EditorGUILayout.Separator();
@@ -45,12 +45,12 @@ namespace Unity.DemoTeam.DigitalHuman
 
 				foreach (var target in targets)
 				{
-					var attachment = target as SkinAttachment;
+					var attachment = target as LegacySkinAttachment;
 					if (attachment == null)
 						continue;
 
 					EditorGUILayout.BeginHorizontal();
-					EditorGUILayout.ObjectField(attachment, typeof(SkinAttachment), false);
+					EditorGUILayout.ObjectField(attachment, typeof(LegacySkinAttachment), false);
 					DrawGUIAttachDetach(attachment, attachmentTargetSet);
 					CommitTargetChanges(attachmentTargetSet);
 					EditorGUILayout.EndHorizontal();
@@ -64,7 +64,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		public static void CommitTargetChanges(HashSet<SkinAttachmentTarget> attachmentTargetSet)
+		public static void CommitTargetChanges(HashSet<LegacySkinAttachmentTarget> attachmentTargetSet)
 		{
 			foreach (var attachmentTarget in attachmentTargetSet)
 			{
@@ -76,7 +76,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		public static void DrawGUIAttachDetach(SkinAttachment attachment, HashSet<SkinAttachmentTarget> attachmentTargetSet)
+		public static void DrawGUIAttachDetach(LegacySkinAttachment attachment, HashSet<LegacySkinAttachmentTarget> attachmentTargetSet)
 		{
 			EditorGUILayout.BeginVertical();
 			DrawGUIAttach(attachment, attachmentTargetSet);
@@ -84,7 +84,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			EditorGUILayout.EndVertical();
 		}
 
-		public static void DrawGUIAttach(SkinAttachment attachment, HashSet<SkinAttachmentTarget> attachmentTargetSet)
+		public static void DrawGUIAttach(LegacySkinAttachment attachment, HashSet<LegacySkinAttachmentTarget> attachmentTargetSet)
 		{
 			EditorGUI.BeginDisabledGroup(attachment.attached);
 			{
@@ -98,7 +98,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			EditorGUI.EndDisabledGroup();
 		}
 
-		public static void DrawGUIDetach(SkinAttachment attachment, HashSet<SkinAttachmentTarget> attachmentTargetSet)
+		public static void DrawGUIDetach(LegacySkinAttachment attachment, HashSet<LegacySkinAttachmentTarget> attachmentTargetSet)
 		{
 			EditorGUI.BeginDisabledGroup(!attachment.attached);
 			{
@@ -120,13 +120,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			EditorGUI.EndDisabledGroup();
 		}
 
-		public static void DrawGUIAttachDetachAll(Object[] targets, HashSet<SkinAttachmentTarget> attachmentTargetSet)
+		public static void DrawGUIAttachDetachAll(Object[] targets, HashSet<LegacySkinAttachmentTarget> attachmentTargetSet)
 		{
 			if (GUILayout.Button("Attach all"))
 			{
 				foreach (var target in targets)
 				{
-					var attachment = target as SkinAttachment;
+					var attachment = target as LegacySkinAttachment;
 					if (attachment != null && !attachment.attached)
 					{
 						attachment.Attach(storePositionRotation: true);
@@ -139,7 +139,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			{
 				foreach (var target in targets)
 				{
-					var attachment = target as SkinAttachment;
+					var attachment = target as LegacySkinAttachment;
 					if (attachment != null && attachment.attached)
 					{
 						attachmentTargetSet.Add(attachment.targetActive);
