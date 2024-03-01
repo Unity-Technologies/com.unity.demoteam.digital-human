@@ -22,10 +22,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				return;
 
 			serializedCommon = serializedObject.FindProperty("common");
-			
-			EditorGUI.BeginDisabledGroup(serializedCommon.isInstantiatedPrefab);
 
-			
 			if (targets.Length == 1)
 			{
 				var attachment = target as SkinAttachmentMesh;
@@ -44,9 +41,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				IEnumerable<SkinAttachmentMesh> transforms = targets.Where(o => o is SkinAttachmentMesh).Cast<SkinAttachmentMesh>();
 				DrawMultiSelectGUI(transforms);
 			}
-			
-			EditorGUI.EndDisabledGroup();
-						
+
 			DrawGUIAttachmentTarget(serializedCommon);
 			DrawGUIAttachmentDataStorage(serializedCommon);
 			DrawGuiSettings(serializedCommon);

@@ -7,8 +7,6 @@ public static class SkinAttachmentEditorUtils
 {
     public static void DrawGUIAttachmentDataStorage(SerializedProperty common, bool drawPoseDataSource = true)
     {
-        EditorGUI.BeginDisabledGroup(common.isInstantiatedPrefab);
-        
         SerializedProperty dataStorage = common.FindPropertyRelative("dataStorage");
         SerializedProperty poseDataSource = common.FindPropertyRelative("poseDataSource");
         SerializedProperty linkedChecksum = common.FindPropertyRelative("linkedChecksum");
@@ -59,18 +57,14 @@ public static class SkinAttachmentEditorUtils
                 }
             }
         }
-        EditorGUI.EndDisabledGroup();
+
     }
     
     public static void DrawGUIAttachmentTarget(SerializedProperty common)
     {
-        EditorGUI.BeginDisabledGroup(common.isInstantiatedPrefab);
-        
         SerializedProperty at = common.FindPropertyRelative("attachmentTarget");
         var hash = at.contentHash;
         EditorGUILayout.ObjectField(at, typeof(Renderer));
-        
-        EditorGUI.EndDisabledGroup();
     }
 
     public static void DrawGUISettings(SerializedProperty common)
@@ -81,10 +75,8 @@ public static class SkinAttachmentEditorUtils
         
         EditorGUILayout.PropertyField(sm, new GUIContent("Scheduling: "), false);
         EditorGUILayout.PropertyField(es, new GUIContent("Explicit Scheduling: "), false);
-        
-        EditorGUI.BeginDisabledGroup(common.isInstantiatedPrefab);
         EditorGUILayout.PropertyField(ebm, new GUIContent("explicit mesh for baking (optional):"), false);
-        EditorGUI.EndDisabledGroup();
+
     }
     
     
