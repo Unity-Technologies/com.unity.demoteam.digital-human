@@ -13,17 +13,18 @@ namespace Unity.DemoTeam.DigitalHuman
 		private static bool debugToggled = false;
 		private static bool storageToggled = true;
 
-		private SkinAttachmentDataRegistry prototypeRegistry = null;
-		private Renderer prototypeRenderer = null;
-		private bool prototypeScheduleExplicitly = false;
-		private SkinAttachmentComponentCommon.SchedulingMode prototypeSchedlingMode = SkinAttachmentComponentCommon.SchedulingMode.GPU;
-		private Mesh prototypeMesh = null;
-		
+		private SerializedProperty serializedCommon;
+
 		public override void OnInspectorGUI()
 		{
 			if (target == null)
 				return;
 
+			serializedCommon = serializedObject.FindProperty("common");
+
+			EditorGUI.BeginDisabledGroup(serializedCommon.isInstantiatedPrefab);
+
+			
 			if (targets.Length == 1)
 			{
 				var attachment = target as SkinAttachmentTransform;
@@ -31,78 +32,69 @@ namespace Unity.DemoTeam.DigitalHuman
 					return;
 
 				//we always need data storage before anything else
-				if (attachment.common.dataStorage == null)
-				{
-					DrawGUIAttachmentDataStorage(attachment);
-				}
-				else
+				if (attachment.common.dataStorage != null)
 				{
 					EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum : "Currently detached.", MessageType.Info);
-					DrawValidationInfo(attachment);
-					DrawGUIAttachmentTarget(attachment);
 					DrawGUIAttachDetach(attachment);
-					DrawGUIAttachmentDataStorage(attachment);
-					
-					DrawGuiSettings(attachment);
-					DrawGuiDebug(attachment);
-				
 				}
 			}
 			else
 			{
 				IEnumerable<SkinAttachmentTransform> transforms = targets.Where(o => o is SkinAttachmentTransform).Cast<SkinAttachmentTransform>();
-				
 				DrawMultiSelectGUI(transforms);
 			}
+			
+			EditorGUI.EndDisabledGroup();
+			
+			DrawGUIAttachmentTarget(serializedCommon);
+			DrawGUIAttachmentDataStorage(serializedCommon);
+			DrawGuiSettings(serializedCommon);
+			DrawGuiDebug(serializedObject, serializedCommon);
 
-
+			serializedObject.ApplyModifiedProperties();
 		}
 
 		
-		public void DrawGUIAttachmentTarget(SkinAttachmentTransform attachment)
+		public void DrawGUIAttachmentTarget(SerializedProperty common)
 		{
-			var oldAttachment = attachment.common.attachmentTarget;
-			attachment.common.attachmentTarget = (Renderer)EditorGUILayout.ObjectField(attachment.common.attachmentTarget, typeof(Renderer));
-			if (oldAttachment != attachment.common.attachmentTarget && oldAttachment != null)
-			{
-				attachment.Detach(false);
-			}
+			SkinAttachmentEditorUtils.DrawGUIAttachmentTarget(common);
 		}
 		
-		public void DrawGUIAttachmentDataStorage(SkinAttachmentTransform attachment)
+		public void DrawGUIAttachmentDataStorage(SerializedProperty common)
 		{
 			storageToggled = EditorGUILayout.BeginFoldoutHeaderGroup(storageToggled, "Storage");
 			if (storageToggled)
 			{
 				EditorGUILayout.BeginVertical();
-				SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(attachment, attachment.common);
+				SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(common);
 				EditorGUILayout.EndVertical();
 			}
 
 			EditorGUILayout.EndFoldoutHeaderGroup();
 		}
 
-		public void DrawGuiSettings(SkinAttachmentTransform attachment)
+		public void DrawGuiSettings(SerializedProperty common)
 		{
 			settingsToggled = EditorGUILayout.BeginFoldoutHeaderGroup(settingsToggled, "Settings");
 			if (settingsToggled)
 			{
 				EditorGUILayout.BeginVertical();
-				SkinAttachmentEditorUtils.DrawGUISettings(attachment, attachment.common);
+				SkinAttachmentEditorUtils.DrawGUISettings(common);
 				EditorGUILayout.EndVertical();
 				
 			}
 			EditorGUILayout.EndFoldoutHeaderGroup();
 		}
 		
-		public void DrawGuiDebug(SkinAttachmentTransform attachment)
+		public void DrawGuiDebug(SerializedObject attachment,SerializedProperty common )
 		{
 			debugToggled = EditorGUILayout.BeginFoldoutHeaderGroup(debugToggled, "Debug");
 			if (debugToggled)
 			{
+				SerializedProperty readback = attachment.FindProperty("readbackTransformFromGPU");
 				EditorGUILayout.BeginVertical();
-				attachment.readbackTransformFromGPU = EditorGUILayout.Toggle("Readback positions from GPU: ", attachment.readbackTransformFromGPU);
-				SkinAttachmentEditorUtils.DrawGuiDebug(attachment, attachment.common);
+				EditorGUILayout.PropertyField( readback, new GUIContent("Readback positions from GPU: "));
+				SkinAttachmentEditorUtils.DrawGuiDebug(common);
 				EditorGUILayout.EndVertical();
 				
 			}
@@ -145,23 +137,14 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		public void DrawMultiSelectGUI(IEnumerable<SkinAttachmentTransform> transforms)
 		{
-
-			foreach (var t in transforms)
-			{
-				EditorGUILayout.BeginHorizontal(GUILayout.ExpandWidth(false));
-				DrawGUIAttachmentTarget(t);
-				SkinAttachmentEditorUtils.DrawGUIAttachmentDataStorage(t, t.common, false);
-				DrawGUIAttach(t);
-				DrawGUIDetach(t);
-				EditorGUILayout.EndHorizontal();
-			}
-
+			GUILayout.BeginHorizontal();
 			if (GUILayout.Button("Attach All"))
 			{
 				foreach (var t in transforms)
 				{
 					t.Attach();
 				}
+				serializedObject.Update();
 			}
 			
 			if (GUILayout.Button("Detach All"))
@@ -170,41 +153,11 @@ namespace Unity.DemoTeam.DigitalHuman
 				{
 					t.Detach();
 				}
+				serializedObject.Update();
 			}
-			
-			EditorGUILayout.BeginVertical(new GUIStyle(EditorStyles.helpBox));
-			EditorGUILayout.LabelField("Prototype settings");
-			DrawPrototypeEntries();
-			if (GUILayout.Button("Apply To All"))
-			{
-				foreach (var t in transforms)
-				{
-					t.DataStorage = prototypeRegistry;
-					t.Target = prototypeRenderer;
-					t.ScheduleExplicitly = prototypeScheduleExplicitly;
-					t.SchedulingMode = prototypeSchedlingMode;
-					t.ExplicitTargetBakeMesh = prototypeMesh;
-				}
-			}
-			EditorGUILayout.EndVertical();
+			GUILayout.EndHorizontal();
 		}
 
-		public void DrawPrototypeEntries()
-		{
-			EditorGUILayout.BeginHorizontal();
-			prototypeRegistry =
-				(SkinAttachmentDataRegistry)EditorGUILayout.ObjectField(prototypeRegistry,
-					typeof(SkinAttachmentDataRegistry));
-			
-			prototypeRenderer = (Renderer)EditorGUILayout.ObjectField(prototypeRenderer, typeof(Renderer));
-			EditorGUILayout.EndHorizontal();
-			
-			prototypeSchedlingMode = (SkinAttachmentComponentCommon.SchedulingMode)EditorGUILayout.EnumPopup("Scheduling: ", prototypeSchedlingMode);
-			prototypeScheduleExplicitly = EditorGUILayout.Toggle("Explicit Scheduling: ", prototypeScheduleExplicitly);
-			prototypeMesh = (Mesh)EditorGUILayout.ObjectField("Explicit mesh for baking (optional):", prototypeMesh, typeof(Mesh), false);
-			
-		}
-		
 		public void DrawValidationInfo(SkinAttachmentTransform attachment)
 		{
 			if (!attachment.ValidateBakedData())

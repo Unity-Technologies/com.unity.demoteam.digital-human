@@ -142,7 +142,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     return;
                 }
                 
-                ValidateDataStorage();
+                ValidateDataStorage(attachment);
 
                 if (currentStorage != null)
                 {
@@ -272,7 +272,7 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        internal void ValidateDataStorage()
+        internal void ValidateDataStorage(MonoBehaviour attachment)
         {
             
             if (currentStorage != null && currentStorage != dataStorage || currentPoseDataSource != poseDataSource)
