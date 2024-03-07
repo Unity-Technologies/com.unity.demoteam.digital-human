@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -166,14 +168,14 @@ namespace Unity.DemoTeam.DigitalHuman
                 data.customBakeFunc = customBake;
             }
             
-            public bool GetAttachmentTargetMeshInfo(Renderer r, out MeshInfo info, Mesh explicitBakeMesh = null)
+            public bool GetAttachmentTargetMeshInfo(Renderer r, out MeshInfo info, bool allowReadback, Mesh explicitBakeMesh)
             {
                 info = new MeshInfo();
                 if (IsValidAttachmentTarget(r))
                 {
                     AttachmentTargetData data = GetAttachmentTargetData(r);
                     
-                    Mesh m = GetPoseBakeMesh(r, explicitBakeMesh);
+                    Mesh m = GetPoseBakeMesh(r, explicitBakeMesh, allowReadback);
                     if (m == null) return false;
                     
                     Hash128 bakeMeshHash = GetBakeMeshHash(m);
@@ -207,7 +209,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 return true;
             }
             
-            public Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh)
+            public Mesh GetPoseBakeMesh(Renderer r, Mesh explicitBakeMesh, bool allowGPUReadback)
             {
                 if (!IsValidAttachmentTarget(r)) return null;
                 
@@ -218,9 +220,22 @@ namespace Unity.DemoTeam.DigitalHuman
                     if (r is MeshRenderer mr)
                     {
                         if (!mr.TryGetComponent(out MeshFilter mf)) return null;
+                      
                         if (mf.sharedMesh != null)
                         {
-                            bakeMesh = mf.sharedMesh;
+                            if (allowGPUReadback)
+                            {
+                                bakeMesh = Object.Instantiate(mf.sharedMesh);
+                                bakeMesh.name = "SkinAttachmentTarget(BakeMesh)";
+                                bakeMesh.hideFlags = HideFlags.HideAndDontSave & ~HideFlags.DontUnloadUnusedAsset;
+                                bakeMesh.MarkDynamic();
+                                ReadbackMeshData(mf.sharedMesh, bakeMesh);
+                            }
+                            else
+                            {
+                                bakeMesh = mf.sharedMesh;
+                            }
+                            
                         }
                     }
                 
@@ -256,6 +271,101 @@ namespace Unity.DemoTeam.DigitalHuman
 
             }
 
+            static void CopyReadbackDataToArray<T>(T[] targetBuffer, NativeArray<byte> readbackBuffer,int vertexCount, int stride, int offset, int size) where T: unmanaged
+            {
+                unsafe
+                {
+                    byte* srcPtr = (byte*)readbackBuffer.GetUnsafePtr();
+                    fixed (T* targetPtr = targetBuffer)
+                    {
+                        for (int i = 0; i < vertexCount; ++i)
+                        {
+                            int srcOffset = stride * i + offset;
+                            UnsafeUtility.MemCpy(targetPtr + i, srcPtr + srcOffset, size);
+                        }
+                            
+                    }
+                }
+            }
+            
+            void ReadbackMeshData(Mesh src, Mesh target)
+            {
+                int positionStream = src.GetVertexAttributeStream(VertexAttribute.Position);
+                int normalStream = src.GetVertexAttributeStream(VertexAttribute.Normal);
+                int tangentStream = src.GetVertexAttributeStream(VertexAttribute.Tangent);
+                
+                using GraphicsBuffer skinPositionsBuffer = src.GetVertexBuffer(positionStream);
+                using GraphicsBuffer skinNormalsBuffer = src.GetVertexBuffer(normalStream);
+                using GraphicsBuffer skinTangentsBuffer = src.GetVertexBuffer(tangentStream);
+                
+                var posOffset = src.GetVertexAttributeOffset(VertexAttribute.Position);
+                var posStride = src.GetVertexBufferStride(positionStream);
+                
+                var normOffset = src.GetVertexAttributeOffset(VertexAttribute.Normal);
+                var normStride = src.GetVertexBufferStride(normalStream);
+                
+                var tanOffset = src.GetVertexAttributeOffset(VertexAttribute.Tangent);
+                var tanStride = src.GetVertexBufferStride(tangentStream);
+
+                Dictionary<int, NativeArray<byte>> readbackData = new Dictionary<int, NativeArray<byte>>();
+                Dictionary<int, GraphicsBuffer> gpuBuffers = new Dictionary<int, GraphicsBuffer>();
+                if (skinPositionsBuffer != null)
+                {
+                    readbackData[positionStream] = new NativeArray<byte>(skinPositionsBuffer.stride * skinPositionsBuffer.count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                    gpuBuffers[positionStream] = skinPositionsBuffer;
+                }
+                
+                if (normalStream != positionStream && skinNormalsBuffer != null)
+                {
+                    readbackData[normalStream] = new NativeArray<byte>(skinNormalsBuffer.stride * skinNormalsBuffer.count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                    gpuBuffers[normalStream] = skinNormalsBuffer;
+                }
+                
+                if (tangentStream != positionStream && tangentStream != normalStream && skinTangentsBuffer != null)
+                {
+                    readbackData[tangentStream] = new NativeArray<byte>(skinTangentsBuffer.stride * skinTangentsBuffer.count, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                    gpuBuffers[tangentStream] = skinTangentsBuffer;
+                }
+                
+                int vertexCount = src.vertexCount;
+                
+                foreach (var r in readbackData)
+                {
+                    var readbackBuffer = r.Value;
+                    AsyncGPUReadback.RequestIntoNativeArray(ref readbackBuffer, gpuBuffers[r.Key]);
+                }
+                AsyncGPUReadback.WaitAllRequests();
+
+                if (skinPositionsBuffer != null)
+                {
+                    var readbackBuffer = readbackData[positionStream];
+                    var vertices = new Vector3[vertexCount];
+                    CopyReadbackDataToArray(vertices, readbackBuffer, vertexCount, posStride, posOffset, UnsafeUtility.SizeOf<Vector3>());
+                    target.vertices = vertices;
+                }
+                
+                if (skinNormalsBuffer != null)
+                {
+                    var readbackBuffer = readbackData[normalStream];
+                    var normals = new Vector3[vertexCount];
+                    CopyReadbackDataToArray(normals, readbackBuffer, vertexCount, normStride, normOffset, UnsafeUtility.SizeOf<Vector3>());
+                    target.normals = normals;
+                }
+                
+                if (skinTangentsBuffer != null)
+                {
+                    var readbackBuffer = readbackData[tangentStream];
+                    var tan = new Vector4[vertexCount];
+                    CopyReadbackDataToArray(tan, readbackBuffer, vertexCount, tanStride, tanOffset, UnsafeUtility.SizeOf<Vector4>());
+                    target.tangents = tan;
+                }
+
+                foreach (var r in readbackData)
+                {
+                    r.Value.Dispose();
+                }
+            }
+            
             bool MarkRendererUsed(Renderer r)
             {
                 if (!IsValidAttachmentTarget(r))

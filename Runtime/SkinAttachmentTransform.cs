@@ -136,7 +136,7 @@ namespace Unity.DemoTeam.DigitalHuman
         bool BakeAttachmentPoses(ref SkinAttachmentItem[] items, ref SkinAttachmentPose[] poses)
         {
             if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(common.attachmentTarget,
-                    out MeshInfo attachmentTargetBakeData))
+                    out MeshInfo attachmentTargetBakeData, common.readbackTargetMeshWhenBaking, common.explicitBakeMesh))
                 return false;
 
             Matrix4x4 subjectToTarget =
@@ -260,7 +260,7 @@ namespace Unity.DemoTeam.DigitalHuman
             if (target == null) return;
 
             if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(target,
-                    out MeshInfo attachmentTargetBakeData))
+                    out MeshInfo attachmentTargetBakeData, common.readbackTargetMeshWhenBaking, common.explicitBakeMesh))
                 return;
 
             var targetLocalPos = target.transform.InverseTransformPoint(this.transform.position);

@@ -72,11 +72,12 @@ public static class SkinAttachmentEditorUtils
         SerializedProperty sm = common.FindPropertyRelative("schedulingMode");
         SerializedProperty es = common.FindPropertyRelative("explicitScheduling");
         SerializedProperty ebm = common.FindPropertyRelative("explicitBakeMesh");
+        SerializedProperty rtm = common.FindPropertyRelative("readbackTargetMeshWhenBaking");
         
         EditorGUILayout.PropertyField(sm, new GUIContent("Scheduling: "), false);
         EditorGUILayout.PropertyField(es, new GUIContent("Explicit Scheduling: "), false);
-        EditorGUILayout.PropertyField(ebm, new GUIContent("explicit mesh for baking (optional):"), false);
-
+        EditorGUILayout.PropertyField(ebm, new GUIContent("Explicit mesh for baking (optional):"), false);
+        EditorGUILayout.PropertyField(rtm, new GUIContent("Readback target mesh from GPU when baking: "), false);
     }
     
     

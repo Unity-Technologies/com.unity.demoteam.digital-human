@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 
 #if UNITY_EDITOR
+using System.IO;
 using UnityEditor;
 #endif
 
@@ -57,6 +58,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public Hash128 linkedChecksum;
         public bool explicitScheduling = false;
         public Mesh explicitBakeMesh = null;
+        public bool readbackTargetMeshWhenBaking = true;
         public string bakedDataEntryName;
 
         public bool IsAttached => attached;
@@ -162,7 +164,7 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             bool succesfull = true;
 #if UNITY_EDITOR
-            var isPrefabInstance = UnityEditor.PrefabUtility.IsPartOfPrefabInstance(attachment);
+            /*var isPrefabInstance = UnityEditor.PrefabUtility.IsPartOfPrefabInstance(attachment);
             
             if (isPrefabInstance)
             {  
@@ -171,7 +173,8 @@ namespace Unity.DemoTeam.DigitalHuman
             else
             {
                 succesfull = BakeAttachmentData(attachment);
-            }
+            }*/
+            succesfull = BakeAttachmentData(attachment);
 #endif
             return succesfull;
         }
@@ -191,8 +194,8 @@ namespace Unity.DemoTeam.DigitalHuman
         {
 #if UNITY_EDITOR		
             var prefabAttachment = PrefabUtility.GetCorrespondingObjectFromOriginalSource(attachment);
-                
-            var prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(prefabAttachment);
+            var prefabPath = AssetDatabase.GetAssetPath(prefabAttachment);
+            
 #if UNITY_2021_2_OR_NEWER
             var prefabStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
 #else
@@ -348,7 +351,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 color.a = 0.5f;
                 Gizmos.color = color;
                 
-                Mesh m = SkinAttachmentSystem.Inst.GetPoseBakeMesh(attachmentTarget, explicitBakeMesh);
+                Mesh m = SkinAttachmentSystem.Inst.GetPoseBakeMesh(attachmentTarget, explicitBakeMesh, readbackTargetMeshWhenBaking);
                 Gizmos.DrawMesh(m);
                 
                 Gizmos.matrix = prevMatrix;

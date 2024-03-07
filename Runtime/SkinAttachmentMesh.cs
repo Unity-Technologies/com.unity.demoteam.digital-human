@@ -281,7 +281,7 @@ namespace Unity.DemoTeam.DigitalHuman
             if (!GetBakeData(out BakeData attachmentBakeData))
                 return false;
             if (!SkinAttachmentSystem.Inst.GetAttachmentTargetMeshInfo(common.attachmentTarget,
-                    out MeshInfo attachmentTargetBakeData))
+                    out MeshInfo attachmentTargetBakeData, common.readbackTargetMeshWhenBaking, common.explicitBakeMesh))
                 return false;
 
             Matrix4x4 subjectToTarget;
