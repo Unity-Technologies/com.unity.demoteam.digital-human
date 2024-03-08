@@ -5,6 +5,7 @@ using System.Linq;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEngine.SceneManagement;
 #endif
 
 namespace Unity.DemoTeam.DigitalHuman
@@ -38,29 +39,46 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 			string path = null;
 #if UNITY_EDITOR
-			if (PrefabUtility.IsPartOfAnyPrefab(obj))
+			bool isPrefabInstance = PrefabUtility.IsPartOfAnyPrefab(obj);
+			var prefabAttachment = PrefabUtility.GetCorrespondingObjectFromOriginalSource(obj);
+			if (prefabAttachment != null)
 			{
-				var prefabAttachment = PrefabUtility.GetCorrespondingObjectFromOriginalSource(obj);
 				var prefabPath = AssetDatabase.GetAssetPath(prefabAttachment);
 				var directoryPath = Path.GetDirectoryName(prefabPath);
 				path = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(prefabPath) + "_AttachmentRegistry.asset");
 			}
 			else
 			{
+#if UNITY_2021_2_OR_NEWER
+				var prefabStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+#else
+				var prefabStage = Experimental.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+#endif
+				Scene owningScene = new Scene();
+
 				string scenePath = null;
 				if (obj is GameObject)
 				{
 					var go = (GameObject)obj;
-					scenePath = go.scene.path;
+					owningScene = go.scene;
 				}
 				
 				if (obj is MonoBehaviour)
 				{
 					var mb = (MonoBehaviour)obj;
-					scenePath = mb.gameObject.scene.path;
+					owningScene = mb.gameObject.scene;
 				}
 
-				if (scenePath != null)
+				if (owningScene == prefabStage.scene)
+				{
+					scenePath = prefabStage.assetPath;
+				}
+				else
+				{
+					scenePath = owningScene.path;
+				}
+				
+				if (!string.IsNullOrEmpty(scenePath))
 				{
 					var directoryPath = Path.GetDirectoryName(scenePath);
 					path = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(scenePath) + "_AttachmentRegistry.asset");
@@ -75,6 +93,9 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 #if UNITY_EDITOR
 			var path = GetDefaultRegistryPath(obj);
+
+			if (string.IsNullOrEmpty(path)) return null;
+			
 			if (AssetDatabase.AssetPathExists(path))
 			{
 				return AssetDatabase.LoadAssetAtPath<SkinAttachmentDataRegistry>(path);
