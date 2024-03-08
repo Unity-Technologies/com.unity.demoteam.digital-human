@@ -79,7 +79,6 @@ namespace Unity.DemoTeam.DigitalHuman
 
         internal bool hasValidState = false;
 
-
         internal void Attach(MonoBehaviour attachment, bool storePositionRotation = true)
         {
             if (storePositionRotation)
@@ -144,7 +143,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     return;
                 }
                 
-                ValidateDataStorage(attachment);
+                ValidateDataStorage(attachment, allowBakeRefresh);
 
                 if (currentStorage != null)
                 {
@@ -164,16 +163,6 @@ namespace Unity.DemoTeam.DigitalHuman
         {
             bool succesfull = true;
 #if UNITY_EDITOR
-            /*var isPrefabInstance = UnityEditor.PrefabUtility.IsPartOfPrefabInstance(attachment);
-            
-            if (isPrefabInstance)
-            {  
-                succesfull = BakeAttachmentDataToPrefab(attachment);
-            }
-            else
-            {
-                succesfull = BakeAttachmentData(attachment);
-            }*/
             succesfull = BakeAttachmentData(attachment);
 #endif
             return succesfull;
@@ -275,17 +264,19 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
 
-        internal void ValidateDataStorage(MonoBehaviour attachment)
+        internal void ValidateDataStorage(MonoBehaviour attachment, bool allowUsingDefault)
         {
             
             if (currentStorage != null && currentStorage != dataStorage || currentPoseDataSource != poseDataSource)
             {
-                if (checkSum.isValid)
-                {
-                    currentStorage.ReleaseAttachmentData(checkSum);
-                }
+                Detach(attachment);
                 checkSum = default;
                 currentStorage = null;
+            }
+
+            if (allowUsingDefault && dataStorage == null)
+            {
+                dataStorage = SkinAttachmentDataRegistry.GetOrCreateDefaultSkinAttachmentRegistry(attachment);
             }
 
             currentPoseDataSource = poseDataSource;

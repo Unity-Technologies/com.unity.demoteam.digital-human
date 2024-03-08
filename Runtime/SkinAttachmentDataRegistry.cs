@@ -31,8 +31,66 @@ namespace Unity.DemoTeam.DigitalHuman
 		[SerializeField][HideInInspector]
 		private DataStorageHeader[] databaseEntries ;
 
-		[NonSerialized] private Dictionary<Hash128, DataStorageHeader> dataStorageLookup;
+		[NonSerialized] 
+		private Dictionary<Hash128, DataStorageHeader> dataStorageLookup;
 
+		public static string GetDefaultRegistryPath(UnityEngine.Object obj)
+		{
+			string path = null;
+#if UNITY_EDITOR
+			if (PrefabUtility.IsPartOfAnyPrefab(obj))
+			{
+				var prefabAttachment = PrefabUtility.GetCorrespondingObjectFromOriginalSource(obj);
+				var prefabPath = AssetDatabase.GetAssetPath(prefabAttachment);
+				var directoryPath = Path.GetDirectoryName(prefabPath);
+				path = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(prefabPath) + "_AttachmentRegistry.asset");
+			}
+			else
+			{
+				string scenePath = null;
+				if (obj is GameObject)
+				{
+					var go = (GameObject)obj;
+					scenePath = go.scene.path;
+				}
+				
+				if (obj is MonoBehaviour)
+				{
+					var mb = (MonoBehaviour)obj;
+					scenePath = mb.gameObject.scene.path;
+				}
+
+				if (scenePath != null)
+				{
+					var directoryPath = Path.GetDirectoryName(scenePath);
+					path = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(scenePath) + "_AttachmentRegistry.asset");
+				}
+				
+			}
+#endif
+			return path;
+		}
+		
+		public static SkinAttachmentDataRegistry GetOrCreateDefaultSkinAttachmentRegistry(UnityEngine.Object obj)
+		{
+#if UNITY_EDITOR
+			var path = GetDefaultRegistryPath(obj);
+			if (AssetDatabase.AssetPathExists(path))
+			{
+				return AssetDatabase.LoadAssetAtPath<SkinAttachmentDataRegistry>(path);
+			}
+			else
+			{
+				var dataRegistry = CreateInstance<SkinAttachmentDataRegistry>();
+				AssetDatabase.CreateAsset(dataRegistry, path);
+				return dataRegistry;
+			}
+#else
+			return null;
+#endif
+			
+		}
+		
 		public DataStorageHeader[] GetAllEntries()
 		{
 			DataStorageHeader[] copy = null;

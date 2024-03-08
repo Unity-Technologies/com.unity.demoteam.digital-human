@@ -109,7 +109,7 @@ namespace Unity.DemoTeam.DigitalHuman
         
         public bool CanAttach()
         {
-            return common.IsAttachmentTargetValid() && common.dataStorage != null && !IsAttached;
+            return common.IsAttachmentTargetValid() && !IsAttached;
         }
 
 

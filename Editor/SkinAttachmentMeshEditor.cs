@@ -28,13 +28,13 @@ namespace Unity.DemoTeam.DigitalHuman
 				var attachment = target as SkinAttachmentMesh;
 				if (attachment == null)
 					return;
-
-				//we always need data storage before anything else
+				
 				if (attachment.common.dataStorage != null)
 				{
 					EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum : "Currently detached.", MessageType.Info);
-					DrawGUIAttachDetach(attachment);
 				}
+				
+				DrawGUIAttachDetach(attachment);
 			}
 			else
 			{
