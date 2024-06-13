@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Accord.Statistics.Kernels;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -197,7 +198,19 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public bool IsAttachmentMeshValid()
         {
-            return meshAsset != null && meshAsset.isReadable;
+            if (meshAsset != null)
+            {
+                if (meshAsset.isReadable)
+                {
+                    return true;
+                }
+                else
+                {
+                    Debug.LogError($"SkinAttachmentMesh {meshAsset.name} is not readable, attachment logic cannot run. Make the mesh readable from import settings");
+                }
+            }
+
+            return false;
         }
 
         void UpdateAttachedState()
