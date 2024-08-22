@@ -359,7 +359,7 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
                 }
 
-                if (skinningBoneIndex != -1)
+                if (skinningBoneIndex != -1 && skinningBoneIndex < smr.bones.Length)
                 {
                     skinningBone = smr.bones[skinningBoneIndex];
                     skinningBoneBindPose = meshInstance.bindposes[skinningBoneIndex];

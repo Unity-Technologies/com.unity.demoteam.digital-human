@@ -270,9 +270,9 @@ namespace Unity.DemoTeam.DigitalHuman
             desc.tangentsOffsetStride.Item1 = skinMesh.GetVertexAttributeOffset(VertexAttribute.Tangent);
             desc.tangentsOffsetStride.Item2 = skinMesh.GetVertexBufferStride(tangentStream);
 
-            //need to apply rootbone transform to skinned vertices when resolving since bakemesh has applied it when attachdata is calculated
+            //need to apply rootbone transform to skinned vertices when resolving since bakemesh has applied it when attachdata is calculated. If there are no bones, assume bake has ignored it and don't apply.
             Matrix4x4 postSkinningToAttachment = Matrix4x4.identity;
-            if (smr.rootBone)
+            if (smr.rootBone && smr.bones.Length > 0)
             {
                 Matrix4x4 boneLocalToWorldNoScale =
                     Matrix4x4.TRS(smr.rootBone.position, smr.rootBone.rotation, Vector3.one);
