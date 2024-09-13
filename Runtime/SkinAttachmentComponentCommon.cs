@@ -150,6 +150,8 @@ namespace Unity.DemoTeam.DigitalHuman
                     UpdateBakedData(attachment, allowBakeRefresh);
                 }
 
+                EnsureBakedDataIsLoaded();
+                
                 hasValidState = currentTarget != null && ValidateBakedData();
             }
         }
@@ -320,6 +322,14 @@ namespace Unity.DemoTeam.DigitalHuman
             if (checkSum.isValid && currentStorage != null)
             {
                 currentStorage.LoadAttachmentData(checkSum, out bakedPoses, out bakedItems);
+            }
+        }
+        
+        internal void EnsureBakedDataIsLoaded()
+        {
+            if (bakedPoses == null || bakedItems == null)
+            {
+                LoadBakedData();
             }
         }
 

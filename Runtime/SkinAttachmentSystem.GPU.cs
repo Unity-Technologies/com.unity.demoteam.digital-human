@@ -272,7 +272,8 @@ namespace Unity.DemoTeam.DigitalHuman
 
             //need to apply rootbone transform to skinned vertices when resolving since bakemesh has applied it when attachdata is calculated.
             Matrix4x4 postSkinningToAttachment = Matrix4x4.identity;
-            if (smr.rootBone)
+            
+            if (smr.rootBone && smr.bones.Length > 0) //if there are no bones, assume that the root bone has been baked to the mesh
             {
                 Matrix4x4 boneLocalToWorldNoScale =
                     Matrix4x4.TRS(smr.rootBone.position, smr.rootBone.rotation, Vector3.one);

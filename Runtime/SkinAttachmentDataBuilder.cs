@@ -221,9 +221,19 @@ namespace Unity.DemoTeam.DigitalHuman
                 return;
             }
 
-            ref readonly var baseNormal = ref meshInfo.vertexNormals[targetVertex];
-            ref readonly var baseTangent = ref meshInfo.vertexTangents[targetVertex];
+            var baseNormal = meshInfo.vertexNormals[targetVertex];
+            var baseTangent = meshInfo.vertexTangents[targetVertex];
 
+            if (baseNormal.sqrMagnitude < 0.00001f)
+            {
+                Debug.LogError("Attachment normal is zero!");
+            }
+            
+            if (targetNormal.sqrMagnitude < 0.00001f)
+            {
+                Debug.LogError("Attachment target mesh normal is zero!");
+            }
+            
             var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3) baseTangent * baseTangent.w);
             var baseFrameInv = Quaternion.Inverse(baseFrame);
 
