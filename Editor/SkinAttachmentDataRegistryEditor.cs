@@ -69,13 +69,13 @@ namespace Unity.DemoTeam.DigitalHuman
 		void DrawGuiStorageEntry(SkinAttachmentDataRegistry storage, SkinAttachmentDataRegistry.DataStorageHeader entry)
 		{
 			EditorGUILayout.BeginHorizontal();
+
+			bool missing = entry.reference == null || entry.reference.items == null || entry.reference.poses == null;
+
+			string statusString = missing ? "DATA MISSING OR CORRUPT!" : "";
 			
-			EditorGUILayout.HelpBox(
-				"hash: " + entry.hashKey
-				+ "\nbaked: " + entry.timeStamp
-				+ "\nitemCount:" + entry.itemCount
-				+ "\nposeCount:" + entry.poseCount
-				,MessageType.None);
+			EditorGUILayout.HelpBox($"hash: {entry.hashKey}\nbaked: {entry.timeStamp}\nitemCount:{entry.itemCount}\nposeCount:{entry.poseCount}\n{statusString}"
+				,missing ? MessageType.Error : MessageType.None);
 			if (GUILayout.Button("delete"))
 			{
 				storage.ForceDestroyAttachmentData(entry.hashKey);

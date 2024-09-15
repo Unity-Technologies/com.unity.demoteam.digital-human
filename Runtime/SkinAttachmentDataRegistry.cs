@@ -170,8 +170,10 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		private void Awake()
 		{
+#if UNITY_EDITOR
+			TryToFindMissingReferences();
+#endif
 			EnsureEntryLookup();
-			
 		}
 		
 		public static Hash128 CalculateHash(SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
@@ -198,7 +200,9 @@ namespace Unity.DemoTeam.DigitalHuman
 		
 		private void EnsureEntryLookup()
 		{
-			if (dataStorageLookup == null)
+			int dataEntriesCount = databaseEntries?.Length ?? 0;
+
+			if (dataStorageLookup == null || dataStorageLookup.Count != dataEntriesCount)
 			{
 				dataStorageLookup = new Dictionary<Hash128, DataStorageHeader>();
 				if (databaseEntries != null)
@@ -219,6 +223,39 @@ namespace Unity.DemoTeam.DigitalHuman
 			dataStorageLookup.Remove(hash);
 			RemoveFile(hash);
 			Persist();
+		}
+
+		private void TryToFindMissingReferences()
+		{
+			
+			
+			var folderPath = GetDataFolderPath();
+			if (folderPath == null) return;
+			bool filesFound = false;
+			
+			for (int i = 0; i < databaseEntries?.Length; i++)
+			{
+				if (databaseEntries[i].reference == null ||
+				    databaseEntries[i].reference.poses == null ||
+				    databaseEntries[i].reference.items == null)
+				{
+					var fileName = GetFileName(databaseEntries[i].hashKey);
+					var filePath = Path.Combine(folderPath, fileName);
+
+					var asset = AssetDatabase.LoadAssetAtPath<SkinAttachmentDataEntry>(filePath);
+					if (asset != null)
+					{
+						Debug.Log($"Found missing attachment reference: {filePath}");
+						filesFound = true;
+						databaseEntries[i].reference = asset;
+					}
+				}
+			}
+
+			if (filesFound)
+			{
+				Persist();
+			}
 		}
 		
 		private Hash128 StoreAttachmentDataInternal(SkinAttachmentPose[] poses, SkinAttachmentItem[] items)
@@ -313,6 +350,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			dataEntry.poses = poses;
 			
 			AssetDatabase.CreateAsset(dataEntry, filePath);
+			dataEntry = AssetDatabase.LoadAssetAtPath<SkinAttachmentDataEntry>(filePath);
 
 			return dataEntry;
 		}
