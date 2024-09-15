@@ -286,7 +286,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			}
 		}
 
-		public unsafe void FindNearestForPointsJob(Vector3* targetPositions, int* closestPointIndices, int count, JobHandle jobToWaitFor = default)
+		public unsafe void FindNearestForPointsJob(Vector3* targetPositions, int* closestPointIndices, int count, JobHandle jobToWaitFor = default, int* ignoreMask = null)
 		{
 			fixed(Node* nodesPtr = nodes)
 			fixed (Point3* pointsPtr = points)
@@ -297,6 +297,7 @@ namespace Unity.DemoTeam.DigitalHuman
 					closestPointIndices = closestPointIndices,
 					nodes = nodesPtr,
 					points = pointsPtr,
+					ignoreMask = ignoreMask
 				};
 				job.Schedule(count, 64, jobToWaitFor).Complete();
 			}
@@ -316,7 +317,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		}
 		
 		
-		unsafe static void FindNearest(Node* nodes, Point3* points, ref float bestDist, ref int bestNode, int node, int depth, ref Vector3 target)
+		unsafe static void FindNearest(Node* nodes, Point3* points, ref float bestDist, ref int bestNode, int node, int depth, ref Vector3 target, int* ignoreMask = null)
 		{
 			// update best index
 			int point = nodes[node].point;
@@ -325,8 +326,10 @@ namespace Unity.DemoTeam.DigitalHuman
 			r.y = target.y - points[point].y;
 			r.z = target.z - points[point].z;
 
+			bool ignoreEntry = ignoreMask != null && ignoreMask[point] == 0;
+
 			var dist = r.x * r.x + r.y * r.y + r.z * r.z;
-			if (dist < bestDist)
+			if (dist < bestDist && !ignoreEntry)
 			{
 				bestDist = dist;
 				bestNode = node;
@@ -343,13 +346,13 @@ namespace Unity.DemoTeam.DigitalHuman
 			// search near
 			if (stepN != 0)
 			{
-				FindNearest(nodes, points, ref bestDist, ref bestNode, node + stepN, depth + 1, ref target);
+				FindNearest(nodes, points, ref bestDist, ref bestNode, node + stepN, depth + 1, ref target, ignoreMask);
 			}
 
 			// search far
 			if (stepF != 0 && delta * delta < bestDist)
 			{
-				FindNearest(nodes,  points, ref bestDist, ref bestNode, node + stepF, depth + 1, ref target);
+				FindNearest(nodes,  points, ref bestDist, ref bestNode, node + stepF, depth + 1, ref target, ignoreMask);
 			}
 		}
 
@@ -398,13 +401,15 @@ namespace Unity.DemoTeam.DigitalHuman
 			public Node* nodes;
 			[NativeDisableUnsafePtrRestriction, NoAlias]
 			public Point3* points;
+			[NativeDisableUnsafePtrRestriction, NoAlias]
+			public int* ignoreMask;
 
 			public void Execute(int i)
 			{
 				var bestDist = float.PositiveInfinity;
 				var bestNode = -1;
 
-				FindNearest(nodes, points, ref bestDist, ref bestNode, 0, 0, ref targetPositions[i]);
+				FindNearest(nodes, points, ref bestDist, ref bestNode, 0, 0, ref targetPositions[i], ignoreMask);
 
 				if (bestNode != -1)
 					closestPointIndices[i] = points[nodes[bestNode].point].index;

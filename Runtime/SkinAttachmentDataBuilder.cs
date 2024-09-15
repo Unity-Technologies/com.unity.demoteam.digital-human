@@ -224,22 +224,38 @@ namespace Unity.DemoTeam.DigitalHuman
             var baseNormal = meshInfo.vertexNormals[targetVertex];
             var baseTangent = meshInfo.vertexTangents[targetVertex];
 
+            bool invalidTargetBasis = false;
+            bool invalidSubjectBasis = false;
             if (baseNormal.sqrMagnitude < 0.00001f)
             {
-                Debug.LogError("Attachment normal is zero!");
+                Debug.LogError($"Attachment target normal is zero! Vertex index {targetVertex}");
+                invalidTargetBasis = true;
+            }
+            
+            if (baseTangent.sqrMagnitude < 0.00001f)
+            {
+                Debug.LogError($"Attachment target tangent is zero! Vertex index {targetVertex}");
+                invalidTargetBasis = true;
             }
             
             if (targetNormal.sqrMagnitude < 0.00001f)
             {
-                Debug.LogError("Attachment target mesh normal is zero!");
+                Debug.LogError($"Attachment Mesh normal is zero!");
+                invalidSubjectBasis = true;
             }
             
-            var baseFrame = Quaternion.LookRotation(baseNormal, (Vector3) baseTangent * baseTangent.w);
+            if (targetTangent.sqrMagnitude < 0.00001f)
+            {
+                Debug.LogError($"Attachment Mesh tangent is zero!");
+                invalidSubjectBasis = true;
+            }
+            
+            var baseFrame = invalidTargetBasis ? Quaternion.identity : Quaternion.LookRotation(baseNormal, (Vector3) baseTangent * baseTangent.w);
             var baseFrameInv = Quaternion.Inverse(baseFrame);
 
             if (targetTangent.sqrMagnitude == 0)
                 targetTangent = new Vector4(0, 0, 1, 1);
-            var targetFrame = Quaternion.LookRotation(targetNormal,
+            var targetFrame = invalidSubjectBasis ? Quaternion.identity : Quaternion.LookRotation(targetNormal,
                 (Vector3) targetTangent /* sign is omitted here, added on resolve */);
 
             items[currentItemIndex].poseIndex = currentPoseIndex;
@@ -369,10 +385,24 @@ namespace Unity.DemoTeam.DigitalHuman
                         targetOffsets = targetOffsets.val,
                         subjectToTarget = subjectToTarget
                     };
-
                     var jobToWait = initializeTargetDataJob.Schedule(subjectVertexCount, 64);
-                    meshInfo.meshVertexBSP.FindNearestForPointsJob(targetPositions.val, closestVertexIndices.val,
-                        subjectVertexCount, jobToWait);
+
+                    using (var validEntriesMask = new UnsafeArrayInt(meshInfo.meshBuffers.vertexCount))
+                    {
+                        fixed (Vector3* attachmentTargetNormals = meshInfo.meshBuffers.vertexNormals)
+                        fixed (Vector4* attachmentTargetTangents = meshInfo.meshBuffers.vertexTangents)
+                        {
+                            var h = new GenerateValidEntriesMask()
+                            {
+                                normals = attachmentTargetNormals,
+                                tangents = attachmentTargetTangents,
+                                validEntryMask = validEntriesMask.val
+                            }.Schedule(meshInfo.meshBuffers.vertexCount, 64);
+                            jobToWait = JobHandle.CombineDependencies(jobToWait, h);
+                        }
+                        meshInfo.meshVertexBSP.FindNearestForPointsJob(targetPositions.val, closestVertexIndices.val,
+                            subjectVertexCount, jobToWait, validEntriesMask.val);
+                    }
                 }
 
                 CalculatePoses(ref poses, ref items, meshInfo, settings, subjectVertexCount, targetPositions.val,
@@ -634,6 +664,26 @@ namespace Unity.DemoTeam.DigitalHuman
 
         //Burst jobs
         [BurstCompile(FloatMode = FloatMode.Fast)]
+        unsafe struct GenerateValidEntriesMask : IJobParallelFor
+        {
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector3* normals;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public Vector4* tangents;
+
+            [NativeDisableUnsafePtrRestriction, NoAlias]
+            public int* validEntryMask;
+
+            public void Execute(int i)
+            {
+                int val = (normals[i].sqrMagnitude > 0 && tangents[i].sqrMagnitude > 0) ? 1 : 0;
+                validEntryMask[i] = val;
+            }
+        }
+
+        
+        [BurstCompile(FloatMode = FloatMode.Fast)]
         unsafe struct InitializeTargetDataJob : IJobParallelFor
         {
             [NativeDisableUnsafePtrRestriction, NoAlias]
@@ -747,5 +797,6 @@ namespace Unity.DemoTeam.DigitalHuman
                 
             }
         }
+
     }
 }
