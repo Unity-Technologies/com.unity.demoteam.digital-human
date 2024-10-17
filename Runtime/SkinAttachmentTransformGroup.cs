@@ -275,7 +275,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         public void ReleaseGPUResourcesIfNotUsed(int framesUnused)
         {
-            if (Time.frameCount - lastUsedFrame > framesUnused)
+            if (Time.frameCount - lastUsedFrame > framesUnused || framesUnused < 0)
             {
                 ReleaseGPUResources();
             }
