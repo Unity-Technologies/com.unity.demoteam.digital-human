@@ -124,7 +124,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 #if UNITY_EDITOR
 			Hash128 h = StoreAttachmentDataInternal(poses, items);
-			Persist();
+			SerializeLookupAndPersist();
 			return h;
 #else
 			return default;
@@ -138,7 +138,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			if (dataStorageLookup.TryGetValue(hash, out DataStorageHeader header))
 			{
 				header.referenceCount += 1;
-				Persist();
+				SerializeLookupAndPersist();
 			}
 #endif
 		}
@@ -147,7 +147,7 @@ namespace Unity.DemoTeam.DigitalHuman
 		{
 #if UNITY_EDITOR
 			RemoveAttachmentDataInternal(hash);
-			Persist();
+			SerializeLookupAndPersist();
 #endif
 		}
 		
@@ -222,7 +222,7 @@ namespace Unity.DemoTeam.DigitalHuman
 			EnsureEntryLookup();
 			dataStorageLookup.Remove(hash);
 			RemoveFile(hash);
-			Persist();
+			SerializeLookupAndPersist();
 		}
 
 		private void TryToFindMissingReferences()
@@ -307,14 +307,17 @@ namespace Unity.DemoTeam.DigitalHuman
 
 		
 
-		private void Persist()
+		private void SerializeLookupAndPersist()
 		{
 			databaseEntries = dataStorageLookup.Values.ToArray();
+			Persist();
+		}
 
-			UnityEditor.EditorUtility.SetDirty(this);
-			UnityEditor.AssetDatabase.SaveAssets();
-			UnityEditor.Undo.ClearUndo(this);
-
+		private void Persist()
+		{
+			EditorUtility.SetDirty(this);
+			AssetDatabase.SaveAssets();
+			Undo.ClearUndo(this);
 		}
 
 		static string GetFileName(Hash128 hash)
