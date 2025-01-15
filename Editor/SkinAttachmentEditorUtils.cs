@@ -7,17 +7,15 @@ public static class SkinAttachmentEditorUtils
 {
     public static void DrawGUIAttachmentDataStorage(SerializedProperty common, bool drawPoseDataSource = true)
     {
-        SerializedProperty dataStorage = common.FindPropertyRelative("dataStorage");
+        SerializedProperty dataStorage = common.FindPropertyRelative("currentAttachmentDataStorage");
         SerializedProperty poseDataSource = common.FindPropertyRelative("poseDataSource");
-        SerializedProperty linkedChecksum = common.FindPropertyRelative("linkedChecksum");
+        SerializedProperty referenceStorage = common.FindPropertyRelative("referencePoseDataStorage");
         bool isAttached = common.FindPropertyRelative("attached").boolValue;
-
-        if (dataStorage.objectReferenceValue == null && !dataStorage.serializedObject.isEditingMultipleObjects)
-        {
-            EditorGUILayout.HelpBox("If not datastorage is explicitly defined, the registry will default to: " + SkinAttachmentDataRegistry.GetDefaultRegistryPath(common.serializedObject.targetObject), MessageType.Info);
-            
-        }
-        EditorGUILayout.ObjectField(dataStorage, typeof(SkinAttachmentDataRegistry));
+        
+        var prev = GUI.enabled;
+        GUI.enabled = false;
+        EditorGUILayout.ObjectField(dataStorage, typeof(SkinAttachmentDataStorage));
+        GUI.enabled = true;
         
         if (drawPoseDataSource)
         {
@@ -44,28 +42,7 @@ public static class SkinAttachmentEditorUtils
             }
             else
             {
-                //TODO: remember the last index and maintain the list if this gets too heavy
-                var registry = (SkinAttachmentDataRegistry)dataStorage.objectReferenceValue;
-                if (registry != null)
-                {
-                    Hash128 currentHash = linkedChecksum.hash128Value;
-                    var hashList = registry.GetAllEntries().Select(o => o.hashKey).ToList();
-                    int index = hashList.FindIndex(o => o.Equals(currentHash));
-                    string[] options = hashList.Select(o => o.ToString()).ToArray();
-
-                    index = EditorGUILayout.Popup("Linked Attachment Data", index, options);
-                    if (index != -1)
-                    {
-                        linkedChecksum.hash128Value = hashList[index];
-                    }
-                }
-                else
-                {
-                    EditorGUILayout.HelpBox("Assign Skin Attachment registry to select linked entry!",
-                        MessageType.Warning);
-                }
-                
-
+                EditorGUILayout.ObjectField(referenceStorage, typeof(SkinAttachmentDataStorage));
             }
         }
         

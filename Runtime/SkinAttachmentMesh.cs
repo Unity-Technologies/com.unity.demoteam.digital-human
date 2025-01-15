@@ -48,10 +48,10 @@ namespace Unity.DemoTeam.DigitalHuman
             set => common.explicitBakeMesh = value;
         }
 
-        public SkinAttachmentDataRegistry DataStorage
+        public SkinAttachmentDataStorage DataStorage
         {
-            get => common.dataStorage;
-            set => common.dataStorage = value;
+            get => common.currentAttachmentDataStorage;
+            set => common.currentAttachmentDataStorage = value;
         }
 
         public SkinAttachmentComponentCommon.SchedulingMode SchedulingMode

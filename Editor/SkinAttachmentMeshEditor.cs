@@ -29,7 +29,7 @@ namespace Unity.DemoTeam.DigitalHuman
 				if (attachment == null)
 					return;
 				
-				if (attachment.common.dataStorage != null)
+				if (attachment.common.currentAttachmentDataStorage != null)
 				{
 					EditorGUILayout.HelpBox(attachment.IsAttached ? "Currently attached to " + attachment.common.attachmentTarget + "\nData storage hash: " + attachment.common.CheckSum : "Currently detached.", MessageType.Info);
 				}

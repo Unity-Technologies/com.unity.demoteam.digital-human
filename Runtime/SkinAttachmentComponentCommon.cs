@@ -22,7 +22,7 @@ namespace Unity.DemoTeam.DigitalHuman
         public enum PoseDataSource
         {
             BuildPoses,
-            LinkPosesByChecksum,
+            ReferencePoses
         }
         
         public enum SchedulingMode
@@ -31,7 +31,7 @@ namespace Unity.DemoTeam.DigitalHuman
             GPU
         }
 
-        public  class PoseBakeOutput
+        public class PoseBakeOutput
         { 
             public SkinAttachmentPose[] poses;
             public SkinAttachmentItem[] items;
@@ -52,14 +52,14 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 
         public Renderer attachmentTarget;
-        public SkinAttachmentDataRegistry dataStorage;
+        [FormerlySerializedAs("dataStorage")] public SkinAttachmentDataRegistry dataStorage_DEPRECATED_;
         public SchedulingMode schedulingMode = SchedulingMode.GPU;
         public PoseDataSource poseDataSource = PoseDataSource.BuildPoses;
-        public Hash128 linkedChecksum;
+        [VisibleIfAttribute("poseDataSource", PoseDataSource.ReferencePoses)]
+        public SkinAttachmentDataStorage referencePoseDataStorage;
         public bool explicitScheduling = false;
         public Mesh explicitBakeMesh = null;
         public bool readbackTargetMeshWhenBaking = true;
-        public string bakedDataEntryName;
 
         public bool IsAttached => attached;
         public Hash128 CheckSum => checkSum;
@@ -71,7 +71,8 @@ namespace Unity.DemoTeam.DigitalHuman
         [SerializeField] [HideInInspector] internal Quaternion attachedLocalRotation;
         [SerializeField] [HideInInspector] internal Hash128 checkSum;
         [SerializeField] [HideInInspector] internal PoseDataSource currentPoseDataSource;
-        [SerializeField] [HideInInspector] internal SkinAttachmentDataRegistry currentStorage;
+        [FormerlySerializedAs("currentStorage")] [SerializeField] [HideInInspector] internal SkinAttachmentDataRegistry currentStorage_DEPRECATED_;
+        [SerializeField] [HideInInspector] public SkinAttachmentDataStorage currentAttachmentDataStorage;
         [SerializeField] [HideInInspector] internal Renderer currentTarget;
         
         internal SkinAttachmentPose[] bakedPoses;
@@ -102,9 +103,10 @@ namespace Unity.DemoTeam.DigitalHuman
 
             attached = false;
             currentTarget = null;
-            if (dataStorage)
+            if (currentAttachmentDataStorage)
             {
-                dataStorage.ReleaseAttachmentData(checkSum);
+                currentAttachmentDataStorage.Release();
+                currentAttachmentDataStorage = null;
                 checkSum = default;
             }
         }
@@ -143,22 +145,10 @@ namespace Unity.DemoTeam.DigitalHuman
                     return;
                 }
                 
-                ValidateDataStorage(attachment, allowBakeRefresh);
-
-                if (currentStorage != null)
-                {
-                    UpdateBakedData(attachment, allowBakeRefresh);
-                }
-
-                EnsureBakedDataIsLoaded();
-                
+                UpdateBakedData(attachment, allowBakeRefresh);
+                EnsureBakedDataIsLoaded(attachment);
                 hasValidState = currentTarget != null && ValidateBakedData();
             }
-        }
-
-        public bool HasDataStorageChanged()
-        {
-            return currentStorage != dataStorage;
         }
         
         public bool BakeAttachmentDataToSceneOrPrefab(MonoBehaviour attachment)
@@ -208,7 +198,6 @@ namespace Unity.DemoTeam.DigitalHuman
                 attachmentComponentInterfacePrefab.GetCommonComponent().BakeAttachmentData(prefabAttachment);
             }
             
-
             if (prefabContainer != null)
             {
                 PrefabUtility.SaveAsPrefabAsset(prefabContainer, prefabPath);
@@ -250,85 +239,73 @@ namespace Unity.DemoTeam.DigitalHuman
                     }
                 }
             } 
-            else if (currentPoseDataSource == PoseDataSource.LinkPosesByChecksum)
+            else if (currentPoseDataSource == PoseDataSource.ReferencePoses)
             {
-                if (linkedChecksum != checkSum || currentTarget == null)
+                if (currentAttachmentDataStorage == null)
                 {
-                    if (linkedChecksum.isValid)
+                    if (referencePoseDataStorage != null)
                     {
-                        checkSum = linkedChecksum;
+                        checkSum = referencePoseDataStorage.hashKey;
+                        currentAttachmentDataStorage = referencePoseDataStorage;
                         currentTarget = attachmentTarget;
                         LoadBakedData();
-                        currentStorage.UseAttachmentData(checkSum);
+                        currentAttachmentDataStorage.AddRef();
                     }
                     
                 }
             }
         }
 
-        internal void ValidateDataStorage(MonoBehaviour attachment, bool allowUsingDefault)
-        {
-            
-            if (currentStorage != null && currentStorage != dataStorage || currentPoseDataSource != poseDataSource)
-            {
-                Detach(attachment);
-                checkSum = default;
-                currentStorage = null;
-            }
-
-            if (allowUsingDefault && dataStorage == null)
-            {
-                dataStorage = SkinAttachmentDataRegistry.GetOrCreateDefaultSkinAttachmentRegistry(attachment);
-            }
-
-            currentPoseDataSource = poseDataSource;
-            currentStorage = dataStorage;
-        }
-
         internal void StoreBakedData(MonoBehaviour attachment, SkinAttachmentItem[] items, SkinAttachmentPose[] poses)
         {
-            if (currentStorage != null)
+            Hash128 newHash = SkinAttachmentDataStorage.CalculateHash(poses, items);
+            
+            if (newHash == checkSum && checkSum.isValid && currentAttachmentDataStorage != null && currentAttachmentDataStorage.hashKey == newHash) return;
+            
+            var storage = SkinAttachmentDataStorage.GetOrCreateDefaultDataStorage(attachment, newHash);
+            if (storage != currentAttachmentDataStorage && currentAttachmentDataStorage != null)
             {
-
-                string name = bakedDataEntryName;
-                if (name == null)
-                {
-                    name = attachment != null ? attachment.name : "<unnamed>";
-                }
-
-                Hash128 newHash = SkinAttachmentDataRegistry.CalculateHash(poses, items);
-
-                if (newHash == checkSum && checkSum.isValid) return;
-                
-                if (checkSum.isValid)
-                {
-                    currentStorage.ReleaseAttachmentData(checkSum);
-                }
-
-                checkSum = currentStorage.UseAttachmentData(poses, items);
-                
-
-#if UNITY_EDITOR
-                UnityEditor.EditorUtility.SetDirty(attachment);
-                UnityEditor.Undo.ClearUndo(attachment);
-#endif
-                
-                LoadBakedData();
+                currentAttachmentDataStorage.Release();
             }
+
+            currentAttachmentDataStorage = storage;
+
+            if (currentAttachmentDataStorage != null)
+            {
+                storage.StoreAttachmentData(newHash, poses, items);
+                storage.Persist();
+            }
+            
+            checkSum = newHash;
+            
+#if UNITY_EDITOR
+            EditorUtility.SetDirty(attachment);
+            Undo.ClearUndo(attachment);
+#endif
+            LoadBakedData();
         }
 
+        internal void TryToFindAttachmentStorage(MonoBehaviour attachment)
+        {
+            if (!checkSum.isValid) return;
+            currentAttachmentDataStorage = SkinAttachmentDataStorage.TryGetDefaultDataStorage(attachment, checkSum);
+        }
         internal void LoadBakedData()
         {
-            if (checkSum.isValid && currentStorage != null)
+            if (checkSum.isValid && currentAttachmentDataStorage != null)
             {
-                currentStorage.LoadAttachmentData(checkSum, out bakedPoses, out bakedItems);
+                currentAttachmentDataStorage.LoadAttachmentData(checkSum, out bakedPoses, out bakedItems);
             }
         }
         
-        internal void EnsureBakedDataIsLoaded()
+        internal void EnsureBakedDataIsLoaded(MonoBehaviour attachment)
         {
             if (bakedPoses == null || bakedItems == null)
             {
+                if (currentAttachmentDataStorage == null)
+                {
+                    TryToFindAttachmentStorage(attachment);
+                }
                 LoadBakedData();
             }
         }
@@ -336,7 +313,7 @@ namespace Unity.DemoTeam.DigitalHuman
 
         internal bool ValidateBakedData()
         {
-            bool dataExists = currentStorage != null && bakedPoses != null && bakedItems != null && bakedPoses.Length > 0 && bakedItems.Length > 0;
+            bool dataExists = currentAttachmentDataStorage != null && bakedPoses != null && bakedItems != null && bakedPoses.Length > 0 && bakedItems.Length > 0;
             return dataExists;
         }
 #if UNITY_EDITOR
