@@ -52,7 +52,6 @@ namespace Unity.DemoTeam.DigitalHuman
         }
 
         public Renderer attachmentTarget;
-        [FormerlySerializedAs("dataStorage")] public SkinAttachmentDataRegistry dataStorage_DEPRECATED_;
         public SchedulingMode schedulingMode = SchedulingMode.GPU;
         public PoseDataSource poseDataSource = PoseDataSource.BuildPoses;
         [VisibleIfAttribute("poseDataSource", PoseDataSource.ReferencePoses)]
@@ -71,7 +70,6 @@ namespace Unity.DemoTeam.DigitalHuman
         [SerializeField] [HideInInspector] internal Quaternion attachedLocalRotation;
         [SerializeField] [HideInInspector] internal Hash128 checkSum;
         [SerializeField] [HideInInspector] internal PoseDataSource currentPoseDataSource;
-        [FormerlySerializedAs("currentStorage")] [SerializeField] [HideInInspector] internal SkinAttachmentDataRegistry currentStorage_DEPRECATED_;
         [SerializeField] [HideInInspector] public SkinAttachmentDataStorage currentAttachmentDataStorage;
         [SerializeField] [HideInInspector] internal Renderer currentTarget;
         
@@ -146,6 +144,7 @@ namespace Unity.DemoTeam.DigitalHuman
                 }
                 
                 UpdateBakedData(attachment, allowBakeRefresh);
+                EnsureBakedDataStorageIsValid(attachment);
                 EnsureBakedDataIsLoaded(attachment);
                 hasValidState = currentTarget != null && ValidateBakedData();
             }
@@ -298,14 +297,18 @@ namespace Unity.DemoTeam.DigitalHuman
             }
         }
         
+        internal void EnsureBakedDataStorageIsValid(MonoBehaviour attachment)
+        {
+            if (currentAttachmentDataStorage == null)
+            {
+                TryToFindAttachmentStorage(attachment);
+            }
+        }
+        
         internal void EnsureBakedDataIsLoaded(MonoBehaviour attachment)
         {
             if (bakedPoses == null || bakedItems == null)
             {
-                if (currentAttachmentDataStorage == null)
-                {
-                    TryToFindAttachmentStorage(attachment);
-                }
                 LoadBakedData();
             }
         }
